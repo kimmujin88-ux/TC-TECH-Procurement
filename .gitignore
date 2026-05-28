@@ -1,0 +1,18 @@
+# 환경변수 (절대 GitHub에 올리면 안 됨 - DB 비밀번호, API 키)
+.env
+.env.local
+.env.production
+
+# Node.js 패키지 (용량이 커서 제외 - npm install로 재설치 가능)
+node_modules/
+
+# 로그 파일
+*.log
+npm-debug.log*
+
+# 운영체제 자동 생성 파일
+.DS_Store
+Thumbs.db
+
+# VS Code 설정 (선택적)
+.vscode/

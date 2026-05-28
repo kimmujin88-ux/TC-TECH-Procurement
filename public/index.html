@@ -1,0 +1,3044 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TC TECH 구매품 발주·재고 관리 시스템</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #05070A;
+  --bg-card: #0B1020;
+  --bg-card2: #12192B;
+  --border: #1A2236;
+  --border2: #232D48;
+  --t1: #F1F5F9;
+  --t2: #94A3B8;
+  --t3: #64748B;
+  --proc-txt: #B0BECF;
+  --teal: #38C9A0;
+  --teal-d: #061410;
+  --teal-b: #1A4030;
+  --sky: #60AADC;
+  --sky-d: #08121E;
+  --sky-b: #1B2D45;
+  --red: #E06060;
+  --red-d: #140808;
+  --red-b: #3A1818;
+  --amb: #E8A030;
+  --amb-d: #120A02;
+  --amb-b: #3A2808;
+  --purple: #A78BFA;
+  --purple-d: #0F0820;
+  --purple-b: #2A1A50;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --sans: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+
+html, body {
+  background: var(--bg);
+  min-height: 100vh;
+  font-family: var(--sans);
+  color: var(--t1);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+/* 양식 탭 활성 시: 페이지 자체 스크롤 차단, form-wrap만 스크롤 */
+body.tab-form-active { overflow: hidden; height: 100vh; }
+body.tab-form-active main { height: calc(100vh - 105px); overflow: hidden; }
+
+/* ───── HEADER ───── */
+.app-header {
+  background: var(--bg-card);
+  border-bottom: 0.5px solid var(--border2);
+  position: sticky; top: 0; z-index: 100;
+}
+.app-header__inner {
+  max-width: 1920px; margin: 0 auto;
+  padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand__mark {
+  width: 32px; height: 32px;
+  background: var(--sky); color: white;
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 11px;
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+}
+.brand__name { font-size: 14px; font-weight: 600; color: #fff; letter-spacing: 0.3px; }
+.brand__sub { font-size: 11px; color: var(--t3); margin-top: 2px; }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.save-indicator {
+  font-size: 11px; color: var(--t3);
+  display: flex; align-items: center; gap: 5px;
+}
+.save-indicator--saved { color: var(--teal); }
+.save-indicator__dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--t3);
+}
+.save-indicator--saved .save-indicator__dot {
+  background: var(--teal);
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1 } 50% { opacity: 0.2 } }
+
+/* ───── TABS ───── */
+.tabs {
+  background: var(--bg-card);
+  border-bottom: 0.5px solid var(--border2);
+  position: sticky; top: 60px; z-index: 99;
+}
+.tabs__inner {
+  max-width: 1920px; margin: 0 auto;
+  padding: 0 24px;
+  display: flex; gap: 0;
+  align-items: center;
+}
+.tab {
+  border: none; background: none;
+  padding: 12px 0; margin-right: 28px;
+  cursor: pointer;
+  font-family: var(--sans); font-size: 12px;
+  color: var(--t2); font-weight: 600;
+  position: relative;
+  letter-spacing: 0.2px;
+  transition: color 0.15s;
+}
+.tab:hover { color: var(--t1); }
+.tab--active { color: #fff; }
+.tab--active::after {
+  content: ''; position: absolute;
+  bottom: -1px; left: 0; right: 0;
+  height: 2px; background: var(--sky);
+}
+.tab__count {
+  font-family: var(--mono); font-size: 10px;
+  background: var(--bg-card2); border: 0.5px solid var(--border2);
+  padding: 2px 7px; margin-left: 8px;
+  border-radius: 20px;
+  color: var(--t2); font-weight: 600;
+  vertical-align: middle;
+}
+.tab__count--alert {
+  background: var(--red-d); color: var(--red); border-color: var(--red-b);
+}
+
+/* ───── LAYOUT ───── */
+main {
+  max-width: 1920px; margin: 0 auto;
+  padding: 20px 24px;
+}
+.panel { display: none; }
+.panel--active { display: block; }
+
+.section-title {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.section-title__label {
+  font-size: 13px; font-weight: 700; color: #fff;
+  letter-spacing: 0.3px;
+}
+.section-title__hint {
+  font-size: 11px; color: var(--t3);
+}
+
+/* ───── BUTTONS ───── */
+.btn {
+  font-family: var(--sans);
+  font-size: 11px; font-weight: 600;
+  padding: 6px 12px;
+  border: none;
+  background: var(--sky); color: #fff;
+  cursor: pointer; border-radius: 6px;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn--ghost {
+  background: var(--bg-card2);
+  color: var(--t1);
+  border: 0.5px solid var(--border2);
+}
+.btn--ghost:hover { background: var(--border); opacity: 1; }
+.btn--sm { padding: 5px 10px; font-size: 11px; }
+.btn--teal { background: var(--teal); }
+
+/* ───── FILTERS ───── */
+.filters {
+  display: flex; gap: 10px; align-items: flex-end;
+  flex-wrap: wrap; margin-bottom: 14px;
+  background: var(--bg-card);
+  border: 0.5px solid var(--border2);
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-label {
+  font-size: 10px;
+  color: var(--t3); font-weight: 600;
+  letter-spacing: 0.4px; text-transform: uppercase;
+}
+.filter-input, .filter-select {
+  font-family: var(--sans); font-size: 12px;
+  padding: 6px 10px;
+  background: var(--bg-card2);
+  border: 0.5px solid var(--border2);
+  color: var(--t1);
+  min-width: 130px;
+  border-radius: 6px;
+  outline: none;
+}
+.filter-input { min-width: 240px; }
+.filter-input:focus, .filter-select:focus { border-color: var(--sky); }
+.filter-input::placeholder { color: var(--t3); }
+.filter-spacer { flex: 1; }
+.btn-reset {
+  background: var(--bg-card2);
+  border: 0.5px solid var(--border2);
+  padding: 6px 12px; font-size: 11px;
+  cursor: pointer;
+  color: var(--t2);
+  border-radius: 6px;
+  font-family: var(--sans); font-weight: 500;
+}
+.btn-reset:hover { color: #fff; background: var(--border); }
+
+/* ───── FORM TABLE (메인) ───── */
+.form-wrap {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border2);
+  border-radius: 10px;
+  overflow: auto;
+  height: calc(100vh - 220px);
+  position: relative;
+  scrollbar-gutter: stable;
+}
+/* tbody 마지막 여유 행 */
+.spacer-row td {
+  height: 80px;
+  background: var(--bg-card);
+  border: none !important;
+}
+.form-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 11.5px;
+  color: var(--t1);
+}
+
+/* 2단 헤더 - form-wrap 상단에 sticky (불투명 배경 필수) */
+.form-table thead th {
+  background: var(--bg-card2);
+  border-right: 0.5px solid var(--border);
+  white-space: nowrap;
+  vertical-align: middle;
+  text-align: center;
+  color: var(--t2);
+  font-weight: 600;
+  position: sticky;
+  z-index: 50;
+}
+/* 1행 (월 그룹 헤더: 2026년 5월/6월/7월/8월) */
+.form-table thead tr.h-row1 th {
+  top: 0;
+  height: 36px;
+  padding: 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  line-height: 1.4;
+  border-bottom: 0.5px solid var(--border2);
+}
+/* 좌측 6칸 - rowspan=2로 두 행 모두 차지, top: 0 sticky */
+.form-table thead th.h-merged {
+  top: 0;
+  height: 72px;
+  vertical-align: middle;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  border-bottom: 1px solid var(--border2);
+}
+/* 2행 (세부 컬럼: 제작대수/필요수량/입고계획량/기말재고량) */
+.form-table thead tr.h-row2 th {
+  top: 36px;
+  height: 36px;
+  padding: 0 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.2px;
+  color: var(--t3);
+  border-bottom: 1px solid var(--border2);
+  vertical-align: middle;
+}
+/* 월별 1행 그룹 헤더 - 불투명 컬러 */
+.form-table thead th.month-may-h.h-group { background: #1F3550; color: var(--sky); font-size: 12px; font-weight: 700; }
+.form-table thead th.month-jun-h.h-group { background: #3A2D1A; color: var(--amb); font-size: 12px; font-weight: 700; }
+.form-table thead th.month-jul-h.h-group { background: #1A3A30; color: var(--teal); font-size: 12px; font-weight: 700; }
+.form-table thead th.month-aug-h.h-group { background: #2A1F4A; color: var(--purple); font-size: 12px; font-weight: 700; }
+/* 월별 2행 세부 헤더 - 그룹과 같은 톤 (불투명, 약간 어둡게) */
+.form-table thead th.month-may-h.h-sub { background: #18283C; color: var(--sky); }
+.form-table thead th.month-jun-h.h-sub { background: #2C2316; color: var(--amb); }
+.form-table thead th.month-jul-h.h-sub { background: #142C25; color: var(--teal); }
+.form-table thead th.month-aug-h.h-sub { background: #211838; color: var(--purple); }
+.form-table thead th.month-divider { border-left: 1px solid var(--border2); }
+.form-table tbody td.month-start { border-left: 1px solid var(--border2); }
+
+/* 월별 데이터 셀 배경 (옅게) */
+.month-may-bg { background: rgba(96, 170, 220, 0.05); }
+.month-jun-bg { background: rgba(232, 160, 48, 0.05); }
+.month-jul-bg { background: rgba(56, 201, 160, 0.05); }
+.month-aug-bg { background: rgba(167, 139, 250, 0.05); }
+
+.form-table tbody td {
+  padding: 7px 6px;
+  border-bottom: 0.5px solid var(--border);
+  border-right: 0.5px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+  color: var(--t1);
+}
+
+/* 단가·LT·MOQ 안내 텍스트 - 가독성 향상 */
+.cell-detail {
+  color: var(--t2);
+  font-size: 10.5px;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+.form-table tbody tr.item-row:hover td { background: var(--bg-card2); }
+.form-table tbody tr.item-row:hover td.sticky-col { background: var(--bg-card2); }
+
+/* 모델 그룹 상단 구분선: 모델이 바뀔 때마다 시각적으로 구분 */
+.item-row[data-first="1"] td {
+  border-top: 2px solid var(--border2);
+}
+
+/* Sticky columns */
+.sticky-col {
+  position: sticky; left: 0;
+  background: var(--bg-card); z-index: 20;
+}
+.sticky-col-0 { left: 0; min-width: 65px; max-width: 70px; }
+.sticky-col-1 { left: 65px; min-width: 100px; max-width: 110px; }
+.sticky-col-2 { left: 165px; min-width: 85px; max-width: 90px; border-right: 0.5px solid var(--border2); }
+.sticky-col-3 { left: 250px; min-width: 220px; max-width: 250px; }
+.sticky-col-4 { left: 470px; min-width: 95px; max-width: 110px; border-right: 0.5px solid var(--border2) !important; }
+.form-table thead .sticky-col { z-index: 60 !important; background: var(--bg-card2); }
+/* Point 1: 4월말 현물재고 및 주요 숫자 중앙 정렬 */
+.cell-num--start { text-align: center !important; }
+
+.cell-pn { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--t1); }
+.cell-name { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; color: var(--t1); }
+.cell-meta { font-size: 10px; color: var(--t3); font-family: var(--mono); }
+.cell-num, .mcnt {
+  font-family: var(--mono); font-size: 11px; 
+  text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--t1);
+}
+.cell-num--readonly { color: var(--t2); background: rgba(255,255,255,0.02); }
+.cell-num--alert { 
+  background: rgba(224, 96, 96, 0.18) !important; 
+  color: var(--red) !important; 
+  font-weight: 700;
+}
+.cell-num--start { 
+  background: rgba(255,255,255,0.03); 
+  color: var(--t1); font-weight: 600;
+}
+.model-header-input {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  padding: 7px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border2);
+  color: #fff;
+  text-align: center;
+  border-radius: 4px;
+  width: 100%;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.model-header-input:hover { border-color: var(--sky); }
+.model-header-input:focus { border-color: var(--sky); background: var(--sky-d); }
+.cell-num--mirrored {
+  color: var(--t2);
+}
+/* 그룹 전체에 병합된 제작대수 셀 - 세로 중앙 정렬, 진한 폰트 */
+.cell-num--qty-merged {
+  vertical-align: middle;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--t1);
+  text-align: center !important;
+  background: rgba(255, 255, 255, 0.04);
+  border-right: 0.5px solid var(--border2) !important;
+}
+/* 그룹 전체에 병합된 모델 셀 - 세로 중앙 정렬, 진한 폰트 */
+.cell-model-merged {
+  vertical-align: middle;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--t1);
+  background: var(--bg-card);
+  padding: 8px 10px !important;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.form-input {
+  font-family: var(--mono); font-size: 11px;
+  padding: 5px 6px; width: 100%;
+  text-align: right;
+  border: 0.5px solid transparent;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--t1);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.form-input:hover { background: var(--bg-card2); border-color: var(--border2); }
+.form-input:focus {
+  background: var(--bg-card2);
+  border-color: var(--sky); 
+  box-shadow: 0 0 0 2px rgba(96,170,220,0.15);
+}
+/* 월별 데이터 셀 - 4개 모두 동일한 너비로 강제 (제작/필요/입고/기말) */
+.form-table .month-may-bg,
+.form-table .month-jun-bg,
+.form-table .month-jul-bg,
+.form-table .month-aug-bg {
+  width: 68px; 
+  min-width: 68px;
+  max-width: 68px;
+  box-sizing: border-box;
+}
+/* 월별 헤더도 동일 너비 */
+.form-table thead th.month-may-h.h-sub,
+.form-table thead th.month-jun-h.h-sub,
+.form-table thead th.month-jul-h.h-sub,
+.form-table thead th.month-aug-h.h-sub {
+  width: 68px;
+  min-width: 68px;
+  max-width: 68px;
+  box-sizing: border-box;
+}
+td.has-input { padding: 0; }
+td.has-input .form-input { padding: 7px 6px; border-radius: 0; box-sizing: border-box; } /* 입력 필드의 패딩은 유지 */
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
+/* ───── KPI / CARDS ───── */
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 10px; margin-bottom: 20px;
+}
+.kpi {
+  background: var(--bg-card);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border2);
+  position: relative;
+}
+.kpi--sky { background: var(--sky-d); border-color: #2A6090; }
+.kpi--red { background: var(--red-d); border-color: #7A2828; }
+.kpi--teal { background: var(--teal-d); border-color: #1E6850; }
+.kpi--amb { background: var(--amb-d); border-color: #6A4810; }
+
+.kpi__label {
+  font-size: 12px; font-weight: 600;
+  color: #fff; opacity: 0.8;
+  margin-bottom: 6px; line-height: 1.4;
+}
+.kpi__value {
+  font-size: 34px; font-weight: 700;
+  color: #fff; line-height: 1.1;
+  letter-spacing: -0.5px;
+  font-family: var(--mono);
+}
+.kpi__value--red { color: var(--red); }
+.kpi__unit {
+  font-size: 13px; font-weight: 500;
+  color: #fff; opacity: 0.7;
+  margin-left: 3px;
+  font-family: var(--sans);
+}
+.kpi__delta {
+  font-size: 10px; color: var(--proc-txt);
+  margin-top: 6px; opacity: 0.85;
+  font-family: var(--mono);
+}
+.kpi__delta--alert { color: var(--red); opacity: 1; }
+.kpi__delta--good { color: var(--teal); opacity: 1; }
+.kpi__corner {
+  position: absolute; top: 10px; right: 12px;
+  font-family: var(--mono); font-size: 9px;
+  color: var(--t3);
+}
+
+.card {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border2);
+  border-radius: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.card__head {
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card__title { font-size: 12px; font-weight: 700; color: #fff; }
+.card__hint { font-size: 10px; color: var(--t3); font-family: var(--mono); }
+.card__body { padding: 14px 16px; }
+.card__body--flush { padding: 0; }
+
+.dash-grid {
+  display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px;
+}
+
+.chart-row {
+  display: grid; grid-template-columns: 110px 1fr 80px;
+  gap: 10px; align-items: center; padding: 5px 0;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-radius: 4px;
+}
+.chart-row:hover { background: rgba(255,255,255,0.05); }
+.chart-row__label { color: var(--proc-txt); font-size: 11px; font-weight: 500; }
+.chart-track { position: relative; height: 14px; background: var(--border); border-radius: 3px; }
+.chart-fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--sky); border-radius: 3px; }
+.chart-fill--alt { background: var(--teal); opacity: 0.7; }
+.chart-val { font-family: var(--mono); font-size: 10.5px; text-align: right; color: var(--t2); }
+.chart-legend { display: flex; gap: 14px; font-size: 10px; color: var(--t3); margin-top: 10px; }
+.chart-legend__item { display: flex; align-items: center; gap: 5px; }
+.chart-legend__sw { width: 9px; height: 9px; display: inline-block; border-radius: 2px; }
+
+.alert-list { list-style: none; }
+.alert-item {
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--border);
+  display: grid; grid-template-columns: 3px 1fr auto;
+  gap: 12px; align-items: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.alert-item:hover { background: rgba(255, 255, 255, 0.04); }
+.alert-item--danger:hover .alert-item__marker { box-shadow: 0 0 12px var(--red); filter: brightness(1.2); }
+.alert-item--warn:hover .alert-item__marker { box-shadow: 0 0 12px var(--amb); filter: brightness(1.2); }
+.alert-item:last-child { border-bottom: none; }
+.alert-item__marker { align-self: stretch; border-radius: 2px; }
+.alert-item--danger .alert-item__marker { background: var(--red); }
+.alert-item--warn .alert-item__marker { background: var(--amb); }
+.alert-item__title { font-size: 11.5px; font-weight: 500; color: var(--t1); }
+.alert-item__title strong { font-family: var(--mono); font-weight: 600; margin-right: 6px; color: #fff; }
+.alert-item__meta { font-size: 10px; color: var(--t3); margin-top: 3px; }
+.alert-item__value {
+  font-family: var(--mono); font-size: 13px;
+  font-weight: 700; text-align: right; color: #fff;
+}
+.alert-item__value--danger { color: var(--red); }
+.alert-item__value-sub { font-size: 9px; color: var(--t3); margin-top: 2px; }
+
+.badge {
+  display: inline-block; font-size: 10px;
+  padding: 2px 8px; border: 1.5px solid; font-weight: 700;
+  font-family: var(--sans); text-transform: uppercase;
+  letter-spacing: 0.5px; border-radius: 4px;
+  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+}
+.badge--danger { color: #ff5252; border-color: #ff5252; background: rgba(255, 82, 82, 0.15); }
+.badge--warn { color: #fbbf24; border-color: #fbbf24; background: rgba(251, 191, 36, 0.15); }
+.badge--safe { color: #4ade80; border-color: #4ade80; background: rgba(74, 222, 128, 0.15); box-shadow: 0 0 10px rgba(74, 222, 128, 0.2); }
+.badge--info { color: #38bdf8; border-color: #38bdf8; background: rgba(56, 189, 248, 0.15); box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+.badge--neutral { color: #94a3b8; border-color: #475569; background: rgba(148, 163, 184, 0.05); }
+
+.supplier-group {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border2);
+  border-radius: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.supplier-group--import { border-left: 4px solid #38bdf8; }
+.supplier-group--import .supplier-group__head { background: #08121E; }
+.supplier-group__head {
+  padding: 12px 16px;
+  background: var(--bg-card2);
+  border-bottom: 0.5px solid var(--border2);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.supplier-name { font-weight: 700; font-size: 14px; color: #fff; }
+.supplier-meta { font-size: 10px; color: var(--t3); font-family: var(--mono); margin-top: 2px; }
+.supplier-total { font-family: var(--mono); font-weight: 700; color: var(--teal); font-size: 13px; }
+
+.order-table { 
+  width: 100%; 
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.order-table col.col-marker { width: 90px; }
+.order-table col.col-del { width: 40px; }
+.order-table col.col-pn { width: 110px; }
+.order-table col.col-name { width: auto; }
+.order-table col.col-qpu { width: 70px; }
+.order-table col.col-qty { width: 110px; }
+.order-table col.col-price { width: 110px; }
+.order-table col.col-amt { width: 130px; }
+.order-table th {
+  background: var(--bg-card2);
+  font-size: 10px; padding: 8px 10px;
+  border-bottom: 0.5px solid var(--border);
+  text-align: left; text-transform: uppercase;
+  letter-spacing: 0.3px; color: var(--t3); font-weight: 600; white-space: nowrap;
+}
+.order-table td {
+  padding: 10px; border-bottom: 0.5px solid var(--border);
+  font-size: 11.5px; color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.order-table tr:last-child td { border-bottom: none; }
+.order-table tr:hover td { background: rgba(255,255,255,0.02); }
+.order-table .btn-order-del { color: var(--red); background: none; border: none; cursor: pointer; font-size: 14px; opacity: 0.6; }
+.order-table .btn-order-del:hover { opacity: 1; }
+.order-table .col-num { text-align: right; font-family: var(--mono); }
+.order-table th.col-num { font-family: var(--sans); }
+
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200; padding: 24px;
+}
+.modal-backdrop--open { display: flex; }
+.modal {
+  background: var(--bg-card);
+  border: 0.5px solid var(--border2);
+  border-radius: 12px;
+  width: 100%; max-width: 760px;
+  max-height: 85vh; display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+}
+.modal--wide { max-width: 1100px !important; }
+.modal__head {
+  padding: 14px 18px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal__title { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.3px; }
+.modal__close {
+  background: none; border: none; cursor: pointer;
+  font-size: 22px; color: var(--t3); line-height: 1; padding: 0 6px;
+}
+.modal__close:hover { color: #fff; }
+.modal__body { padding: 20px; overflow-y: auto; flex: 1; background: var(--bg); }
+.modal__foot {
+  padding: 12px 18px;
+  border-top: 0.5px solid var(--border);
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
+/* PO Form - 인쇄용은 라이트 톤 유지 */
+.po-form { 
+  font-family: var(--sans); 
+  font-size: 12px; color: #1a1a1a;
+  background: white; padding: 20px;
+  border-radius: 6px;
+}
+.po-title {
+  text-align: center;
+  font-size: 18px; font-weight: 700;
+  padding: 14px; margin-bottom: 16px;
+  border: 2px solid #1a1a1a; color: #1a1a1a;
+}
+.po-info-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-bottom: 16px;
+}
+.po-info-block { border: 1px solid #999; }
+.po-info-head {
+  background: #1a1a1a; color: white;
+  padding: 6px 12px; font-weight: 700; font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.po-info-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.po-info-table th, .po-info-table td {
+  padding: 5px 8px; border: 1px solid #ddd; vertical-align: middle;
+}
+.po-info-table th {
+  background: #f0f0f0; font-weight: 600;
+  text-align: left; width: 80px; color: #444;
+}
+.po-info-table td { background: white; color: #1a1a1a; }
+.po-date-input {
+  font-family: var(--mono); font-size: 11px;
+  padding: 2px 4px; border: 1px solid #ccc;
+  background: white; color: #1a1a1a;
+  width: 100%; box-sizing: border-box;
+}
+.po-section-head {
+  font-size: 12px; font-weight: 700;
+  padding: 8px 12px; margin-bottom: 0;
+  background: #f0f0f0; color: #1a1a1a;
+  border: 1px solid #999; border-bottom: none;
+}
+.po-items-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 11px; border: 1px solid #999;
+  color: #1a1a1a;
+}
+.po-items-table thead th {
+  background: #1a1a1a; color: white;
+  padding: 7px 10px; font-weight: 600;
+  font-size: 11px; text-align: left;
+  border: 1px solid #999;
+}
+.po-items-table tbody td {
+  padding: 6px 10px; border: 1px solid #ddd;
+  vertical-align: middle; background: white;
+}
+.po-items-table tbody tr:hover td { background: #fafafa; }
+.po-total-row td {
+  background: #f0f0f0 !important;
+  font-weight: 700; font-size: 12px;
+}
+.po-qty-input, .po-bigo-input {
+  font-family: var(--mono); font-size: 11px;
+  padding: 3px 6px; border: 1px solid #ccc;
+  background: white; color: #1a1a1a;
+  width: 100%; box-sizing: border-box;
+  text-align: right;
+}
+.po-bigo-input { text-align: left; font-family: var(--sans); }
+.po-tag-btn {
+  font-size: 9px; padding: 1px 4px; margin-right: 2px;
+  border: 0.5px solid #bbb; background: #f5f5f5; cursor: pointer;
+  border-radius: 3px; color: #333; font-weight: 600;
+}
+.po-tag-btn:hover { background: #e0e0e0; border-color: #888; }
+.po-qty-input:focus, .po-bigo-input:focus, .po-date-input:focus {
+  outline: none; border-color: var(--sky);
+}
+
+.empty { padding: 50px 20px; text-align: center; color: var(--t3); font-size: 12px; }
+.empty__hint { font-size: 10px; margin-top: 6px; color: var(--t3); }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  /* 인쇄용 양식 잠금 해제 - 페이지 전체가 자유롭게 흐르도록 */
+  html, body { 
+    overflow: visible !important; 
+    height: auto !important;
+    background: white !important;
+  }
+  body.tab-form-active, body.tab-form-active main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  /* 모달 외 모든 페이지 요소 완전히 제거 (공간도 차지 안 함) */
+  .app-header, .tabs, main, .modal__head, .modal__foot { display: none !important; }
+  /* 모달은 페이지 첫 위치에 흐름 정상화 */
+  .modal-backdrop {
+    position: static !important;
+    background: white !important;
+    padding: 0 !important;
+    display: block !important;
+    inset: auto !important;
+    height: auto !important;
+  }
+  .modal {
+    box-shadow: none !important; 
+    max-height: none !important;
+    height: auto !important;
+    border: none !important; 
+    background: white !important;
+    width: 100% !important; 
+    max-width: 100% !important;
+    display: block !important;
+  }
+  .modal__body { 
+    padding: 0 !important; 
+    overflow: visible !important; 
+    background: white !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+  .po-qty-input, .po-bigo-input, .po-date-input {
+    border: none !important; padding: 0 !important;
+    background: transparent !important; color: #1a1a1a !important;
+  }
+  .po-tag-group { display: none !important; }
+}
+
+@media (max-width: 1100px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
+/* ───── 신규 기능 CSS ───── */
+.summary-row td {
+  background: var(--bg-card2) !important;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: var(--t2);
+  border-top: 1px solid var(--border2);
+}
+.grand-total td {
+  background: rgba(96,170,220,0.08) !important;
+  font-weight: 700;
+  border-top: 2px solid var(--sky);
+  color: var(--sky) !important;
+}
+.summary-label { color: var(--t2); font-size: 11px; }
+
+.order-table col.col-deadline { width: 80px; }
+
+.deadline-cell { text-align: center; font-family: var(--mono); font-size: 10.5px; line-height: 1.5; }
+.dl-overdue { color: var(--red); font-weight: 700; }
+.dl-urgent  { color: var(--red); }
+.dl-warning { color: var(--amb); }
+.dl-ok      { color: var(--teal); }
+.dl-none    { color: var(--t3); }
+
+.abc-badge-a { color: var(--red);  font-weight: 800; font-family: var(--mono); font-size: 15px; }
+.abc-badge-b { color: var(--amb);  font-weight: 800; font-family: var(--mono); font-size: 15px; }
+.abc-badge-c { color: var(--teal); font-weight: 800; font-family: var(--mono); font-size: 15px; }
+
+.history-entry { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-header__inner">
+    <div class="brand">
+      <div class="brand__mark">TC</div>
+      <div>
+        <div class="brand__name">TC TECH 구매품 발주·재고 관리 시스템</div>
+        <div class="brand__sub">TEREX GENIE / HD건설기계</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="save-indicator" id="save-indicator"><span class="save-indicator__dot"></span>자동 저장</span>
+      <button class="btn btn--ghost btn--sm" id="btn-export-excel">엑셀 내보내기</button>
+      <button class="btn btn--ghost btn--sm" id="btn-export-json">JSON 내보내기</button>
+      <button class="btn btn--ghost btn--sm" id="btn-rollover" style="color:var(--amb);border-color:var(--amb-b);">월 이월 처리</button>
+      <button class="btn btn--ghost btn--sm" id="btn-reset-all">초기값 복원</button>
+    </div>
+  </div>
+</header>
+
+<!-- TABS -->
+<nav class="tabs">
+  <div class="tabs__inner">
+    <button class="tab tab--active" data-tab="form">수급 운영 계획</button>
+    <button class="tab" data-tab="dashboard">종합 모니터링</button>
+    <button class="tab" data-tab="orders">발주 확정/관리 <span class="tab__count tab__count--alert" id="count-orders">0</span></button>
+    <button class="tab" data-tab="history">발주 이력 <span class="tab__count" id="count-history">0</span></button>
+  </div>
+</nav>
+
+<main>
+
+<!-- PANEL: FORM (메인) -->
+<section id="panel-form" class="panel panel--active">
+
+  <div class="section-title">
+    <div class="section-title__label">▎ 2026년 4월말 실사재고 기준 · 5~8월 운영 양식</div>
+    <div class="section-title__hint">제작대수·입고계획만 입력 → 필요수량·기말재고 자동 계산</div>
+  </div>
+
+  <!-- 필터 -->
+  <div class="filters">
+    <div class="filter-group">
+      <label class="filter-label">검색 (품번·품명)</label>
+      <input type="text" class="filter-input" id="search" placeholder="예: 1289399 또는 BEARING">
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">브랜드</label>
+      <select class="filter-select" id="filter-brand"><option value="">전체</option></select>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">모델</label>
+      <select class="filter-select" id="filter-model"><option value="">전체</option></select>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">구매업체</label>
+      <select class="filter-select" id="filter-supplier"><option value="">전체</option></select>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">상태</label>
+      <select class="filter-select" id="filter-status">
+        <option value="">전체</option>
+        <option value="shortage">부족 발생</option>
+        <option value="safe">정상</option>
+      </select>
+    </div>
+    <div class="filter-spacer"></div>
+    <button class="btn-reset" id="btn-filter-reset">필터 초기화</button>
+  </div>
+
+  <!-- 양식 테이블 -->
+  <div class="form-wrap">
+    <table class="form-table" id="form-table">
+      <thead>
+        <tr class="h-row1">
+          <th class="sticky-col sticky-col-0 h-merged" rowspan="2">고객사</th>
+          <th class="sticky-col sticky-col-1 h-merged" rowspan="2">모델</th>
+          <th class="sticky-col sticky-col-2 h-merged" rowspan="2">품번</th>
+          <th class="sticky-col sticky-col-3 h-merged" rowspan="2">품명</th>
+          <th class="sticky-col sticky-col-4 h-merged" rowspan="2">구매업체</th>
+          <th class="h-merged" rowspan="2" style="text-align:center">대당<br>소요</th>
+          <th class="h-merged" rowspan="2" style="text-align:center">4월말<br>현물재고</th>
+          <th class="month-may-h month-divider h-group" colspan="4">2026년 5월</th>
+          <th class="month-jun-h month-divider h-group" colspan="4">2026년 6월</th>
+          <th class="month-jul-h month-divider h-group" colspan="4">2026년 7월</th>
+          <th class="month-aug-h month-divider h-group" colspan="4">2026년 8월</th>
+        </tr>
+        <tr class="h-row2">
+          <th class="month-may-h month-divider h-sub">제작</th>
+          <th class="month-may-h h-sub">필요</th>
+          <th class="month-may-h h-sub">입고</th>
+          <th class="month-may-h h-sub">재고</th>
+          <th class="month-jun-h month-divider h-sub">제작</th>
+          <th class="month-jun-h h-sub">필요</th>
+          <th class="month-jun-h h-sub">입고</th>
+          <th class="month-jun-h h-sub">재고</th>
+          <th class="month-jul-h month-divider h-sub">제작</th>
+          <th class="month-jul-h h-sub">필요</th>
+          <th class="month-jul-h h-sub">입고</th>
+          <th class="month-jul-h h-sub">재고</th>
+          <th class="month-aug-h month-divider h-sub">제작</th>
+          <th class="month-aug-h h-sub">필요</th>
+          <th class="month-aug-h h-sub">입고</th>
+          <th class="month-aug-h h-sub">재고</th>
+        </tr>
+      </thead>
+      <tbody id="form-tbody"></tbody>
+    </table>
+  </div>
+  <div id="form-empty" class="empty" style="display:none">
+    조건에 맞는 구매품이 없습니다.
+    <div class="empty__hint">필터를 조정해 보세요</div>
+  </div>
+
+  <div style="margin-top:14px; padding:12px 16px; background:var(--bg-card); border:0.5px solid var(--border2); border-radius:10px; font-size:11px; color:var(--proc-txt); line-height:1.7;">
+    <strong style="color:#fff; font-weight:700">계산식</strong> · 
+    필요수량 = 제작대수 × 대당소요 · 
+    기말재고 = 시작재고 + 입고계획 − 필요수량 · 
+    부족 판정: <span style="background:var(--red-d); color:var(--red); padding:1px 6px; font-family:var(--mono); border-radius:3px; border:0.5px solid var(--red-b)">n월말 재고 &lt; (n+1)월 필요수량</span> 시 빨간색 표시 (1개월치 안전재고 미달)
+  </div>
+
+</section>
+
+<!-- PANEL: DASHBOARD -->
+<section id="panel-dashboard" class="panel">
+  <div class="section-title">
+    <div class="section-title__label">▎ 운영 현황 요약</div>
+    <div class="section-title__hint" id="dash-updated"></div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi kpi--sky">
+      <div class="kpi__corner">K01</div>
+      <div class="kpi__label">총 관리 구매품</div>
+      <div class="kpi__value" id="kpi-total">—</div>
+      <div class="kpi__delta">모델 <span id="kpi-models">—</span>종 · 구매업체 <span id="kpi-suppliers">—</span>곳</div>
+    </div>
+    <div class="kpi kpi--teal">
+      <div class="kpi__corner">K02</div>
+      <div class="kpi__label">5~8월 총 입고계획</div>
+      <div class="kpi__value" id="kpi-incoming">—</div>
+      <div class="kpi__delta" id="kpi-incoming-amt"></div>
+    </div>
+    <div class="kpi kpi--red">
+      <div class="kpi__corner">K03</div>
+      <div class="kpi__label">부족 발생 항목 (4개월 중 1회 이상)</div>
+      <div class="kpi__value kpi__value--red" id="kpi-shortage">—</div>
+      <div class="kpi__delta kpi__delta--alert" id="kpi-shortage-detail"></div>
+    </div>
+    <div class="kpi kpi--amb">
+      <div class="kpi__corner">K04</div>
+      <div class="kpi__label">손실 발생 항목 (4월 실사 차이)</div>
+      <div class="kpi__value" id="kpi-loss">—</div>
+      <div class="kpi__delta kpi__delta--alert" id="kpi-loss-detail"></div>
+    </div>
+  </div>
+
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card__head">
+        <div class="card__title" id="chart-title">모델별 5월 필요수량 vs 입고계획</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="card__hint" style="font-size:10px; color:var(--t3);">모델명 클릭 시 4개월 재고 추이 확인</div>
+          <select class="filter-select" id="dash-month-select" style="min-width: 80px; padding: 4px 8px; font-size: 11px;">
+            <option value="may">5월</option>
+            <option value="jun">6월</option>
+            <option value="jul">7월</option>
+            <option value="aug">8월</option>
+          </select>
+          <div class="card__hint">단위: EA</div>
+        </div>
+      </div>
+      <div class="card__body">
+        <div id="chart-model"></div>
+        <div class="chart-legend">
+          <span class="chart-legend__item"><span class="chart-legend__sw" style="background:#38bdf8"></span>5월 필요수량</span>
+          <span class="chart-legend__item"><span class="chart-legend__sw" style="background:#4ade80"></span>5월 입고계획</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card__head">
+        <div class="card__title">발주 우선순위 (부족 시점이 빠른 순)</div>
+        <div class="card__hint">상위 6건</div>
+      </div>
+      <ul class="alert-list" id="alert-list"></ul>
+    </div>
+  </div>
+
+  <!-- ERP 불일치 + ABC 분석 카드 -->
+  <div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+    <div class="card">
+      <div class="card__head">
+        <div>
+          <div class="card__title">ERP vs 실사재고 불일치 상세</div>
+          <div class="card__hint" id="erp-import-status">차이 &gt; 0.5% 품목 · 엑셀 가져오기로 월말 데이터 반영</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn btn--ghost btn--sm" id="btn-erp-template">양식 다운로드</button>
+          <button class="btn btn--sm" id="btn-erp-import">엑셀 가져오기</button>
+          <button class="btn btn--ghost btn--sm" id="btn-erp-reset" style="color:var(--red);border-color:var(--red-b);display:none;">가져온 데이터 초기화</button>
+        </div>
+      </div>
+      <div class="card__body--flush" style="max-height:320px; overflow-y:auto;" id="erp-detail-body"></div>
+    </div>
+    <input type="file" id="erp-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
+    <div class="card">
+      <div class="card__head">
+        <div class="card__title">ABC 분석 (연간 금액 기준)</div>
+        <div class="card__hint">4개월 실적 × 3 추정</div>
+      </div>
+      <div class="card__body--flush" style="max-height:320px; overflow-y:auto;" id="abc-body"></div>
+    </div>
+  </div>
+</section>
+
+<!-- PANEL: ORDERS -->
+<section id="panel-orders" class="panel">
+  <div class="section-title">
+    <div class="section-title__label">▎ 발주 확정 및 관리</div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <div class="section-title__hint">수량 수정 시 자동 저장됩니다.</div>
+      <button class="btn btn--ghost btn--sm" id="btn-reset-orders" style="color: var(--red); border-color: var(--red-b);">수정 사항 전체 초기화</button>
+    </div>
+  </div>
+
+  <!-- 발주 품목 수동 추가 검색바 -->
+  <div class="filters" style="margin-bottom: 20px;">
+    <div class="filter-group" style="flex: 1.5;">
+      <label class="filter-label">품목 수동 추가 (품번·품명 검색)</label>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" class="filter-input" id="order-search-add" list="masters-list" placeholder="품번 또는 품명을 입력하세요" style="flex: 1;">
+        <datalist id="masters-list"></datalist>
+      </div>
+    </div>
+    <div class="filter-group" style="flex: 1;">
+      <label class="filter-label">대상 업체</label>
+      <input type="text" class="filter-input" id="order-supplier-display" placeholder="품목 선택 시 자동 표시" readonly style="background: rgba(255,255,255,0.05); color: var(--t2);">
+    </div>
+    <button class="btn btn--teal" id="btn-order-add" style="height: 32px; align-self: flex-end; margin-bottom: 2px;">품목 추가</button>
+  </div>
+  <div id="order-groups"></div>
+  <div id="order-empty" class="empty" style="display:none">
+    현재 모든 구매품이 1개월 안전재고 기준을 충족합니다.
+    <div class="empty__hint">2026년 5~8월 운영 안정</div>
+  </div>
+</section>
+
+<!-- PANEL: HISTORY -->
+<section id="panel-history" class="panel">
+  <div class="section-title">
+    <div class="section-title__label">▎ 발주 이력</div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div class="section-title__hint">발주서 확정 시 자동 기록됩니다.</div>
+      <button class="btn btn--ghost btn--sm" id="btn-clear-history" style="color:var(--red); border-color:var(--red-b);">전체 삭제</button>
+    </div>
+  </div>
+  <div id="history-list"></div>
+</section>
+
+</main>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal modal--wide">
+    <div class="modal__head">
+      <div class="modal__title">발주서</div>
+      <button class="modal__close" id="modal-close">✕</button>
+    </div>
+    <div class="modal__body" id="modal-body"></div>
+    <div class="modal__foot">
+      <button class="btn btn--ghost" id="modal-print">인쇄 / PDF 저장</button>
+      <button class="btn btn--teal" id="modal-confirm-order">발주 확정 (이력 저장)</button>
+      <button class="btn" id="modal-close-2">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────  DATA  ──────────────────────────────
+const MASTERS = [{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"119619","part_name":"BEARING","qty_per_unit":2,"supplier":"POLYGON","category":"수입","lead_time_days":30,"unit_price":1547,"moq_basic":"1Box(558)","starting_stock":1723,"erp_stock":1848,"loss_rate":-0.06764069264069261,"feb_qty":340,"mar_qty":322,"apr_qty":352},{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"1305526","part_name":"FORMING,ROUNDBAR,ROUTING ROD","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":7,"unit_price":3400,"moq_basic":"200EA","starting_stock":572,"erp_stock":562,"loss_rate":0.017793594306049876,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"132044","part_name":"TEE,STL6X8XH49.5XB100XL84","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":30,"unit_price":25000,"moq_basic":"200EA","starting_stock":306,"erp_stock":311,"loss_rate":-0.01607717041800638,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"132050","part_name":"TUBE,KING PIN MOUNT","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":45,"unit_price":19000,"moq_basic":"400EA","starting_stock":625,"erp_stock":625,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"36369","part_name":"BEARING, 0.75ID X 1.00OD X 0.75L","qty_per_unit":2,"supplier":"POLYGON","category":"수입","lead_time_days":30,"unit_price":865,"moq_basic":"1Box(100) 1Box(350)","starting_stock":1877,"erp_stock":1839,"loss_rate":0.02066340402392597,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"39340","part_name":"NUT,WELD,3/8-16,SLAB BASE","qty_per_unit":2,"supplier":"OEI (FASTENAL)","category":"수입","lead_time_days":60,"unit_price":200,"moq_basic":"2,000EA","starting_stock":3833,"erp_stock":3828,"loss_rate":0.001306165099268508,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"1311042","part_name":"PIN,MOD TRAY HINGE MOUNT","qty_per_unit":4,"supplier":"가람기계","category":"일반","lead_time_days":30,"unit_price":1500,"moq_basic":"200EA","starting_stock":1151,"erp_stock":1239,"loss_rate":-0.07102502017756251,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS1930E","kind":"Drive Chassis","model_pn":"1303742 (8종)","part_no":"96133","part_name":"PIN,CLEVIS, .75X2.44","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":30,"unit_price":2800,"moq_basic":"200EA","starting_stock":286,"erp_stock":285,"loss_rate":0.0035087719298245723,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"Z40","kind":"Drive Chassis","model_pn":"110545 (1종)","part_no":"94151","part_name":"PIN,HINGE","qty_per_unit":4,"supplier":"상해 인더스트리얼","category":"수입","lead_time_days":30,"unit_price":2753,"moq_basic":"250EA","starting_stock":532,"erp_stock":532,"loss_rate":0.0,"feb_qty":38,"mar_qty":45,"apr_qty":60},{"brand":"TEREX GENIE","model":"Z45 DC","kind":"Drive Chassis","model_pn":"229306 (1종)","part_no":"94151","part_name":"PIN,HINGE","qty_per_unit":4,"supplier":"상해 인더스트리얼","category":"수입","lead_time_days":30,"unit_price":2753,"moq_basic":"250EA","starting_stock":880,"erp_stock":880,"loss_rate":0.0,"feb_qty":70,"mar_qty":130,"apr_qty":80},{"brand":"TEREX GENIE","model":"S60J","kind":"Drive Chassis","model_pn":"1269428 (4종)","part_no":"1269433","part_name":"TUBE, RECT, 4X12X.25","qty_per_unit":2,"supplier":"남경스틸","category":"일반","lead_time_days":90,"unit_price":260000,"moq_basic":"2년치","starting_stock":380,"erp_stock":380,"loss_rate":0.0,"feb_qty":0,"mar_qty":0,"apr_qty":6},{"brand":"TEREX GENIE","model":"S60J","kind":"Drive Chassis","model_pn":"1269428 (4종)","part_no":"1269450","part_name":"BAR, DRIVE CHASSIS, HOSE RETAINER","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":4000,"moq_basic":"80EA","starting_stock":175,"erp_stock":175,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S60J","kind":"Drive Chassis","model_pn":"1269428 (4종)","part_no":"1269451","part_name":"BAR, INNER CHASSIS AXLE MOUNT, HOSE GUAR","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":4000,"moq_basic":"80EA","starting_stock":179,"erp_stock":179,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S60J","kind":"Drive Chassis","model_pn":"1269428 (4종)","part_no":"1270913","part_name":"BAR, BEARING SUPPORT, HOSE GUARD","qty_per_unit":4,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":2000,"moq_basic":"80EA","starting_stock":329,"erp_stock":329,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S60J","kind":"Swing Chassis","model_pn":"1270505 (4종)","part_no":"1059","part_name":"ROUND BAR,STL.CR .50 x 12.00 LG.","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":4000,"moq_basic":"80EA","starting_stock":185,"erp_stock":185,"loss_rate":0.0,"feb_qty":0,"mar_qty":0,"apr_qty":0},{"brand":"TEREX GENIE","model":"S60J","kind":"Swing Chassis","model_pn":"1270505 (4종)","part_no":"1270839","part_name":"ROUND BAR, HOSE GUIDE","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":5000,"moq_basic":"80EA","starting_stock":199,"erp_stock":199,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S60J","kind":"Swing Chassis","model_pn":"1270505 (4종)","part_no":"1272768","part_name":"ROUND BAR, HOSE GUIDE","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":3500,"moq_basic":"80EA","starting_stock":126,"erp_stock":126,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S60J","kind":"Swing Chassis","model_pn":"1270505 (4종)","part_no":"1281676","part_name":"TUBE, TRANSPORT LOCK","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":45,"unit_price":58000,"moq_basic":"80EA","starting_stock":174,"erp_stock":174,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S80J","kind":"Swing Chassis","model_pn":"1276600 (3종)","part_no":"1270839","part_name":"ROUND BAR, HOSE GUIDE","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":5000,"moq_basic":"80EA","starting_stock":3,"erp_stock":3,"loss_rate":0.0,"feb_qty":0,"mar_qty":0,"apr_qty":0},{"brand":"TEREX GENIE","model":"S80J","kind":"Swing Chassis","model_pn":"1276600 (3종)","part_no":"1281676","part_name":"TUBE, TRANSPORT LOCK","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":45,"unit_price":58000,"moq_basic":"80EA","starting_stock":3,"erp_stock":3,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S80J","kind":"Swing Chassis","model_pn":"1276600 (3종)","part_no":"1290429","part_name":"ROUND BAR, HOSE GUIDE","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":7,"unit_price":5000,"moq_basic":"80EA","starting_stock":68,"erp_stock":68,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S45XC","kind":"Drive Chassis","model_pn":"1290073 (3종)","part_no":"1291093","part_name":"BAR, HOSE GUARD, S45 FRONT PLATE","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":14,"unit_price":1100,"moq_basic":"204EA","starting_stock":206,"erp_stock":206,"loss_rate":0.0,"feb_qty":102,"mar_qty":110,"apr_qty":110},{"brand":"TEREX GENIE","model":"S45XC","kind":"Drive Chassis","model_pn":"1290073 (3종)","part_no":"1291094","part_name":"BAR, HOSE GUARD, S45 CENTER PLATE","qty_per_unit":4,"supplier":"태상테크","category":"일반","lead_time_days":14,"unit_price":2900,"moq_basic":"416EA","starting_stock":413,"erp_stock":413,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S45XC","kind":"Drive Chassis","model_pn":"1290073 (3종)","part_no":"1295995","part_name":"BAR, HOSE GUARD, S45 CENTER PLATE","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":14,"unit_price":1000,"moq_basic":"222EA","starting_stock":200,"erp_stock":200,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Drive Chassis","model_pn":"1292085 (6종)","part_no":"1287947","part_name":"LIFT POCKET, CHASSIS, GS55","qty_per_unit":2,"supplier":"남경스틸","category":"일반","lead_time_days":6,"unit_price":103750,"moq_basic":"협의","starting_stock":482,"erp_stock":482,"loss_rate":0.0,"feb_qty":18,"mar_qty":15,"apr_qty":13},{"brand":"TEREX GENIE","model":"GS4655","kind":"Drive Chassis","model_pn":"1292085 (6종)","part_no":"1288711","part_name":"TUBE, KING PIN MOUNT, CHASSIS,GS55","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":15,"unit_price":52000,"moq_basic":"75EA","starting_stock":46,"erp_stock":46,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Drive Chassis","model_pn":"1292085 (6종)","part_no":"1296714","part_name":"CABLE BAR, WELDMENT,CHASSIS","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":7,"unit_price":4500,"moq_basic":"50EA","starting_stock":23,"erp_stock":23,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Drive Chassis","model_pn":"1292085 (6종)","part_no":"18722","part_name":"BUSHING,2.25IDX2.50ODX1.50L","qty_per_unit":2,"supplier":"POLYGON","category":"수입","lead_time_days":30,"unit_price":2513,"moq_basic":"200EA","starting_stock":237,"erp_stock":237,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Drive Chassis","model_pn":"1292085 (6종)","part_no":"1311042","part_name":"PIN,MOD TRAY HINGE MOUNT","qty_per_unit":4,"supplier":"가람기계","category":"일반","lead_time_days":30,"unit_price":1500,"moq_basic":"200EA","starting_stock":100,"erp_stock":100,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Drive Chassis","model_pn":"1292085 (6종)","part_no":"96133","part_name":"PIN,CLEVIS, .75X2.44","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":30,"unit_price":2800,"moq_basic":"200EA","starting_stock":148,"erp_stock":148,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Main Deck","model_pn":"1287153 (3종)","part_no":"39340","part_name":"NUT,WELD,3/8-16,SLAB BASE","qty_per_unit":4,"supplier":"OEI (FASTENAL)","category":"수입","lead_time_days":60,"unit_price":200,"moq_basic":"2,000EA","starting_stock":800,"erp_stock":800,"loss_rate":0.0,"feb_qty":9,"mar_qty":0,"apr_qty":22},{"brand":"TEREX GENIE","model":"GS4655","kind":"Main Deck","model_pn":"1287153 (3종)","part_no":"1287166","part_name":"CHAN, STL .50X2.00X102 LG.","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":15,"unit_price":19500,"moq_basic":"30EA","starting_stock":26,"erp_stock":26,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Main Deck","model_pn":"1287153 (3종)","part_no":"1294617","part_name":"CHANNEL,STL,CABLE MOUNTING","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":15,"unit_price":17000,"moq_basic":"60EA","starting_stock":46,"erp_stock":46,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS4655","kind":"Extension Deck","model_pn":"1289380 (2종)","part_no":"39340","part_name":"NUT,WELD,3/8-16,SLAB BASE","qty_per_unit":4,"supplier":"(OEI) FASTENAL","category":"수입","lead_time_days":60,"unit_price":200,"moq_basic":"2,000EA","starting_stock":336,"erp_stock":336,"loss_rate":0.0,"feb_qty":9,"mar_qty":0,"apr_qty":22},{"brand":"TEREX GENIE","model":"GS4655","kind":"Extension Deck","model_pn":"1289380 (2종)","part_no":"1289399","part_name":"CHAN, STL .50X2.00X45.26 LG.","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":15,"unit_price":12400,"moq_basic":"60EA","starting_stock":21,"erp_stock":21,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"Z80","kind":"Rear Axle","model_pn":"230989 (3종)","part_no":"1059-1700","part_name":"ROUNDBAR,STL,CR .50 x 17.00 LG.","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":1600,"moq_basic":"50EA","starting_stock":21,"erp_stock":21,"loss_rate":0.0,"feb_qty":30,"mar_qty":20,"apr_qty":44},{"brand":"TEREX GENIE","model":"Z80","kind":"Rear Axle","model_pn":"230989 (3종)","part_no":"81554","part_name":"PIVOT TUBE, 4\"","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":90,"unit_price":140000,"moq_basic":"174EA","starting_stock":51,"erp_stock":51,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"Z80","kind":"Rear Axle","model_pn":"230989 (3종)","part_no":"27698","part_name":"BEARING","qty_per_unit":2,"supplier":"POLYGON","category":"수입","lead_time_days":30,"unit_price":3617,"moq_basic":"100EA","starting_stock":315,"erp_stock":315,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"Z80","kind":"Steer Axle","model_pn":"230980 (3종)","part_no":"81554","part_name":"PIVOT TUBE, 4\"","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":90,"unit_price":140000,"moq_basic":"174EA","starting_stock":0,"erp_stock":0,"loss_rate":null,"feb_qty":48,"mar_qty":20,"apr_qty":33},{"brand":"TEREX GENIE","model":"Z80","kind":"Steer Axle","model_pn":"230980 (3종)","part_no":"27698","part_name":"BEARING","qty_per_unit":2,"supplier":"POLYGON","category":"수입","lead_time_days":30,"unit_price":3617,"moq_basic":"100EA","starting_stock":352,"erp_stock":352,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"Z80","kind":"Steer Axle","model_pn":"230980 (3종)","part_no":"25817","part_name":"BEARING","qty_per_unit":2,"supplier":"POLYGON","category":"수입","lead_time_days":30,"unit_price":1286,"moq_basic":"100EA","starting_stock":384,"erp_stock":384,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"Z80","kind":"Drive Chassis","model_pn":"237329 (3종)","part_no":"1059-3200","part_name":"ROUNDBAR,STL,CR .50 x 32.00 LG.","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":2600,"moq_basic":"50EA","starting_stock":46,"erp_stock":46,"loss_rate":0.0,"feb_qty":42,"mar_qty":24,"apr_qty":42},{"brand":"TEREX GENIE","model":"Z80","kind":"Drive Chassis","model_pn":"237329 (3종)","part_no":"1059-2100","part_name":"ROUNDBAR,STL,CR .50 x 21.00 LG.","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":2100,"moq_basic":"50EA","starting_stock":48,"erp_stock":48,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"Z80","kind":"Drive Chassis","model_pn":"237329 (3종)","part_no":"49092","part_name":"BAR, RETAINER","qty_per_unit":3,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":3000,"moq_basic":"50EA","starting_stock":130,"erp_stock":130,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S85XC","kind":"Drive Chassis","model_pn":"1268562 (3종)","part_no":"1059-3200","part_name":"ROUNDBAR,STL,CR .50 x 32.00 LG.","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":2600,"moq_basic":"50EA","starting_stock":90,"erp_stock":90,"loss_rate":0.0,"feb_qty":64,"mar_qty":90,"apr_qty":98},{"brand":"TEREX GENIE","model":"S85XC","kind":"Drive Chassis","model_pn":"1268562 (3종)","part_no":"1059-2100","part_name":"ROUNDBAR,STL,CR .50 x 21.00 LG.","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":2100,"moq_basic":"50EA","starting_stock":90,"erp_stock":90,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"S85XC","kind":"Drive Chassis","model_pn":"1268562 (3종)","part_no":"49092","part_name":"BAR, RETAINER","qty_per_unit":5,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":3000,"moq_basic":"50EA","starting_stock":450,"erp_stock":450,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS46 (중단)","kind":"Drive Chassis","model_pn":"1317573 (5종)","part_no":"1316602","part_name":"TUBE, RECTANGLE, SIDE","qty_per_unit":2,"supplier":"남경스틸","category":"일반","lead_time_days":120,"unit_price":239000,"moq_basic":"800EA","starting_stock":32,"erp_stock":32,"loss_rate":0.0,"feb_qty":0,"mar_qty":0,"apr_qty":0},{"brand":"TEREX GENIE","model":"GS46 (중단)","kind":"Drive Chassis","model_pn":"1317573 (5종)","part_no":"1311042","part_name":"PIN,MOD TRAY HINGE MOUNT","qty_per_unit":4,"supplier":"가람기계","category":"일반","lead_time_days":30,"unit_price":900,"moq_basic":"800EA","starting_stock":0,"erp_stock":0,"loss_rate":null,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS46 (중단)","kind":"Drive Chassis","model_pn":"1317573 (5종)","part_no":"1321040","part_name":"PIN, PH PIVOT","qty_per_unit":1,"supplier":"가람기계","category":"일반","lead_time_days":30,"unit_price":3000,"moq_basic":"200EA","starting_stock":15,"erp_stock":15,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS46 (중단)","kind":"Drive Chassis","model_pn":"1317573 (5종)","part_no":"1316584","part_name":"KING PIN, YOKE","qty_per_unit":2,"supplier":"가람기계","category":"일반","lead_time_days":60,"unit_price":22000,"moq_basic":"400EA","starting_stock":10,"erp_stock":10,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"TEREX GENIE","model":"GS46 (중단)","kind":"Drive Chassis","model_pn":"1317573 (5종)","part_no":"1318319","part_name":"ROUNDBAR,RONTING ROD","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":30,"unit_price":2200,"moq_basic":"200EA","starting_stock":3,"erp_stock":3,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"R55C","kind":"Lower Frame","model_pn":"(6종)","part_no":"S366-508040","part_name":"PLATE TAPPRED, 2 HOLE","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":2400,"moq_basic":"40EA","starting_stock":60,"erp_stock":65,"loss_rate":-0.07692307692307687,"feb_qty":10,"mar_qty":10,"apr_qty":10},{"brand":"HD 건설기계","model":"R55C","kind":"Lower Frame","model_pn":"(6종)","part_no":"51M6-50570","part_name":"SUPPORT","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":1500,"moq_basic":"20EA","starting_stock":3,"erp_stock":5,"loss_rate":-0.4,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"R55C","kind":"Lower Frame","model_pn":"(6종)","part_no":"61M8-54030","part_name":"STOPPER PIN","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":4300,"moq_basic":"20EA","starting_stock":55,"erp_stock":61,"loss_rate":-0.09836065573770492,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"R55C","kind":"Lower Frame","model_pn":"(6종)","part_no":"61M9-54040","part_name":"STOPPER PIN","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":4000,"moq_basic":"40EA","starting_stock":81,"erp_stock":154,"loss_rate":-0.474025974025974,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"R55C","kind":"Lower Frame","model_pn":"(6종)","part_no":"S316-007020","part_name":"BOSS TAPPED","qty_per_unit":20,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":1200,"moq_basic":"350EA","starting_stock":253,"erp_stock":325,"loss_rate":-0.22153846153846157,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"R55C","kind":"Lower Frame","model_pn":"(6종)","part_no":"S344-402020","part_name":"PLATE-TAP, ECC 1 HOLE","qty_per_unit":4,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":900,"moq_basic":"70EA","starting_stock":203,"erp_stock":203,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX55 ACR","kind":"Lower Frame","model_pn":"(5종)","part_no":"51MT-01232","part_name":"PLATE TAPPRED, 2 HOLE","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":2800,"moq_basic":"50EA","starting_stock":110,"erp_stock":114,"loss_rate":-0.03508771929824561,"feb_qty":20,"mar_qty":40,"apr_qty":30},{"brand":"HD 건설기계","model":"HX55 ACR","kind":"Lower Frame","model_pn":"(5종)","part_no":"51MH-02140","part_name":"SUPPORT","qty_per_unit":1,"supplier":"윈텍","category":"일반","lead_time_days":15,"unit_price":3800,"moq_basic":"100EA","starting_stock":59,"erp_stock":65,"loss_rate":-0.09230769230769231,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX55 ACR","kind":"Lower Frame","model_pn":"(5종)","part_no":"61M8-54030","part_name":"STOPPER PIN","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":4300,"moq_basic":"20EA","starting_stock":0,"erp_stock":0,"loss_rate":null,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX55 ACR","kind":"Lower Frame","model_pn":"(5종)","part_no":"61M9-54040","part_name":"STOPPER PIN","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":4000,"moq_basic":"50EA","starting_stock":0,"erp_stock":0,"loss_rate":null,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX55 ACR","kind":"Lower Frame","model_pn":"(5종)","part_no":"51MT-03335","part_name":"SUPPORT-ROLLER","qty_per_unit":2,"supplier":"YSP윤성","category":"일반","lead_time_days":30,"unit_price":15000,"moq_basic":"50EA","starting_stock":122,"erp_stock":122,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX63 AH","kind":"Lower Frame","model_pn":"(6종)","part_no":"5DMN-01100","part_name":"STOPPER-RING","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":5500,"moq_basic":"100EA","starting_stock":189,"erp_stock":149,"loss_rate":0.26845637583892623,"feb_qty":10,"mar_qty":50,"apr_qty":50},{"brand":"HD 건설기계","model":"HX63 AH","kind":"Lower Frame","model_pn":"(6종)","part_no":"5DMN-09260","part_name":"PLATE-TAPPED","qty_per_unit":2,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":4800,"moq_basic":"100EA","starting_stock":98,"erp_stock":198,"loss_rate":-0.505050505050505,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX63 AH","kind":"Lower Frame","model_pn":"(6종)","part_no":"5DMN-01590","part_name":"PLATE-TAPPED","qty_per_unit":32,"supplier":"윈텍","category":"일반","lead_time_days":15,"unit_price":1400,"moq_basic":"500EA","starting_stock":2221,"erp_stock":2138,"loss_rate":0.0388213283442469,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX63 AH","kind":"Lower Frame","model_pn":"(6종)","part_no":"S344-402020","part_name":"PLATE-TAP, ECC 1 HOLE","qty_per_unit":4,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":900,"moq_basic":"200EA","starting_stock":80,"erp_stock":80,"loss_rate":0.0,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX63 AH","kind":"Lower Frame","model_pn":"(6종)","part_no":"110408-00473B-3","part_name":"PIPE","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":5500,"moq_basic":"50EA","starting_stock":41,"erp_stock":104,"loss_rate":-0.6057692307692308,"feb_qty":null,"mar_qty":null,"apr_qty":null},{"brand":"HD 건설기계","model":"HX63 AH","kind":"Lower Frame","model_pn":"(6종)","part_no":"110408-00473B-4","part_name":"BAR","qty_per_unit":1,"supplier":"태상테크","category":"일반","lead_time_days":15,"unit_price":1500,"moq_basic":"50EA","starting_stock":102,"erp_stock":100,"loss_rate":0.020000000000000018,"feb_qty":null,"mar_qty":null,"apr_qty":null}];
+const INITIAL_INPUTS = {"119619":{"may_qty":288,"may_incoming":1674,"jun_qty":330,"jun_incoming":0,"jul_qty":345,"jul_incoming":0,"aug_qty":345,"aug_incoming":0},"1305526":{"may_qty":0,"may_incoming":800,"jun_qty":0,"jun_incoming":600,"jul_qty":0,"jul_incoming":800,"aug_qty":0,"aug_incoming":0},"132044":{"may_qty":0,"may_incoming":400,"jun_qty":0,"jun_incoming":400,"jul_qty":0,"jul_incoming":400,"aug_qty":0,"aug_incoming":0},"132050":{"may_qty":0,"may_incoming":648,"jun_qty":0,"jun_incoming":800,"jul_qty":0,"jul_incoming":800,"aug_qty":0,"aug_incoming":0},"36369":{"may_qty":0,"may_incoming":1400,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"39340":{"may_qty":23,"may_incoming":0,"jun_qty":22,"jun_incoming":0,"jul_qty":21,"jul_incoming":0,"aug_qty":18,"aug_incoming":0},"1311042":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"96133":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"94151":{"may_qty":60,"may_incoming":0,"jun_qty":50,"jun_incoming":0,"jul_qty":60,"jul_incoming":0,"aug_qty":50,"aug_incoming":0},"1269433":{"may_qty":0,"may_incoming":72,"jun_qty":0,"jun_incoming":72,"jul_qty":0,"jul_incoming":72,"aug_qty":0,"aug_incoming":0},"1269450":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1269451":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1270913":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1059":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1270839":{"may_qty":0,"may_incoming":0,"jun_qty":3,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1272768":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1281676":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1290429":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1291093":{"may_qty":116,"may_incoming":252,"jun_qty":126,"jun_incoming":251,"jul_qty":112,"jul_incoming":180,"aug_qty":90,"aug_incoming":0},"1291094":{"may_qty":0,"may_incoming":518,"jun_qty":0,"jun_incoming":505,"jul_qty":0,"jul_incoming":360,"aug_qty":0,"aug_incoming":0},"1295995":{"may_qty":0,"may_incoming":256,"jun_qty":0,"jun_incoming":257,"jul_qty":0,"jul_incoming":180,"aug_qty":0,"aug_incoming":0},"1287947":{"may_qty":20,"may_incoming":0,"jun_qty":18,"jun_incoming":0,"jul_qty":18,"jul_incoming":0,"aug_qty":15,"aug_incoming":0},"1288711":{"may_qty":0,"may_incoming":75,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":75,"aug_qty":0,"aug_incoming":0},"1296714":{"may_qty":0,"may_incoming":50,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"18722":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":200,"aug_qty":0,"aug_incoming":0},"1287166":{"may_qty":0,"may_incoming":30,"jun_qty":0,"jun_incoming":20,"jul_qty":0,"jul_incoming":20,"aug_qty":0,"aug_incoming":0},"1294617":{"may_qty":0,"may_incoming":60,"jun_qty":0,"jun_incoming":40,"jul_qty":0,"jul_incoming":40,"aug_qty":0,"aug_incoming":0},"1289399":{"may_qty":0,"may_incoming":52,"jun_qty":0,"jun_incoming":63,"jul_qty":0,"jul_incoming":36,"aug_qty":0,"aug_incoming":0},"1059-1700":{"may_qty":20,"may_incoming":52,"jun_qty":40,"jun_incoming":50,"jul_qty":48,"jul_incoming":50,"aug_qty":28,"aug_incoming":0},"81554":{"may_qty":48,"may_incoming":76,"jun_qty":44,"jun_incoming":100,"jul_qty":44,"jul_incoming":0,"aug_qty":40,"aug_incoming":0},"27698":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"25817":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":250,"aug_qty":0,"aug_incoming":0},"1059-3200":{"may_qty":96,"may_incoming":96,"jun_qty":86,"jun_incoming":86,"jul_qty":90,"jul_incoming":64,"aug_qty":64,"aug_incoming":0},"1059-2100":{"may_qty":0,"may_incoming":96,"jun_qty":0,"jun_incoming":86,"jul_qty":0,"jul_incoming":64,"aug_qty":0,"aug_incoming":0},"49092":{"may_qty":0,"may_incoming":480,"jun_qty":0,"jun_incoming":430,"jul_qty":0,"jul_incoming":320,"aug_qty":0,"aug_incoming":0},"1316602":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1321040":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1316584":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"1318319":{"may_qty":0,"may_incoming":0,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":0,"aug_qty":0,"aug_incoming":0},"S366-508040":{"may_qty":20,"may_incoming":0,"jun_qty":20,"jun_incoming":60,"jul_qty":20,"jul_incoming":40,"aug_qty":20,"aug_incoming":0},"51M6-50570":{"may_qty":0,"may_incoming":20,"jun_qty":0,"jun_incoming":40,"jul_qty":0,"jul_incoming":20,"aug_qty":0,"aug_incoming":0},"61M8-54030":{"may_qty":0,"may_incoming":70,"jun_qty":0,"jun_incoming":60,"jul_qty":0,"jul_incoming":40,"aug_qty":0,"aug_incoming":0},"61M9-54040":{"may_qty":0,"may_incoming":140,"jun_qty":0,"jun_incoming":120,"jul_qty":0,"jul_incoming":80,"aug_qty":0,"aug_incoming":0},"S316-007020":{"may_qty":0,"may_incoming":350,"jun_qty":0,"jun_incoming":600,"jul_qty":0,"jul_incoming":400,"aug_qty":0,"aug_incoming":0},"S344-402020":{"may_qty":0,"may_incoming":200,"jun_qty":0,"jun_incoming":200,"jul_qty":0,"jul_incoming":160,"aug_qty":0,"aug_incoming":0},"51MT-01232":{"may_qty":40,"may_incoming":50,"jun_qty":40,"jun_incoming":80,"jul_qty":40,"jul_incoming":80,"aug_qty":40,"aug_incoming":0},"51MH-02140":{"may_qty":0,"may_incoming":100,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":100,"aug_qty":0,"aug_incoming":0},"51MT-03335":{"may_qty":0,"may_incoming":50,"jun_qty":0,"jun_incoming":100,"jul_qty":0,"jul_incoming":50,"aug_qty":0,"aug_incoming":0},"5DMN-01100":{"may_qty":40,"may_incoming":100,"jun_qty":40,"jun_incoming":0,"jul_qty":40,"jul_incoming":100,"aug_qty":40,"aug_incoming":0},"5DMN-09260":{"may_qty":0,"may_incoming":100,"jun_qty":0,"jun_incoming":100,"jul_qty":0,"jul_incoming":100,"aug_qty":0,"aug_incoming":0},"5DMN-01590":{"may_qty":0,"may_incoming":1500,"jun_qty":0,"jun_incoming":1000,"jul_qty":0,"jul_incoming":1000,"aug_qty":0,"aug_incoming":0},"110408-00473B-3":{"may_qty":0,"may_incoming":50,"jun_qty":0,"jun_incoming":50,"jul_qty":0,"jul_incoming":50,"aug_qty":0,"aug_incoming":0},"110408-00473B-4":{"may_qty":0,"may_incoming":50,"jun_qty":0,"jun_incoming":0,"jul_qty":0,"jul_incoming":50,"aug_qty":0,"aug_incoming":0}};
+const STORAGE_KEY = 'tctech_inputs_v3';
+const STORAGE_KEY_V2 = 'tctech_inputs_v2';
+const STORAGE_KEY_V1 = 'tctech_inputs_v1';
+
+// ──────────────────────────────  STATE  ──────────────────────────────
+const state = {
+  modelInputs: {},   // { displayName: {may_qty, jun_qty, jul_qty, aug_qty} }
+  itemInputs: {},    // { part_no: {may_incoming, jun_incoming, jul_incoming, aug_incoming} }
+  erpStocks: {},     // { part_no: erpQty } — ERP 가져오기로 덮어쓰는 값
+  filters: { search: '', brand: '', model: '', supplier: '', status: '' },
+  dashMonth: 'may',
+  saveTimer: null
+};
+
+function emptyModelInput() {
+  return { may_qty: 0, jun_qty: 0, jul_qty: 0, aug_qty: 0 };
+}
+function emptyItemInput() {
+  return { starting_stock: 0, may_incoming: 0, jun_incoming: 0, jul_incoming: 0, aug_incoming: 0 };
+}
+
+// 모델 표시명 — 새 엑셀은 이미 영문 표기 (kind: "Drive Chassis", "Lower Frame" 등)
+function displayName(master) {
+  const m = (master.model || '').trim();
+  const k = (master.kind || '').trim();
+  // 모델명 정규화
+  const modelNorm = m
+    .replace(/\s*\(중단\)\s*/g, '')              // GS46 (중단) → GS46
+    .replace(/HX55\s+ACR/i, 'HX55ACR')          // HX55 ACR → HX55ACR
+    .replace(/HX63\s+AH/i, 'HX63AH');           // HX63 AH → HX63AH
+  // Z40 + Drive Chassis → Z40 DC Drive Chassis (사용자 명시 표기)
+  if (modelNorm === 'Z40' && /Drive Chassis/i.test(k)) {
+    return 'Z40 DC Drive Chassis';
+  }
+  return k ? `${modelNorm} ${k}` : modelNorm;
+}
+
+// 마스터 → 그룹 (displayName으로 그룹화)
+function groupMastersByDisplayName(arr) {
+  const grouped = new Map();
+  arr.forEach(m => {
+    const dn = displayName(m);
+    if (!grouped.has(dn)) grouped.set(dn, []);
+    grouped.get(dn).push(m);
+  });
+  return grouped;
+}
+
+// INITIAL_INPUTS (part_no별 통합 데이터)에서 모델별 제작대수 추출 - 최대값 전략
+function initialModelInputs() {
+  const result = {};
+  const grouped = groupMastersByDisplayName(MASTERS);
+  grouped.forEach((items, dn) => {
+    const mo = emptyModelInput();
+    ['may','jun','jul','aug'].forEach(month => {
+      const vals = items.map(it => (INITIAL_INPUTS[it.part_no] || {})[`${month}_qty`] || 0);
+      mo[`${month}_qty`] = Math.max(0, ...vals);
+    });
+    result[dn] = mo;
+  });
+  return result;
+}
+
+// INITIAL_INPUTS에서 품목별 입고계획 추출
+function initialItemInputs() {
+  const result = {};
+  MASTERS.forEach(m => {
+    const src = INITIAL_INPUTS[m.part_no] || {};
+    result[m.part_no] = {
+      starting_stock: m.starting_stock || 0,
+      may_incoming: src.may_incoming || 0,
+      jun_incoming: src.jun_incoming || 0,
+      jul_incoming: src.jul_incoming || 0,
+      aug_incoming: src.aug_incoming || 0
+    };
+  });
+  return result;
+}
+
+function loadInputs() {
+  // v3 우선
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      parsed.modelInputs = parsed.modelInputs || initialModelInputs();
+      parsed.itemInputs = parsed.itemInputs || initialItemInputs();
+      parsed.orderOverrides = parsed.orderOverrides || {};
+      parsed.erpStocks = parsed.erpStocks || {};
+      MASTERS.forEach(m => {
+        if (parsed.itemInputs[m.part_no] && parsed.itemInputs[m.part_no].starting_stock === undefined) {
+          parsed.itemInputs[m.part_no].starting_stock = m.starting_stock || 0;
+        }
+      });
+      return parsed;
+    }
+  } catch(e) { console.warn('v3 load failed', e); }
+  
+  // v2 마이그레이션 — itemInputs(입고계획)만 그대로, modelInputs는 새 그룹명에 맞춰 재계산
+  try {
+    const v2raw = localStorage.getItem(STORAGE_KEY_V2);
+    if (v2raw) {
+      const v2 = JSON.parse(v2raw);
+      if (v2.itemInputs) {
+        return {
+          modelInputs: initialModelInputs(),
+          itemInputs: { ...initialItemInputs(), ...v2.itemInputs }
+        };
+      }
+    }
+  } catch(e) { console.warn('v2 migration failed', e); }
+  
+  // v1 마이그레이션
+  try {
+    const v1raw = localStorage.getItem(STORAGE_KEY_V1);
+    if (v1raw) {
+      const v1 = JSON.parse(v1raw);
+      const modelInputs = {};
+      const itemInputs = {};
+      const grouped = groupMastersByDisplayName(MASTERS);
+      grouped.forEach((items, dn) => {
+        const mo = emptyModelInput();
+        ['may','jun','jul','aug'].forEach(month => {
+          const vals = items.map(it => (v1[it.part_no] || {})[`${month}_qty`] || 0);
+          mo[`${month}_qty`] = Math.max(0, ...vals);
+        });
+        modelInputs[dn] = mo;
+      });
+      MASTERS.forEach(m => {
+        const src = v1[m.part_no] || {};
+        itemInputs[m.part_no] = {
+          may_incoming: src.may_incoming || 0,
+          jun_incoming: src.jun_incoming || 0,
+          jul_incoming: src.jul_incoming || 0,
+          aug_incoming: src.aug_incoming || 0
+        };
+      });
+      return { modelInputs, itemInputs };
+    }
+  } catch(e) { console.warn('v1 migration failed', e); }
+  
+  // 초기값
+  return {
+    modelInputs: initialModelInputs(),
+    itemInputs: initialItemInputs(),
+    orderOverrides: {}
+  };
+}
+
+// 초기 로드 후 state에 주입
+const _loaded = loadInputs();
+state.modelInputs = _loaded.modelInputs;
+state.itemInputs = _loaded.itemInputs;
+state.orderOverrides = _loaded.orderOverrides || {};
+state.erpStocks = _loaded.erpStocks || {};
+
+function getOrderQty(master) {
+  if (state.orderOverrides[master.part_no] !== undefined) {
+    return state.orderOverrides[master.part_no];
+  }
+  return suggestedQty(master);
+}
+
+function saveInputs() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      modelInputs: state.modelInputs,
+      itemInputs: state.itemInputs,
+      orderOverrides: state.orderOverrides,
+      erpStocks: state.erpStocks
+    }));
+    flashSaved();
+  } catch(e) { console.warn('save failed', e); }
+}
+
+function flashSaved() {
+  const el = document.getElementById('save-indicator');
+  el.classList.add('save-indicator--saved');
+  el.textContent = '● 저장됨';
+  clearTimeout(state.saveTimer);
+  state.saveTimer = setTimeout(() => {
+    el.classList.remove('save-indicator--saved');
+    el.textContent = '● 자동 저장';
+  }, 1200);
+}
+
+// ──────────────────────────────  HELPERS  ──────────────────────────────
+const fmt = n => (n === null || n === undefined || isNaN(n)) ? '–' : Number(Math.round(n)).toLocaleString('ko-KR');
+const fmtPct = n => (n === null || n === undefined || isNaN(n)) ? '–' : (n * 100).toFixed(1) + '%';
+const sum = arr => arr.reduce((a, b) => a + (b || 0), 0);
+const sanitize = s => (s || '').toString().replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+
+// 핵심 계산: 한 품목의 4개월 시뮬레이션
+function computeRow(master, inp) {
+  const qpu = master.qty_per_unit || 1;
+  const start = inp.starting_stock || 0;
+  const months = ['may', 'jun', 'jul', 'aug'];
+  const result = { start, months: {} };
+  let prevEnding = start;
+  for (const m of months) {
+    const qty = inp[`${m}_qty`] || 0;
+    const incoming = inp[`${m}_incoming`] || 0;
+    const required = qty * qpu;
+    const ending = prevEnding + incoming - required;
+    result.months[m] = { qty, required, incoming, ending };
+    prevEnding = ending;
+  }
+  // 부족 판정: n월말 재고 < (n+1)월 필요수량
+  // 9월은 데이터 없음 → 8월말은 8월 필요수량으로 비교 (임시)
+  const reqs = months.map(m => result.months[m].required);
+  result.shortAt = {
+    may: result.months.may.ending < reqs[1],  // < 6월 필요
+    jun: result.months.jun.ending < reqs[2],  // < 7월 필요
+    jul: result.months.jul.ending < reqs[3],  // < 8월 필요
+    aug: result.months.aug.ending < reqs[3]   // < 9월(=8월 추정)
+  };
+  result.anyShort = result.shortAt.may || result.shortAt.jun || result.shortAt.jul || result.shortAt.aug;
+  // 최초 부족 시점
+  result.firstShort = result.shortAt.may ? 'may' :
+                      result.shortAt.jun ? 'jun' :
+                      result.shortAt.jul ? 'jul' :
+                      result.shortAt.aug ? 'aug' : null;
+  return result;
+}
+
+const MONTH_KR = { may: '5월말', jun: '6월말', jul: '7월말', aug: '8월말' };
+const NEXT_KR = { may: '6월', jun: '7월', jul: '8월', aug: '9월(추정)' };
+
+function getResult(master) {
+  const dn = displayName(master);
+  const mi = state.modelInputs[dn] || emptyModelInput();
+  const ii = state.itemInputs[master.part_no] || emptyItemInput();
+  const merged = {
+    starting_stock: (ii.starting_stock !== undefined) ? ii.starting_stock : (master.starting_stock || 0),
+    may_qty: mi.may_qty, jun_qty: mi.jun_qty, jul_qty: mi.jul_qty, aug_qty: mi.aug_qty,
+    may_incoming: ii.may_incoming, jun_incoming: ii.jun_incoming,
+    jul_incoming: ii.jul_incoming, aug_incoming: ii.aug_incoming
+  };
+  return computeRow(master, merged);
+}
+
+// ──────────────────────────────  TABS  ──────────────────────────────
+function setActiveTab(t) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('tab--active', b.dataset.tab === t));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('panel--active'));
+  document.getElementById('panel-' + t).classList.add('panel--active');
+  // 양식 탭일 때만 body 스크롤 잠금 (form-wrap 내부만 스크롤됨)
+  document.body.classList.toggle('tab-form-active', t === 'form');
+  if (t === 'dashboard') renderDashboard();
+  else if (t === 'orders') renderOrders();
+  else if (t === 'history') renderHistory();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+});
+
+// ──────────────────────────────  FORM (메인)  ──────────────────────────────
+function filterMasters() {
+  const f = state.filters;
+  return MASTERS.filter(m => {
+    if (f.brand && m.brand !== f.brand) return false;
+    if (f.model && displayName(m) !== f.model) return false;
+    if (f.supplier && m.supplier !== f.supplier) return false;
+    if (f.search) {
+      const s = f.search.toLowerCase();
+      const hay = (m.part_no + ' ' + m.part_name + ' ' + displayName(m)).toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    if (f.status) {
+      const r = getResult(m);
+      if (f.status === 'shortage' && !r.anyShort) return false;
+      if (f.status === 'safe' && r.anyShort) return false;
+    }
+    return true;
+  });
+}
+
+function populateFilters() {
+  const fill = (id, vals) => {
+    const el = document.getElementById(id);
+    el.innerHTML = '<option value="">전체</option>' +
+      [...vals].sort().map(v => `<option value="${sanitize(v)}">${sanitize(v)}</option>`).join('');
+  };
+  fill('filter-brand', new Set(MASTERS.map(i => i.brand).filter(Boolean)));
+  fill('filter-model', new Set(MASTERS.map(i => displayName(i)).filter(Boolean)));
+  fill('filter-supplier', new Set(MASTERS.map(i => i.supplier).filter(Boolean)));
+}
+
+function renderForm() {
+  const filtered = filterMasters();
+  const tbody = document.getElementById('form-tbody');
+  const empty = document.getElementById('form-empty');
+  
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  
+  // 1. 고객사별 -> 모델별 2단계 그룹화 (일괄 병합을 위해)
+  const customerGroups = { 'TEREX GENIE': new Map(), 'HD건설기계': new Map() };
+  
+  filtered.forEach(m => {
+    const dn = displayName(m);
+    const cust = (dn.includes('R55C Lower Frame') || 
+                  dn.includes('HX55ACR Lower Frame') || 
+                  dn.includes('HX63AH Lower Frame')) ? 'HD건설기계' : 'TEREX GENIE';
+    
+    if (!customerGroups[cust].has(dn)) customerGroups[cust].set(dn, []);
+    customerGroups[cust].get(dn).push(m);
+  });
+  
+  const rows = [];
+  let grandTotalItems = [];
+  // 2. 고객사 순서대로 렌더링 (TEREX GENIE -> HD건설기계)
+  ['TEREX GENIE', 'HD건설기계'].forEach(cust => {
+    const modelMap = customerGroups[cust];
+    if (modelMap.size === 0) return;
+
+    let custItems = [];
+    modelMap.forEach(items => custItems = custItems.concat(items));
+    grandTotalItems = grandTotalItems.concat(custItems);
+
+    let isCustFirst = true;
+    modelMap.forEach((items, dn) => {
+      items.forEach((m, idx) => {
+        rows.push(itemRowHtml(m, idx, items.length, isCustFirst, custItems.length));
+        isCustFirst = false;
+      });
+    });
+    // 고객사 누계 추가
+    rows.push(summaryRowHtml(`${cust} 누계`, custItems));
+  });
+  // 총 합계 추가
+  rows.push(summaryRowHtml(`총 합 계`, grandTotalItems, true));
+
+  // 마지막에 스크롤 여유 공간을 위한 빈 행 추가
+  rows.push('<tr class="spacer-row"><td colspan="23"></td></tr>');
+  tbody.innerHTML = rows.join('');
+  
+  // 입력 핸들러 바인딩 (DOM이 업데이트된 후에 수행)
+  // 모델 헤더의 제작대수 input
+  tbody.querySelectorAll('.model-header-input').forEach(input => {
+    input.addEventListener('input', onModelInputChange);
+    input.addEventListener('focus', e => e.target.select());
+  });
+  // 품목의 입고계획 input 및 4월말 현물재고 input
+  tbody.querySelectorAll('.form-input').forEach(input => {
+    input.addEventListener('input', onItemInputChange);
+    input.addEventListener('focus', e => e.target.select());
+  });
+}
+
+// modelHeaderRowHtml 함수는 더 이상 사용되지 않으므로 제거합니다.
+// function modelHeaderRowHtml(displayN, items) {
+//   const suppliers = [...new Set(items.map(m => m.supplier).filter(Boolean))];
+//   const supplierTxt = suppliers.length > 2 ? `${suppliers.slice(0,2).join(', ')} 외 ${suppliers.length-2}곳` : suppliers.join(', ');
+//   const safeDn = sanitize(displayN);
+  
+//   return `
+//     <tr class="model-header-row" data-group="${displayN.replace(/"/g, '&quot;')}">
+//       <td colspan="22" class="model-title-cell" style="text-align:center;">
+//         <div class="model-header-title">${safeDn}</div>
+//         <div class="model-header-meta">품목 ${items.length}건${supplierTxt ? ' · ' + sanitize(supplierTxt) : ''}</div>
+//       </td>
+//     </tr>
+//   `;
+// }
+
+function summaryRowHtml(label, items, isGrand = false) {
+  const totals = { start: 0, may: {req:0, inc:0, end:0}, jun: {req:0, inc:0, end:0}, jul: {req:0, inc:0, end:0}, aug: {req:0, inc:0, end:0} };
+  
+  items.forEach(m => {
+    const r = getResult(m);
+    totals.start += (r.start || 0);
+    ['may','jun','jul','aug'].forEach(mo => {
+      totals[mo].req += (r.months[mo].required || 0);
+      totals[mo].inc += (r.months[mo].incoming || 0);
+      totals[mo].end += (r.months[mo].ending || 0);
+    });
+  });
+
+  const monthClass = { may: 'month-may-bg', jun: 'month-jun-bg', jul: 'month-jul-bg', aug: 'month-aug-bg' };
+
+  return `
+    <tr class="summary-row ${isGrand ? 'grand-total' : ''}">
+      <td colspan="5" class="sticky-col summary-label" style="left:0; z-index:30; text-align:right; padding-right:15px;">
+        ${isGrand ? '★ ' : '▎ '}${label}
+      </td>
+      <td></td>
+      <td class="cell-num" style="text-align:center;">${fmt(totals.start)}</td>
+      ${['may','jun','jul','aug'].map(mo => `
+        <td class="${monthClass[mo]}"></td>
+        <td class="cell-num ${monthClass[mo]}">${fmt(totals[mo].req)}</td>
+        <td class="cell-num ${monthClass[mo]}">${fmt(totals[mo].inc)}</td>
+        <td class="cell-num ${monthClass[mo]}">${fmt(totals[mo].end)}</td>
+      `).join('')}
+    </tr>
+  `;
+}
+
+function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
+  const r = getResult(m);
+  const months = ['may', 'jun', 'jul', 'aug'];
+  const monthClass = { may: 'month-may-bg', jun: 'month-jun-bg', jul: 'month-jul-bg', aug: 'month-aug-bg' };
+  const isFirst = groupIdx === 0;  // 그룹의 첫 부자재 행
+  const displayN = displayName(m);
+  const dnAttr = displayN.replace(/"/g, '&quot;');
+  
+  // 고객사 셀: 전체 고객사 범위에 대해 단 한 번만 생성 (isCustFirst 기준)
+  const customer = (displayN.includes('R55C Lower Frame') || 
+                    displayN.includes('HX55ACR Lower Frame') || 
+                    displayN.includes('HX63AH Lower Frame')) ? 'HD건설기계' : 'TEREX GENIE';
+  const customerHtml = customer === 'TEREX GENIE' ? 'TEREX<br>GENIE' : customer;
+
+  const customerCell = isCustFirst
+    ? `<td class="sticky-col sticky-col-0 cell-model-merged" rowspan="${custGroupSize}">${customerHtml}</td>`
+    : '';
+
+  // 모델 셀: 첫 행에만 rowspan으로 그룹 전체 차지 (제작대수와 동일 패턴)
+  const modelParts = displayN.split(' ');
+  let modelNamePart = modelParts[0];
+  let modelKindPart = modelParts.slice(1).join(' ');
+
+  // DC, OSC 접미사 처리 로직 단일화
+  if (modelParts[1] === 'DC' || modelParts[1] === 'OSC') {
+    modelNamePart = modelParts[0] + ' ' + modelParts[1];
+    modelKindPart = modelParts.slice(2).join(' ');
+  }
+  const modelHtml = modelKindPart ? `${sanitize(modelNamePart)}<br><span style="font-size:10px; opacity:0.7; font-weight:400;">${sanitize(modelKindPart)}</span>` : sanitize(modelNamePart);
+
+  const modelCell = isFirst
+    ? `<td class="sticky-col sticky-col-1 cell-model-merged" rowspan="${groupSize}">${modelHtml}</td>`
+    : '';
+  
+  return `
+    <tr class="item-row" data-pn="${sanitize(m.part_no)}" data-first="${isFirst ? '1' : '0'}">
+      ${customerCell}
+      ${modelCell}
+      <td class="sticky-col sticky-col-2 cell-pn">${sanitize(m.part_no)}</td>
+      <td class="sticky-col sticky-col-3">
+        <div class="cell-name" title="${sanitize(m.part_name)}">${sanitize(m.part_name)}</div>
+        <div class="cell-detail">
+          ₩${fmt(m.unit_price)} · LT ${m.lead_time_days || '–'}일 · MOQ ${sanitize(m.moq_basic || '–')}
+        </div>
+      </td>
+      <td class="sticky-col sticky-col-4">
+        <div style="font-size:11px;">${sanitize(m.supplier || '–')}</div>
+        <div style="font-size:9.5px; margin-top:2px;">
+          <span class="badge badge--${m.category === '수입' ? 'info' : 'neutral'}" style="font-size:8.5px; padding:1px 5px;">${sanitize(m.category || '–')}</span>
+        </div>
+      </td>
+      <td class="cell-num cell-meta" style="text-align:center">${m.qty_per_unit}</td>
+      <td class="has-input" style="width:60px;">
+        <input type="number" class="form-input cell-num--start" data-pn="${sanitize(m.part_no)}" data-field="starting_stock" value="${r.start}" min="0" step="1">
+      </td>
+      ${months.map(mo => {
+        const d = r.months[mo];
+        const isShort = r.shortAt[mo];
+        // Point 2: 제작대수 셀을 텍스트에서 입력 필드로 변경
+        const qtyCell = isFirst
+          ? `<td class="has-input cell-num--qty-merged month-start ${monthClass[mo]}" rowspan="${groupSize}">
+               <input type="number" class="form-input model-header-input" style="text-align:center; font-size:13px; font-weight:700;" data-group="${dnAttr}" data-month="${mo}" value="${d.qty}" min="0" step="1">
+             </td>`
+          : '';
+        return `
+          ${qtyCell}
+          <td class="cell-num cell-num--readonly ${monthClass[mo]}${isFirst ? '' : ' month-start'}" data-cell="${mo}_required">${fmt(d.required)}</td>
+          <td class="has-input ${monthClass[mo]}">
+            <input type="number" class="form-input" data-pn="${sanitize(m.part_no)}" data-field="${mo}_incoming" value="${d.incoming}" min="0" step="1">
+          </td>
+          <td class="cell-num ${isShort ? 'cell-num--alert' : ''} ${monthClass[mo]}" data-cell="${mo}_ending">${fmt(d.ending)}</td>
+        `;
+      }).join('')}
+    </tr>
+  `;
+}
+
+// 모델 헤더의 제작대수 변경 → 해당 모델의 모든 품목 행 재계산
+function onModelInputChange(e) {
+  const groupName = e.target.dataset.group;
+  const month = e.target.dataset.month;
+  const val = parseInt(e.target.value, 10) || 0;
+  
+  if (!state.modelInputs[groupName]) state.modelInputs[groupName] = emptyModelInput();
+  state.modelInputs[groupName][`${month}_qty`] = val;
+  
+  // 같은 모델의 모든 품목 행 업데이트
+  MASTERS.forEach(m => {
+    if (displayName(m) === groupName) updateItemRow(m.part_no);
+  });
+  
+  saveInputs();
+  updateOrderCount();
+}
+
+// 품목의 입고계획 변경 → 해당 행만 재계산
+function onItemInputChange(e) {
+  const pn = e.target.dataset.pn;
+  const field = e.target.dataset.field;
+  const val = parseInt(e.target.value, 10) || 0;
+  
+  if (!state.itemInputs[pn]) state.itemInputs[pn] = emptyItemInput();
+  state.itemInputs[pn][field] = val;
+  
+  updateItemRow(pn);
+  saveInputs();
+  updateOrderCount();
+}
+
+function updateItemRow(pn) {
+  const master = MASTERS.find(m => m.part_no === pn);
+  if (!master) return;
+  const r = getResult(master);
+  const tr = document.querySelector(`tr.item-row[data-pn="${CSS.escape(pn)}"]`);
+  if (!tr) return;
+  
+  const months = ['may', 'jun', 'jul', 'aug'];
+  months.forEach(mo => {
+    const d = r.months[mo];
+    // 제작대수 셀은 그룹 첫 행에만 존재 (rowspan으로 병합)
+    const qtyCell = tr.querySelector(`[data-cell="${mo}_qty"]`);
+    const reqCell = tr.querySelector(`[data-cell="${mo}_required"]`);
+    const endCell = tr.querySelector(`[data-cell="${mo}_ending"]`);
+    if (qtyCell) qtyCell.textContent = fmt(d.qty);
+    if (reqCell) reqCell.textContent = fmt(d.required);
+    if (endCell) {
+      endCell.textContent = fmt(d.ending);
+      endCell.classList.toggle('cell-num--alert', r.shortAt[mo]);
+    }
+  });
+}
+
+function updateOrderCount() {
+  const count = MASTERS.filter(m => getResult(m).anyShort).length;
+  const el = document.getElementById('count-orders');
+  el.textContent = count;
+  el.classList.toggle('tab__count--alert', count > 0);
+}
+
+// 필터 이벤트
+['search', 'filter-brand', 'filter-model', 'filter-supplier', 'filter-status'].forEach(id => {
+  const el = document.getElementById(id);
+  const key = id === 'search' ? 'search' : id.replace('filter-', '');
+  el.addEventListener('input', () => {
+    state.filters[key] = el.value;
+    renderForm();
+  });
+});
+document.getElementById('btn-filter-reset').addEventListener('click', () => {
+  state.filters = { search: '', brand: '', model: '', supplier: '', status: '' };
+  ['search', 'filter-brand', 'filter-model', 'filter-supplier', 'filter-status'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  renderForm();
+});
+
+// Header actions
+document.getElementById('btn-reset-all').addEventListener('click', () => {
+  if (!confirm('모든 입력값을 엑셀 초기값으로 되돌립니다. 계속하시겠어요?')) return;
+  state.modelInputs = initialModelInputs();
+  state.itemInputs = initialItemInputs();
+  saveInputs();
+  renderForm();
+  updateOrderCount();
+});
+
+// (JSON 내보내기는 INIT 섹션의 btn-export-json 이벤트로 통합됨)
+
+// ──────────────────────────────  DASHBOARD  ──────────────────────────────
+function renderDashboard() {
+  const selectedMo = state.dashMonth || 'may';
+  const moKr = { may: '5월', jun: '6월', jul: '7월', aug: '8월' }[selectedMo];
+  
+  // 셀렉트 박스 상태 동기화
+  const monthSelect = document.getElementById('dash-month-select');
+  if (monthSelect) monthSelect.value = selectedMo;
+
+  // 차트 제목 및 범례 텍스트 업데이트
+  const chartTitleEl = document.getElementById('chart-title');
+  if (chartTitleEl) chartTitleEl.textContent = `모델별 ${moKr} 필요수량 vs 입고계획`;
+  
+  const legendItems = document.querySelectorAll('.chart-legend__item');
+  if (legendItems.length >= 2) {
+    legendItems[0].innerHTML = `<span class="chart-legend__sw" style="background:var(--sky)"></span>${moKr} 필요수량`;
+    legendItems[1].innerHTML = `<span class="chart-legend__sw" style="background:var(--teal); opacity:0.7;"></span>${moKr} 입고계획`;
+  }
+
+  document.getElementById('dash-updated').textContent =
+    '최종 갱신 ' + new Date().toLocaleString('ko-KR') + ' · ' + MASTERS.length + '건';
+  
+  document.getElementById('kpi-total').innerHTML = fmt(MASTERS.length) + '<span class="kpi__unit">EA</span>';
+  const models = new Set(MASTERS.map(i => i.model).filter(Boolean));
+  const suppliers = new Set(MASTERS.map(i => i.supplier).filter(Boolean));
+  document.getElementById('kpi-models').textContent = models.size;
+  document.getElementById('kpi-suppliers').textContent = suppliers.size;
+  
+  // 입고계획 총합
+  let totalInc = 0, totalAmt = 0;
+  const monthlyInc = { may: 0, jun: 0, jul: 0, aug: 0 };
+  MASTERS.forEach(m => {
+    const r = getResult(m);
+    ['may','jun','jul','aug'].forEach(mo => {
+      const val = r.months[mo].incoming;
+      totalInc += val;
+      monthlyInc[mo] += val;
+      totalAmt += val * (m.unit_price || 0);
+    });
+  });
+  document.getElementById('kpi-incoming').innerHTML = fmt(totalInc) + '<span class="kpi__unit">EA</span>';
+  document.getElementById('kpi-incoming-amt').innerHTML = 
+    `5월 ${fmt(monthlyInc.may)} · 6월 ${fmt(monthlyInc.jun)} · 7월 ${fmt(monthlyInc.jul)} · 8월 ${fmt(monthlyInc.aug)}<br>` +
+    `<span style="color:var(--teal); font-weight:600; font-size:9.5px; margin-top:4px; display:inline-block;">총 발주액 ₩${fmt(totalAmt)}</span>`;
+  
+  // 부족 항목
+  const shorts = MASTERS.filter(m => getResult(m).anyShort);
+  document.getElementById('kpi-shortage').innerHTML = fmt(shorts.length) + '<span class="kpi__unit">EA</span>';
+  const breakdown = { may: 0, jun: 0, jul: 0, aug: 0 };
+  shorts.forEach(m => {
+    const r = getResult(m);
+    if (r.firstShort) breakdown[r.firstShort]++;
+  });
+  document.getElementById('kpi-shortage-detail').textContent =
+    `5월말 ${breakdown.may} · 6월말 ${breakdown.jun} · 7월말 ${breakdown.jul} · 8월말 ${breakdown.aug}`;
+  
+  // 손실
+  const loss = MASTERS.filter(m => m.loss_rate != null && Math.abs(m.loss_rate) > 0.01);
+  document.getElementById('kpi-loss').innerHTML = fmt(loss.length) + '<span class="kpi__unit">EA</span>';
+  const lossSum = loss.reduce((acc, m) => acc + Math.abs((m.starting_stock || 0) - (m.erp_stock || 0)), 0);
+  document.getElementById('kpi-loss-detail').textContent = `차이 합계 ${fmt(lossSum)} EA`;
+  
+  // 모델별 차트
+  const byModel = {};
+  MASTERS.forEach(m => {
+    const k = displayName(m) || '(미지정)';
+    if (!byModel[k]) byModel[k] = { req: 0, inc: 0 };
+    const r = getResult(m);
+    byModel[k].req += r.months[selectedMo].required;
+    byModel[k].inc += r.months[selectedMo].incoming;
+  });
+  const entries = Object.entries(byModel).map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.req - a.req);
+  const maxVal = Math.max(...entries.map(m => Math.max(m.req, m.inc)), 1);
+  document.getElementById('chart-model').innerHTML = entries.map(m => {
+    return `
+      <div class="chart-row" onclick="showTrendModal('${sanitize(m.name)}')">
+        <div class="chart-row__label" style="line-height:1.2">
+          ${(() => {
+            const p = m.name.split(' ');
+            let n = p[0], k = p.slice(1).join(' ');
+            if (p[1] === 'DC' || p[1] === 'OSC') {
+              n = p[0] + ' ' + p[1];
+              k = p.slice(2).join(' ');
+            }
+            return k ? `${sanitize(n)}<br><span style="font-size:9px; opacity:0.6; font-weight:400;">${sanitize(k)}</span>` : sanitize(n);
+          })()}
+        </div>
+        <div>
+          <div class="chart-track"><div class="chart-fill" style="width:${(m.req/maxVal*100).toFixed(1)}%"></div></div>
+          <div class="chart-track" style="margin-top:3px"><div class="chart-fill chart-fill--alt" style="width:${(m.inc/maxVal*100).toFixed(1)}%"></div></div>
+        </div>
+        <div class="chart-val">${fmt(m.req)}<br><span style="color:var(--t3)">${fmt(m.inc)}</span></div>
+      </div>
+    `;
+  }).join('');
+  
+  // 우선순위 (부족 시점이 빠른 순)
+  const orderRank = { may: 0, jun: 1, jul: 2, aug: 3 };
+  const priority = shorts.map(m => {
+    const r = getResult(m);
+    const fs = r.firstShort;
+    const monthData = r.months[fs];
+    const nextReq = (fs === 'aug') ? r.months.aug.required :
+                    r.months[{may:'jun',jun:'jul',jul:'aug'}[fs]].required;
+    return { master: m, firstShort: fs, ending: monthData.ending, shortage: nextReq - monthData.ending };
+  }).sort((a, b) => orderRank[a.firstShort] - orderRank[b.firstShort] || b.shortage - a.shortage)
+    .slice(0, 6);
+  
+  const maxShortVal = Math.max(...priority.map(p => p.shortage), 1);
+  renderERPDiscrepancy();
+  renderABCAnalysis();
+  updateERPImportUI();
+
+  document.getElementById('alert-list').innerHTML = priority.length
+    ? priority.map(p => `
+      <li class="alert-item alert-item--${p.firstShort === 'may' || p.firstShort === 'jun' ? 'danger' : 'warn'}">
+        <div class="alert-item__marker"></div>
+        <div>
+          <div class="alert-item__title">
+            <strong>${sanitize(p.master.part_no)}</strong>${sanitize(p.master.part_name)}
+          </div>
+          <div class="alert-item__meta">
+            ${sanitize(displayName(p.master))} · ${sanitize(p.master.supplier || '')} ·
+            <span style="color:var(--red)">${MONTH_KR[p.firstShort]} 부족 (${NEXT_KR[p.firstShort]}용)</span>
+          </div>
+          <div style="margin-top: 8px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
+            <div style="width: ${Math.min(100, (p.shortage / maxShortVal * 100))}%; height: 100%; 
+                 background: ${p.firstShort === 'may' || p.firstShort === 'jun' ? 'var(--red)' : 'var(--amb)'}; 
+                 box-shadow: 0 0 8px ${p.firstShort === 'may' || p.firstShort === 'jun' ? 'var(--red)' : 'var(--amb)'};"></div>
+          </div>
+        </div>
+        <div>
+          <div class="alert-item__value alert-item__value--danger">${fmt(p.shortage)}</div>
+          <div class="alert-item__value-sub">부족 (EA)</div>
+        </div>
+      </li>
+    `).join('')
+    : '<div class="empty">현재 모든 구매품이 안전재고 기준을 충족합니다.</div>';
+}
+
+/**
+ * 특정 모델의 4개월 재고 추이 팝업 표시
+ */
+function showTrendModal(modelName) {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.querySelector('.modal__title');
+  
+  modalTitle.textContent = `재고 추이 분석: ${modelName}`;
+  
+  const items = MASTERS.filter(m => displayName(m) === modelName);
+  // 모든 품목의 데이터를 합산하여 4개월 추이 계산
+  const totals = { start: 0, may: {req:0, inc:0, end:0}, jun: {req:0, inc:0, end:0}, jul: {req:0, inc:0, end:0}, aug: {req:0, inc:0, end:0} };
+  
+  items.forEach(m => {
+    const r = getResult(m);
+    totals.start += (r.start || 0);
+    ['may','jun','jul','aug'].forEach(mo => {
+      totals[mo].req += (r.months[mo].required || 0);
+      totals[mo].inc += (r.months[mo].incoming || 0);
+      totals[mo].end += (r.months[mo].ending || 0);
+    });
+  });
+
+  // 차트 배경 그라데이션 생성 함수
+  const createGradient = (ctx, color) => {
+    const g = ctx.createLinearGradient(0, 0, 0, 250);
+    g.addColorStop(0, color.replace('1)', '0.4)'));
+    g.addColorStop(1, color.replace('1)', '0)'));
+    return g;
+  };
+
+  const monthsLabels = ['5월', '6월', '7월', '8월'];
+  const chartData = {
+    labels: monthsLabels,
+    datasets: [
+      {
+        label: '필요수량',
+        data: [totals.may.req, totals.jun.req, totals.jul.req, totals.aug.req],
+        borderColor: '#38bdf8', // 일렉트릭 블루
+        backgroundColor: '#38bdf8',
+        borderWidth: 3,
+        fill: false,
+        tension: 0.3,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#38bdf8',
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: '입고계획',
+        data: [totals.may.inc, totals.jun.inc, totals.jul.inc, totals.aug.inc],
+        borderColor: '#4ade80', // 네온 그린
+        backgroundColor: '#4ade80',
+        borderWidth: 3,
+        fill: false,
+        tension: 0.3,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#4ade80',
+        pointRadius: 4,
+        pointHoverRadius: 6
+      },
+      {
+        label: '기말재고',
+        data: [totals.may.end, totals.jun.end, totals.jul.end, totals.aug.end],
+        borderColor: '#f472b6', // 핫 핑크
+        backgroundColor: (context) => {
+          const chart = context.chart;
+          const {ctx, chartArea} = chart;
+          if (!chartArea) return null;
+          const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          g.addColorStop(0, 'rgba(244, 114, 182, 0.3)');
+          g.addColorStop(1, 'rgba(244, 114, 182, 0)');
+          return g;
+        },
+        borderWidth: 4,
+        fill: true,
+        tension: 0.3,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#f472b6',
+        pointRadius: 5
+      }
+    ]
+  };
+
+  modalBody.innerHTML = `
+    <div style="background: #0f172a; padding: 25px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
+      <canvas id="trendChart" style="max-height: 280px;"></canvas>
+    </div>
+    <div style="background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border2);">
+      <table class="order-table" style="width: 100%;">
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th class="col-num">기초 (4월)</th>
+            <th class="col-num">5월</th>
+            <th class="col-num">6월</th>
+            <th class="col-num">7월</th>
+            <th class="col-num">8월</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>필요수량 (Req)</td>
+            <td class="col-num">-</td>
+            <td class="col-num">${fmt(totals.may.req)}</td>
+            <td class="col-num">${fmt(totals.jun.req)}</td>
+            <td class="col-num">${fmt(totals.jul.req)}</td>
+            <td class="col-num">${fmt(totals.aug.req)}</td>
+          </tr>
+          <tr>
+            <td>입고계획 (In)</td>
+            <td class="col-num">-</td>
+            <td class="col-num">${fmt(totals.may.inc)}</td>
+            <td class="col-num">${fmt(totals.jun.inc)}</td>
+            <td class="col-num">${fmt(totals.jul.inc)}</td>
+            <td class="col-num">${fmt(totals.aug.inc)}</td>
+          </tr>
+          <tr style="border-top: 2px solid var(--sky); background: rgba(96, 170, 220, 0.05);">
+            <td style="color: var(--sky); font-weight: 700;">기말재고 (Stock)</td>
+            <td class="col-num" style="color: var(--sky); font-weight: 700;">${fmt(totals.start)}</td>
+            <td class="col-num" style="color: var(--sky); font-weight: 700;">${fmt(totals.may.end)}</td>
+            <td class="col-num" style="color: var(--sky); font-weight: 700;">${fmt(totals.jun.end)}</td>
+            <td class="col-num" style="color: var(--sky); font-weight: 700;">${fmt(totals.jul.end)}</td>
+            <td class="col-num" style="color: var(--sky); font-weight: 700;">${fmt(totals.aug.end)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top: 15px; font-size: 11px; color: var(--t3); text-align: right;">
+        * 기초 재고는 4월말 현물재고 합산치이며, 기말재고는 이월된 누적 결과입니다.
+      </div>
+    </div>
+  `;
+  
+  modal.classList.add('modal-backdrop--open');
+
+  // Chart.js 렌더링
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: {
+            color: '#cbd5e1',
+            font: { size: 12, weight: 'bold' },
+            usePointStyle: true,
+            padding: 20
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+          ticks: { color: '#94a3b8', font: { size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+          ticks: { 
+            color: '#94a3b8', 
+            font: { size: 11 },
+            callback: (val) => val.toLocaleString()
+          }
+        }
+      }
+    }
+  });
+}
+
+// ──────────────────────────────  ORDERS  ──────────────────────────────
+// 구매업체 정보 (국내 업체 - 발주서 양식 사용)
+const SUPPLIER_INFO = {
+  '가람기계': {
+    company: '주식회사 가람기계',
+    bizNo: '782-87-01247',
+    ceo: '오정명',
+    address: '대구광역시 달서구 성서서로 108(월암동)',
+    contact: '선영재 과장',
+    phone: '010-7934-9339'
+  },
+  '태상테크': {
+    company: '태상테크',
+    bizNo: '749-56-00121',
+    ceo: '김정석',
+    address: '대구광역시 북구 3공단로10길 11(노원동3가)',
+    contact: '김정석 대표',
+    phone: '010-3546-2010'
+  },
+  '윈텍': {
+    company: '윈텍',
+    bizNo: '608-07-80113',
+    ceo: '손우규',
+    address: '경상남도 창원시 의창구 대산면 봉강가술로477번길 83',
+    contact: '김옥경 차장',
+    phone: '010-6214-1102'
+  },
+  'YSP윤성': {
+    company: 'YSP 윤성',
+    bizNo: '263-35-00146',
+    ceo: '윤석길',
+    address: '경상북도 경주시 내남면 명계3산단로2길 51, 명계3일반산업단지 10B 2L',
+    contact: '정한별 과장',
+    phone: '010-2809-7348'
+  }
+};
+
+// 발주처 정보 (TC Tech)
+const BUYER_INFO = {
+  company: '(주)티시테크',
+  bizNo: '506-81-16620',
+  ceo: '유준혁',
+  address: '경상북도 포항시 남구 철강산단로 66번길 89',
+  contact: '김무진 프로',
+  phone: '010-2724-8277'
+};
+
+// 수입업체 (별도 양식)
+const IMPORT_KEYWORDS = ['OEI', 'FASTENAL', '상해', 'POLYGON'];
+function isImportSupplier(name) {
+  if (!name) return false;
+  return IMPORT_KEYWORDS.some(k => name.toUpperCase().includes(k.toUpperCase()));
+}
+
+// 모델별 비고 기본값 (납품 위치)
+function defaultBigo(master) {
+  const m = (master.model || '').toUpperCase();
+  if (m.includes('GS1930E')) return 'G16 하차';
+  if (m.includes('GS4655') || m.includes('R55C') || m.includes('HX')) return '2공장 텐트동 하차';
+  return '';
+}
+
+// MOQ 추출
+function moqValue(master) {
+  const s = master.moq_basic || master.moq_min || '';
+  const paren = s.match(/\(([\d,]+)\)/);
+  if (paren) return parseInt(paren[1].replace(/,/g, ''), 10) || null;
+  const m = s.match(/[\d,]+/);
+  return m ? parseInt(m[0].replace(/,/g, ''), 10) || null : null;
+}
+
+// 권장 발주량 계산
+function suggestedQty(master) {
+  const r = getResult(master);
+  const reqs = ['may','jun','jul','aug'].map(mo => r.months[mo].required);
+  const shortages = [
+    Math.max(0, reqs[1] - r.months.may.ending),
+    Math.max(0, reqs[2] - r.months.jun.ending),
+    Math.max(0, reqs[3] - r.months.jul.ending),
+    Math.max(0, reqs[3] - r.months.aug.ending)
+  ];
+  const maxShort = Math.max(...shortages);
+  const moq = moqValue(master) || 1;
+  return Math.ceil(maxShort / moq) * moq;
+}
+
+function renderOrders() {
+  // 부족 품목 또는 사용자가 수동으로 수량/품목을 조정한 모든 항목 추출
+  const shorts = MASTERS.filter(m => getResult(m).anyShort || state.orderOverrides[m.part_no] !== undefined);
+  
+  if (shorts.length === 0) {
+    document.getElementById('order-groups').innerHTML = '';
+    document.getElementById('order-empty').style.display = 'block';
+    return;
+  }
+  document.getElementById('order-empty').style.display = 'none';
+  
+  // 구매업체별 그룹화 + 수입/국내 분류
+  const groups = {};
+  shorts.forEach(m => {
+    const key = m.supplier || '(미지정)';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(m);
+  });
+  
+  // 국내 / 수입 분리, 국내 → 수입 순으로 표시
+  const entries = Object.entries(groups);
+
+  // 수동 수정/추가 항목이 있는 업체를 상단으로 올리기 위한 사용자 정의 정렬 함수
+  const customSort = (a, b) => {
+    const hasManualA = a[1].some(m => state.orderOverrides[m.part_no] !== undefined);
+    const hasManualB = b[1].some(m => state.orderOverrides[m.part_no] !== undefined);
+    if (hasManualA && !hasManualB) return -1;
+    if (!hasManualA && hasManualB) return 1;
+    return b[1].length - a[1].length; // 그 외에는 품목이 많은 순서대로
+  };
+
+  const domestic = entries.filter(([k]) => !isImportSupplier(k));
+  const importer = entries.filter(([k]) => isImportSupplier(k));
+  domestic.sort(customSort);
+  importer.sort(customSort);
+  
+  const html = [
+    ...domestic.map(([supplier, items]) => renderDomesticGroup(supplier, items)),
+    ...(importer.length ? [`
+      <div style="margin: 28px 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--t3); font-weight: 500;">
+        ▎ 수입업체 — 별도 양식 작성 필요
+      </div>
+    `] : []),
+    ...importer.map(([supplier, items]) => renderImportGroup(supplier, items))
+  ].join('');
+  
+  document.getElementById('order-groups').innerHTML = html;
+  
+  // 국내 업체만 발주서 생성 버튼 바인딩
+  document.querySelectorAll('[data-supplier]').forEach(btn => {
+    btn.addEventListener('click', () => openPOModal(btn.dataset.supplier));
+  });
+}
+
+function renderDomesticGroup(supplier, items) {
+  let totalAmt = 0;
+  const rows = items.map(m => {
+    const r = getResult(m);
+    const qty = getOrderQty(m);
+    totalAmt += qty * (m.unit_price || 0);
+    return { master: m, firstShort: r.firstShort, qty };
+  });
+  const hasTemplate = SUPPLIER_INFO[supplier];
+  
+  return `
+    <div class="supplier-group">
+      <div class="supplier-group__head">
+        <div>
+          <div class="supplier-name">
+            ${sanitize(supplier)} <span class="badge badge--safe" style="margin-left:8px">국내</span>
+            ${hasTemplate ? '' : '<span class="badge badge--warn" style="margin-left:8px">양식 미등록</span>'}
+          </div>
+          <div class="supplier-meta">${items.length}건 · 국내 구매업체</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px">
+          <div class="supplier-total">합계 ₩${fmt(totalAmt)}</div>
+          ${hasTemplate
+            ? `<button class="btn btn--sm" data-supplier="${sanitize(supplier)}">발주서 생성</button>`
+            : `<button class="btn btn--sm btn--ghost" disabled style="opacity:0.5; cursor:not-allowed">수신처 정보 필요</button>`}
+        </div>
+      </div>
+      <table class="order-table">
+        <colgroup>
+          <col class="col-del">
+          <col class="col-marker">
+          <col class="col-deadline">
+          <col class="col-pn">
+          <col class="col-name">
+          <col class="col-qpu">
+          <col class="col-qty">
+          <col class="col-price">
+          <col class="col-amt">
+        </colgroup>
+        <thead>
+          <tr>
+            <th></th>
+            <th>부족 시점</th>
+            <th style="text-align:center">발주 마감일</th>
+            <th>품번</th>
+            <th>품명</th>
+            <th class="col-num">대당 소요량</th>
+            <th class="col-num">발주 수량</th>
+            <th class="col-num">단가</th>
+            <th class="col-num">금액</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>
+              <td style="text-align:center"><button class="btn-order-del" data-pn="${sanitize(row.master.part_no)}">✕</button></td>
+              <td>
+                ${row.firstShort
+                  ? `<span class="badge badge--danger">${MONTH_KR[row.firstShort]}</span>`
+                  : `<span class="badge badge--neutral">수동 추가</span>`
+                }
+              </td>
+              <td class="deadline-cell">${deadlineHtml(orderDeadline(row.master, row.firstShort))}</td>
+              <td style="font-family:var(--mono); font-weight:500">${sanitize(row.master.part_no)}</td>
+              <td>${sanitize(row.master.part_name)}<br><span style="font-size:10px; color:var(--t3)">${sanitize(displayName(row.master))} · MOQ ${sanitize(row.master.moq_basic||'–')}</span></td>
+              <td class="col-num">${row.master.qty_per_unit}</td>
+              <td class="has-input">
+                <input type="number" class="form-input order-qty-input" data-pn="${sanitize(row.master.part_no)}" value="${row.qty}" min="0">
+              </td>
+              <td class="col-num">₩${fmt(row.master.unit_price)}</td>
+              <td class="col-num">₩${fmt(row.qty * (row.master.unit_price || 0))}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderImportGroup(supplier, items) {
+  let totalAmt = 0;
+  const rows = items.map(m => {
+    const r = getResult(m);
+    const qty = getOrderQty(m);
+    totalAmt += qty * (m.unit_price || 0);
+    return { master: m, firstShort: r.firstShort, qty };
+  });
+  return `
+    <div class="supplier-group supplier-group--import">
+      <div class="supplier-group__head">
+        <div>
+          <div class="supplier-name">${sanitize(supplier)} <span class="badge badge--info" style="margin-left:8px">수입</span></div>
+          <div class="supplier-meta">${items.length}건 · 별도 영문/수입 양식 사용</div>
+        </div>
+        <div style="font-family:var(--mono); font-weight:500; font-size:13px">합계 ₩${fmt(totalAmt)}</div>
+      </div>
+      <table class="order-table">
+        <colgroup>
+          <col class="col-del">
+          <col class="col-marker">
+          <col class="col-deadline">
+          <col class="col-pn">
+          <col class="col-name">
+          <col class="col-qpu">
+          <col class="col-qty">
+          <col class="col-price">
+          <col class="col-amt">
+        </colgroup>
+        <thead>
+          <tr>
+            <th></th>
+            <th>부족 시점</th>
+            <th style="text-align:center">발주 마감일</th>
+            <th>품번</th>
+            <th>품명</th>
+            <th class="col-num">대당 소요량</th>
+            <th class="col-num">발주 수량</th>
+            <th class="col-num">단가</th>
+            <th class="col-num">금액</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>
+              <td style="text-align:center"><button class="btn-order-del" data-pn="${sanitize(row.master.part_no)}">✕</button></td>
+              <td>
+                ${row.firstShort
+                  ? `<span class="badge badge--danger">${MONTH_KR[row.firstShort]}</span>`
+                  : `<span class="badge badge--neutral">수동 추가</span>`
+                }
+              </td>
+              <td class="deadline-cell">${deadlineHtml(orderDeadline(row.master, row.firstShort))}</td>
+              <td style="font-family:var(--mono); font-weight:500">${sanitize(row.master.part_no)}</td>
+              <td>${sanitize(row.master.part_name)}<br><span style="font-size:10px; color:var(--t3)">${sanitize(displayName(row.master))} · LT ${row.master.lead_time_days||'–'}일 · MOQ ${sanitize(row.master.moq_basic||'–')}</span></td>
+              <td class="col-num">${row.master.qty_per_unit}</td>
+              <td class="has-input">
+                <input type="number" class="form-input order-qty-input" data-pn="${sanitize(row.master.part_no)}" value="${row.qty}" min="0">
+              </td>
+              <td class="col-num">₩${fmt(row.master.unit_price)}</td>
+              <td class="col-num">₩${fmt(row.qty * (row.master.unit_price || 0))}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ───────────────  PO MODAL (엑셀 양식 동일)  ───────────────
+// 발주서 모달 상태 (수량/비고 임시 편집)
+let poEditState = { supplier: null, items: [] };
+
+function openPOModal(supplier) {
+  const info = SUPPLIER_INFO[supplier];
+  if (!info) {
+    alert('해당 구매업체의 수신처 정보가 등록되지 않았습니다.');
+    return;
+  }
+  
+  const items = MASTERS.filter(m => (m.supplier || '') === supplier && getResult(m).anyShort);
+  
+  // 다음 달 = 현재 달의 다음 달 (보통 발주는 1개월 선행)
+  const today = new Date();
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const orderDate = today.toISOString().slice(0, 10);
+  // 납기는 다음 달 둘째 주 목요일 정도 (기본값)
+  const delivDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 12).toISOString().slice(0, 10);
+  const monthLabel = `${nextMonth.getFullYear() % 100}년 ${nextMonth.getMonth() + 1}월`;
+  
+  // 모델별로 그룹화 (엑셀 양식과 동일)
+  poEditState.supplier = supplier;
+  poEditState.items = items.map(m => ({
+    master: m,
+    qty: suggestedQty(m),
+    bigo: defaultBigo(m),
+    groupKey: displayName(m)
+  }));
+  
+  renderPOModal(supplier, info, orderDate, delivDate, monthLabel);
+  document.getElementById('modal').classList.add('modal-backdrop--open');
+}
+
+function renderPOModal(supplier, info, orderDate, delivDate, monthLabel) {
+  // 그룹화
+  const grouped = {};
+  poEditState.items.forEach((item, idx) => {
+    if (!grouped[item.groupKey]) grouped[item.groupKey] = [];
+    grouped[item.groupKey].push({ ...item, idx });
+  });
+  
+  let totalQty = 0, totalAmt = 0;
+  poEditState.items.forEach(it => {
+    totalQty += it.qty;
+    totalAmt += it.qty * (it.master.unit_price || 0);
+  });
+  
+  document.getElementById('modal-body').innerHTML = `
+    <div class="po-form">
+      <div class="po-title">${sanitize(monthLabel)} 구매품 발주서</div>
+      
+      <div class="po-info-grid">
+        <div class="po-info-block">
+          <div class="po-info-head">발 주 처</div>
+          <table class="po-info-table">
+            <tr><th>회사명</th><td>${sanitize(BUYER_INFO.company)}</td><th>담당자</th><td>${sanitize(BUYER_INFO.contact)}</td></tr>
+            <tr><th>사업자번호</th><td>${sanitize(BUYER_INFO.bizNo)}</td><th>연락처</th><td>${sanitize(BUYER_INFO.phone)}</td></tr>
+            <tr><th>대표자</th><td>${sanitize(BUYER_INFO.ceo)}</td><th>발주일자</th><td><input type="date" class="po-date-input" id="po-order-date" value="${orderDate}"></td></tr>
+            <tr><th>주소</th><td colspan="3">${sanitize(BUYER_INFO.address)}</td></tr>
+          </table>
+        </div>
+        <div class="po-info-block">
+          <div class="po-info-head">수 신 처</div>
+          <table class="po-info-table">
+            <tr><th>회사명</th><td>${sanitize(info.company)}</td><th>담당자</th><td>${sanitize(info.contact)}</td></tr>
+            <tr><th>사업자번호</th><td>${sanitize(info.bizNo)}</td><th>연락처</th><td>${sanitize(info.phone)}</td></tr>
+            <tr><th>대표자</th><td>${sanitize(info.ceo)}</td><th>납기일자</th><td><input type="date" class="po-date-input" id="po-deliv-date" value="${delivDate}"></td></tr>
+            <tr><th>주소</th><td colspan="3">${sanitize(info.address)}</td></tr>
+          </table>
+        </div>
+      </div>
+      
+      <div class="po-section-head">▶  ${sanitize(monthLabel.split(' ')[1])} 발주분  (확정)</div>
+      
+      <table class="po-items-table">
+        <thead>
+          <tr>
+            <th style="width:18%">모델</th>
+            <th style="width:13%">품번</th>
+            <th>품명</th>
+            <th style="width:8%; text-align:right">발주 수량(EA)</th>
+            <th style="width:10%; text-align:right">단가(원)</th>
+            <th style="width:12%; text-align:right">금액(원)</th>
+            <th style="width:14%">비고</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Object.entries(grouped).map(([groupKey, gItems]) =>
+            gItems.map((it, i) => {
+              const amt = it.qty * (it.master.unit_price || 0);
+              return `
+                <tr>
+                  <td>${i === 0 ? sanitize(groupKey) : ''}</td>
+                  <td style="font-family:var(--mono)">${sanitize(it.master.part_no)}</td>
+                  <td>${sanitize(it.master.part_name)}</td>
+                  <td style="text-align:right">
+                    <input type="number" class="po-qty-input" data-idx="${it.idx}" value="${it.qty}" min="0" step="1">
+                  </td>
+                  <td style="text-align:right; font-family:var(--mono)">${fmt(it.master.unit_price)}</td>
+                  <td style="text-align:right; font-family:var(--mono)" data-amt-idx="${it.idx}">${fmt(amt)}</td>
+                  <td>
+                    <div style="display:flex; flex-direction:column; gap:3px;">
+                      <div class="po-tag-group" style="display:flex;">
+                        <button class="po-tag-btn" data-tag="[긴급]" data-idx="${it.idx}">긴급</button>
+                        <button class="po-tag-btn" data-tag="[정기]" data-idx="${it.idx}">정기</button>
+                        <button class="po-tag-btn" data-tag="[샘플]" data-idx="${it.idx}">샘플</button>
+                        <button class="po-tag-btn" data-tag="[A/S]" data-idx="${it.idx}">A/S</button>
+                      </div>
+                      <input type="text" class="po-bigo-input" data-idx="${it.idx}" value="${sanitize(it.bigo)}">
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')
+          ).join('')}
+          <tr class="po-total-row">
+            <td colspan="3" style="text-align:right">공급가액 합계</td>
+            <td style="text-align:right; font-family:var(--mono)" id="po-total-qty">${fmt(totalQty)}</td>
+            <td></td>
+            <td style="text-align:right; font-family:var(--mono)" id="po-total-amt">${fmt(totalAmt)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  // 수량 변경 시 금액·합계 재계산
+  document.querySelectorAll('.po-qty-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const idx = parseInt(input.dataset.idx, 10);
+      const newQty = parseInt(input.value, 10) || 0;
+      poEditState.items[idx].qty = newQty;
+      
+      const item = poEditState.items[idx];
+      const newAmt = newQty * (item.master.unit_price || 0);
+      document.querySelector(`[data-amt-idx="${idx}"]`).textContent = fmt(newAmt);
+      
+      // 합계
+      let tq = 0, ta = 0;
+      poEditState.items.forEach(it => {
+        tq += it.qty;
+        ta += it.qty * (it.master.unit_price || 0);
+      });
+      document.getElementById('po-total-qty').textContent = fmt(tq);
+      document.getElementById('po-total-amt').textContent = fmt(ta);
+    });
+  });
+  
+  // 비고 저장 및 태그 클릭 핸들러
+  document.querySelectorAll('.po-bigo-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const idx = parseInt(input.dataset.idx, 10);
+      poEditState.items[idx].bigo = input.value;
+    });
+  });
+
+  document.querySelectorAll('.po-tag-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      const tag = btn.dataset.tag;
+      const input = document.querySelector(`.po-bigo-input[data-idx="${idx}"]`);
+      
+      // 태그가 이미 존재하지 않는 경우에만 앞에 추가
+      if (!input.value.includes(tag)) {
+        input.value = tag + (input.value ? ' ' + input.value : '');
+        poEditState.items[idx].bigo = input.value;
+      }
+    });
+  });
+}
+
+// 발주 탭 수량 수정 및 실시간 합계 업데이트
+document.getElementById('panel-orders').addEventListener('input', e => {
+  if (e.target.classList.contains('order-qty-input')) {
+    const pn = e.target.dataset.pn;
+    const val = parseInt(e.target.value, 10) || 0;
+    state.orderOverrides[pn] = val;
+    saveInputs();
+    updateOrderTotals();
+  }
+});
+
+function updateOrderTotals() {
+  document.querySelectorAll('.supplier-group').forEach(group => {
+    let groupTotal = 0;
+    group.querySelectorAll('.order-qty-input').forEach(input => {
+      const master = MASTERS.find(m => m.part_no === input.dataset.pn);
+      const qty = parseInt(input.value, 10) || 0;
+      const rowAmt = qty * (master.unit_price || 0);
+      const amtCell = input.closest('tr').querySelector('td:last-child');
+      if (amtCell) amtCell.textContent = '₩' + fmt(rowAmt);
+      groupTotal += rowAmt;
+    });
+    const totalEl = group.querySelector('.supplier-total') || group.querySelector('div[style*="font-family:var(--mono)"]');
+    if (totalEl) totalEl.textContent = (totalEl.classList.contains('supplier-total') ? '합계 ' : '') + '₩' + fmt(groupTotal);
+  });
+}
+
+document.getElementById('panel-orders').addEventListener('click', e => {
+  if (e.target.closest('.btn-order-del')) {
+    const pn = e.target.closest('.btn-order-del').dataset.pn;
+    delete state.orderOverrides[pn];
+    saveInputs();
+    renderOrders();
+  }
+});
+
+// 발주 수정 사항 전체 초기화
+document.getElementById('btn-reset-orders').addEventListener('click', () => {
+  if (confirm('수동으로 수정한 모든 발주 수량을 초기화하고 시스템 권장량으로 되돌리겠습니까?')) {
+    state.orderOverrides = {};
+    saveInputs();
+    renderOrders();
+  }
+});
+
+// 수동 추가 입력창 감시하여 업체명 자동 표시
+document.getElementById('order-search-add').addEventListener('input', (e) => {
+  const pn = e.target.value.trim();
+  const found = MASTERS.find(m => m.part_no === pn);
+  const display = document.getElementById('order-supplier-display');
+  if (found) {
+    display.value = found.supplier;
+    display.style.color = 'var(--sky)';
+  } else {
+    display.value = '';
+  }
+});
+
+// 수동 품목 추가 로직
+document.getElementById('btn-order-add').addEventListener('click', () => {
+  const input = document.getElementById('order-search-add');
+  const supplierDisplay = document.getElementById('order-supplier-display');
+  const pn = input.value.trim();
+  
+  if (!pn) return;
+  
+  const found = MASTERS.find(m => m.part_no === pn);
+  if (!found) { alert('등록되지 않은 품번입니다.'); return; }
+  
+  // 이미 발주 목록에 존재하는지 체크 (시스템상 부족 품목이거나 이미 수동 추가/수정된 경우)
+  if (getResult(found).anyShort || state.orderOverrides[pn] !== undefined) {
+    alert('이미 추가된 품목입니다.');
+    return;
+  }
+
+  if (state.orderOverrides[pn] === undefined) {
+    state.orderOverrides[pn] = getOrderQty(found) || 0;
+  }
+  
+  input.value = '';
+  supplierDisplay.value = '';
+  saveInputs();
+  renderOrders();
+  updateOrderCount();
+});
+
+document.getElementById('modal-close').addEventListener('click', () =>
+  document.getElementById('modal').classList.remove('modal-backdrop--open'));
+document.getElementById('modal-close-2').addEventListener('click', () =>
+  document.getElementById('modal').classList.remove('modal-backdrop--open'));
+document.getElementById('modal-print').addEventListener('click', () => window.print());
+document.getElementById('modal-confirm-order').addEventListener('click', () => {
+  if (!poEditState.supplier) return;
+  if (!confirm(`[${poEditState.supplier}] 발주를 확정하고 이력에 저장하시겠습니까?`)) return;
+  logOrderConfirm(poEditState.supplier, poEditState.items);
+  document.getElementById('modal').classList.remove('modal-backdrop--open');
+  alert('발주가 확정되었습니다. 발주 이력 탭에서 확인하세요.');
+});
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target.id === 'modal')
+    document.getElementById('modal').classList.remove('modal-backdrop--open');
+});
+
+// ──────────────────────────────  신규 기능  ──────────────────────────────
+
+// ── ERP / 실사재고 엑셀 가져오기 ──
+
+// 컬럼명 자동 인식 키워드
+const COL_KEYWORDS = {
+  pn:     ['품번','part_no','part no','부품번호','품목번호','item no','item_no','품목코드'],
+  actual: ['실사수량','실사','현물재고','실재고','실사재고','physical','actual','실물'],
+  erp:    ['erp수량','erp재고','erp','시스템재고','system','장부','book','전산']
+};
+
+function detectColumns(header) {
+  const hLow = header.map(h => String(h||'').toLowerCase().replace(/\s/g,''));
+  const find = keys => {
+    for (const k of keys) {
+      const idx = hLow.findIndex(h => h.includes(k.toLowerCase().replace(/\s/g,'')));
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+  return { pnCol: find(COL_KEYWORDS.pn), actualCol: find(COL_KEYWORDS.actual), erpCol: find(COL_KEYWORDS.erp) };
+}
+
+function importERPExcel(file) {
+  if (typeof XLSX === 'undefined') { alert('엑셀 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let rows;
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        // CSV 처리
+        const text = new TextDecoder('utf-8').decode(e.target.result);
+        rows = text.trim().split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g,'').trim()));
+      } else {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      }
+
+      if (rows.length < 2) { alert('데이터 행이 없습니다.'); return; }
+
+      const header = rows[0];
+      const { pnCol, actualCol, erpCol } = detectColumns(header);
+
+      if (pnCol === -1) {
+        alert(`품번 컬럼을 찾을 수 없습니다.\n헤더: ${header.join(', ')}\n\n"양식 다운로드"로 제공된 양식을 사용해 주세요.`);
+        return;
+      }
+
+      let matched = 0, skipped = 0;
+      const knownPNs = new Set(MASTERS.map(m => m.part_no));
+
+      rows.slice(1).forEach(row => {
+        const pn = String(row[pnCol]||'').trim();
+        if (!pn || !knownPNs.has(pn)) { skipped++; return; }
+
+        if (actualCol !== -1) {
+          const val = parseInt(String(row[actualCol]||'').replace(/,/g,''), 10);
+          if (!isNaN(val)) {
+            if (!state.itemInputs[pn]) state.itemInputs[pn] = emptyItemInput();
+            state.itemInputs[pn].starting_stock = val;
+          }
+        }
+        if (erpCol !== -1) {
+          const val = parseInt(String(row[erpCol]||'').replace(/,/g,''), 10);
+          if (!isNaN(val)) state.erpStocks[pn] = val;
+        }
+        matched++;
+      });
+
+      saveInputs();
+      renderForm();
+      renderERPDiscrepancy();
+      updateERPImportUI();
+
+      const msg = [
+        `✅ 가져오기 완료`,
+        `• 매칭 품목: ${matched}건`,
+        skipped > 0 ? `• 건너뜀 (미등록 품번): ${skipped}건` : '',
+        actualCol === -1 ? '• ⚠️ 실사수량 컬럼 미인식 (ERP수량만 업데이트됨)' : '',
+        erpCol   === -1 ? '• ⚠️ ERP수량 컬럼 미인식 (실사수량만 업데이트됨)'  : ''
+      ].filter(Boolean).join('\n');
+      alert(msg);
+
+    } catch(err) {
+      alert('파일 파싱 오류: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function updateERPImportUI() {
+  const hasData = Object.keys(state.erpStocks).length > 0;
+  const resetBtn = document.getElementById('btn-erp-reset');
+  const statusEl = document.getElementById('erp-import-status');
+  if (resetBtn) resetBtn.style.display = hasData ? '' : 'none';
+  if (statusEl) {
+    const cnt = Object.keys(state.erpStocks).length;
+    statusEl.textContent = hasData
+      ? `● 가져온 데이터 ${cnt}건 반영 중 · 차이 > 0.5% 품목`
+      : '차이 > 0.5% 품목 · 엑셀 가져오기로 월말 데이터 반영';
+    statusEl.style.color = hasData ? 'var(--teal)' : '';
+  }
+}
+
+function downloadERPTemplate() {
+  if (typeof XLSX === 'undefined') { alert('엑셀 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+
+  // 품번 기준 중복 제거 — 같은 품번이 여러 모델에 걸쳐 등록된 경우 첫 번째만 사용
+  const seen = new Set();
+  const uniqueMasters = MASTERS.filter(m => {
+    if (seen.has(m.part_no)) return false;
+    seen.add(m.part_no);
+    return true;
+  });
+
+  const header = ['품번', '품명', '구매업체', '실사수량', 'ERP수량', '비고'];
+  const rows = [
+    header,
+    ...uniqueMasters.map(m => {
+      const actualQty = (state.itemInputs[m.part_no]?.starting_stock !== undefined)
+        ? state.itemInputs[m.part_no].starting_stock : (m.starting_stock || 0);
+      const erpQty = (state.erpStocks[m.part_no] !== undefined)
+        ? state.erpStocks[m.part_no] : (m.erp_stock || 0);
+      return [m.part_no, m.part_name, m.supplier || '', actualQty, erpQty, ''];
+    })
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 18 }, { wch: 35 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 20 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '실사ERP점검');
+  XLSX.writeFile(wb, `tctech_실사ERP_양식_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ── 발주 이력 ──
+const STORAGE_KEY_HISTORY = 'tctech_history_v1';
+let orderHistory = [];
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return [];
+}
+function saveHistory() {
+  try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(orderHistory)); } catch(e) {}
+}
+function updateHistoryCount() {
+  const el = document.getElementById('count-history');
+  if (el) el.textContent = orderHistory.length;
+}
+
+function renderHistory() {
+  const container = document.getElementById('history-list');
+  if (!container) return;
+  if (orderHistory.length === 0) {
+    container.innerHTML = '<div class="empty">발주 이력이 없습니다.<div class="empty__hint">발주서 생성 후 "발주 확정" 버튼을 누르면 기록됩니다.</div></div>';
+    return;
+  }
+  container.innerHTML = orderHistory.map((entry, idx) => {
+    const date = new Date(entry.date).toLocaleString('ko-KR');
+    if (entry.type === 'order') {
+      return `
+        <div class="card history-entry">
+          <div class="card__head">
+            <div>
+              <div class="card__title">${sanitize(entry.supplier)} — ${date}</div>
+              <div style="font-size:10px;color:var(--t3);margin-top:2px;">${entry.items.length}품목 · 총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span class="badge badge--info">발주확정</span>
+              <button class="btn btn--ghost btn--sm" onclick="deleteHistory(${idx})" style="color:var(--red);border-color:var(--red-b);">삭제</button>
+            </div>
+          </div>
+          <table class="order-table" style="width:100%">
+            <thead><tr>
+              <th>품번</th><th>품명</th><th>모델</th>
+              <th class="col-num">수량</th><th class="col-num">단가</th><th class="col-num">금액</th>
+            </tr></thead>
+            <tbody>
+              ${entry.items.map(it => `
+                <tr>
+                  <td style="font-family:var(--mono)">${sanitize(it.pn)}</td>
+                  <td>${sanitize(it.name)}</td>
+                  <td style="font-size:10px;color:var(--t3)">${sanitize(it.model)}</td>
+                  <td class="col-num">${fmt(it.qty)}</td>
+                  <td class="col-num">₩${fmt(it.unitPrice)}</td>
+                  <td class="col-num">₩${fmt(it.amount)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+    return '';
+  }).join('');
+}
+
+function deleteHistory(idx) {
+  if (!confirm('이 이력을 삭제하시겠습니까?')) return;
+  orderHistory.splice(idx, 1);
+  saveHistory();
+  renderHistory();
+  updateHistoryCount();
+}
+
+function logOrderConfirm(supplier, items) {
+  const entry = {
+    date: new Date().toISOString(),
+    type: 'order',
+    supplier,
+    items: items.map(it => ({
+      pn: it.master.part_no,
+      name: it.master.part_name,
+      model: displayName(it.master),
+      qty: it.qty,
+      unitPrice: it.master.unit_price,
+      amount: it.qty * (it.master.unit_price || 0)
+    })),
+    totalQty: items.reduce((s, it) => s + it.qty, 0),
+    totalAmt: items.reduce((s, it) => s + it.qty * (it.master.unit_price || 0), 0)
+  };
+  orderHistory.unshift(entry);
+  saveHistory();
+  updateHistoryCount();
+}
+
+// ── 발주 마감일 역산 ──
+function orderDeadline(master, firstShort) {
+  if (!firstShort || !master.lead_time_days) return null;
+  const shortEnd = { may: new Date(2026,4,31), jun: new Date(2026,5,30), jul: new Date(2026,6,31), aug: new Date(2026,7,31) }[firstShort];
+  if (!shortEnd) return null;
+  return new Date(shortEnd.getTime() - master.lead_time_days * 86400000);
+}
+
+function deadlineHtml(deadline) {
+  if (!deadline) return '<span class="dl-none">–</span>';
+  const today = new Date();
+  const daysLeft = Math.ceil((deadline - today) / 86400000);
+  const dateStr = deadline.toLocaleDateString('ko-KR', {month:'2-digit', day:'2-digit'});
+  if (daysLeft < 0)  return `<span class="dl-overdue">${dateStr}<br>D+${Math.abs(daysLeft)} 초과</span>`;
+  if (daysLeft <= 7) return `<span class="dl-urgent">${dateStr}<br>D-${daysLeft} 긴급</span>`;
+  if (daysLeft <= 14) return `<span class="dl-warning">${dateStr}<br>D-${daysLeft}</span>`;
+  return `<span class="dl-ok">${dateStr}<br>D-${daysLeft}</span>`;
+}
+
+// ── 엑셀 내보내기 ──
+function exportExcel() {
+  if (typeof XLSX === 'undefined') { alert('엑셀 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: 수급운영계획
+  const h1 = ['고객사','모델','품번','품명','구매업체','대당소요','4월말재고',
+    '5월제작','5월필요','5월입고','5월재고','6월제작','6월필요','6월입고','6월재고',
+    '7월제작','7월필요','7월입고','7월재고','8월제작','8월필요','8월입고','8월재고'];
+  const r1 = [h1, ...MASTERS.map(m => {
+    const r = getResult(m); const dn = displayName(m);
+    const cust = (dn.includes('R55C Lower Frame')||dn.includes('HX55ACR Lower Frame')||dn.includes('HX63AH Lower Frame')) ? 'HD건설기계' : 'TEREX GENIE';
+    return [cust,dn,m.part_no,m.part_name,m.supplier,m.qty_per_unit,r.start,
+      r.months.may.qty,r.months.may.required,r.months.may.incoming,r.months.may.ending,
+      r.months.jun.qty,r.months.jun.required,r.months.jun.incoming,r.months.jun.ending,
+      r.months.jul.qty,r.months.jul.required,r.months.jul.incoming,r.months.jul.ending,
+      r.months.aug.qty,r.months.aug.required,r.months.aug.incoming,r.months.aug.ending];
+  })];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(r1), '수급운영계획');
+
+  // Sheet 2: 발주현황
+  const h2 = ['품번','품명','모델','구매업체','부족시점','발주마감일','권장발주량','단가','금액'];
+  const r2 = [h2, ...MASTERS.filter(m => getResult(m).anyShort).map(m => {
+    const r = getResult(m);
+    const dl = orderDeadline(m, r.firstShort);
+    return [m.part_no,m.part_name,displayName(m),m.supplier,
+      MONTH_KR[r.firstShort]||'–', dl ? dl.toLocaleDateString('ko-KR') : '–',
+      suggestedQty(m), m.unit_price, suggestedQty(m)*(m.unit_price||0)];
+  })];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(r2), '발주현황');
+
+  // Sheet 3: ABC분석
+  const abcItems = buildABCData();
+  const h3 = ['등급','품번','품명','모델','구매업체','연간필요수량(추정)','연간금액(추정)'];
+  const r3 = [h3, ...abcItems.map(i => [i.grade, i.master.part_no, i.master.part_name, displayName(i.master), i.master.supplier, i.annualQty, i.annualAmt])];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(r3), 'ABC분석');
+
+  XLSX.writeFile(wb, `tctech_재고관리_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ── 월 이월 처리 ──
+function rolloverMonth() {
+  if (!confirm('⚠️ 월 이월 처리를 진행합니다.\n\n• 5월 기말재고 → 새 4월말 현물재고\n• 월별 계획이 한 달씩 앞으로 이동합니다\n\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?')) return;
+  MASTERS.forEach(m => {
+    const r = getResult(m);
+    const ii = state.itemInputs[m.part_no] || emptyItemInput();
+    state.itemInputs[m.part_no] = {
+      starting_stock: r.months.may.ending,
+      may_incoming: ii.jun_incoming || 0,
+      jun_incoming: ii.jul_incoming || 0,
+      jul_incoming: ii.aug_incoming || 0,
+      aug_incoming: 0
+    };
+  });
+  Object.keys(state.modelInputs).forEach(dn => {
+    const mi = state.modelInputs[dn];
+    state.modelInputs[dn] = { may_qty: mi.jun_qty||0, jun_qty: mi.jul_qty||0, jul_qty: mi.aug_qty||0, aug_qty: 0 };
+  });
+  saveInputs();
+  renderForm();
+  updateOrderCount();
+  alert('월 이월 처리가 완료되었습니다.\n5월 기말재고가 새 시작재고로 반영되었습니다.');
+}
+
+// ── ABC 분석 데이터 ──
+function buildABCData() {
+  const items = MASTERS.map(m => {
+    const r = getResult(m);
+    const annualQty = ['may','jun','jul','aug'].reduce((s, mo) => s + r.months[mo].required, 0) * 3;
+    const annualAmt = annualQty * (m.unit_price || 0);
+    return { master: m, annualQty, annualAmt };
+  }).sort((a, b) => b.annualAmt - a.annualAmt);
+  const totalAmt = items.reduce((s, i) => s + i.annualAmt, 0);
+  let cumAmt = 0;
+  return items.map(item => {
+    cumAmt += item.annualAmt;
+    const pct = totalAmt > 0 ? cumAmt / totalAmt : 0;
+    return { ...item, grade: pct <= 0.8 ? 'A' : pct <= 0.95 ? 'B' : 'C' };
+  });
+}
+
+function renderABCAnalysis() {
+  const container = document.getElementById('abc-body');
+  if (!container) return;
+  const classified = buildABCData();
+  const counts = {A:0,B:0,C:0}, amts = {A:0,B:0,C:0};
+  classified.forEach(i => { counts[i.grade]++; amts[i.grade] += i.annualAmt; });
+  const gradeColor = {A:'var(--red)',B:'var(--amb)',C:'var(--teal)'};
+  const gradeDesc  = {A:'핵심 집중관리',B:'주기적 검토',C:'정기 발주'};
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;border-bottom:0.5px solid var(--border);">
+      ${['A','B','C'].map(g => `
+        <div style="text-align:center;padding:10px;background:var(--bg-card2);border-radius:8px;border:0.5px solid var(--border2);">
+          <div style="font-size:22px;font-weight:800;color:${gradeColor[g]};font-family:var(--mono)">등급 ${g}</div>
+          <div style="font-size:11px;color:var(--t2);margin:4px 0">${counts[g]}품목</div>
+          <div style="font-size:10px;color:var(--t3)">₩${fmt(amts[g])}/년</div>
+          <div style="font-size:10px;color:${gradeColor[g]};margin-top:4px;font-weight:600">${gradeDesc[g]}</div>
+        </div>`).join('')}
+    </div>
+    <div style="padding:8px 16px;font-size:10px;color:var(--t3)">상위 10건 (연간 금액 기준)</div>
+    <table class="order-table">
+      <thead><tr>
+        <th>등급</th><th>품번</th><th>품명</th><th>모델</th>
+        <th class="col-num">연간 수량</th><th class="col-num">연간 금액</th>
+      </tr></thead>
+      <tbody>
+        ${classified.slice(0,10).map(({master:m,annualQty,annualAmt,grade}) => `
+          <tr>
+            <td class="abc-badge-${grade.toLowerCase()}">${grade}</td>
+            <td style="font-family:var(--mono);font-size:11px">${sanitize(m.part_no)}</td>
+            <td style="font-size:11px">${sanitize(m.part_name)}</td>
+            <td style="font-size:10px;color:var(--t3)">${sanitize(displayName(m))}</td>
+            <td class="col-num">${fmt(annualQty)} EA</td>
+            <td class="col-num" style="font-weight:600">₩${fmt(annualAmt)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ── ERP 불일치 상세 ──
+function renderERPDiscrepancy() {
+  const container = document.getElementById('erp-detail-body');
+  if (!container) return;
+  const hasImported = Object.keys(state.erpStocks).length > 0;
+  const mismatches = MASTERS
+    .map(m => {
+      const pn = m.part_no;
+      const actualQty = (state.itemInputs[pn]?.starting_stock !== undefined)
+        ? state.itemInputs[pn].starting_stock : (m.starting_stock || 0);
+      const erpQty = (state.erpStocks[pn] !== undefined)
+        ? state.erpStocks[pn] : (m.erp_stock || 0);
+      const diff = actualQty - erpQty;
+      const lossRate = erpQty > 0 ? diff / erpQty : (diff !== 0 ? null : 0);
+      return { master: m, actualQty, erpQty, diff, diffAmt: Math.abs(diff) * (m.unit_price||0), lossRate };
+    })
+    .filter(i => i.diff !== 0 && Math.abs(i.lossRate || 0) > 0.005)
+    .sort((a,b) => b.diffAmt - a.diffAmt);
+  if (mismatches.length === 0) {
+    container.innerHTML = '<div class="empty">ERP-실사 차이 없음</div>';
+    return;
+  }
+  const totalDiffAmt = mismatches.reduce((s,m) => s+m.diffAmt, 0);
+  container.innerHTML = `
+    <div style="padding:8px 16px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:11px;color:var(--t2)">${mismatches.length}건 불일치${hasImported ? ' <span style="color:var(--teal);font-size:10px;">● 가져온 데이터 기준</span>' : ''}</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--amb)">총 ₩${fmt(totalDiffAmt)}</span>
+    </div>
+    <table class="order-table">
+      <thead><tr>
+        <th>품번</th><th>품명</th>
+        <th class="col-num">실사수량</th><th class="col-num">ERP수량</th>
+        <th class="col-num">차이(EA)</th><th class="col-num">금액 영향</th>
+        <th class="col-num">손실율</th><th>구분</th>
+      </tr></thead>
+      <tbody>
+        ${mismatches.map(({master:m, actualQty, erpQty, diff, diffAmt, lossRate}) => `
+          <tr>
+            <td style="font-family:var(--mono);font-size:11px">${sanitize(m.part_no)}</td>
+            <td style="font-size:11px">${sanitize(m.part_name)}<br><span style="font-size:9.5px;color:var(--t3)">${sanitize(m.supplier||'')}</span></td>
+            <td class="col-num">${fmt(actualQty)}</td>
+            <td class="col-num">${fmt(erpQty)}</td>
+            <td class="col-num" style="color:${diff<0?'var(--red)':'var(--teal)'};font-weight:700">${diff>0?'+':''}${fmt(diff)}</td>
+            <td class="col-num" style="color:var(--amb)">₩${fmt(diffAmt)}</td>
+            <td class="col-num" style="color:${diff<0?'var(--red)':'var(--teal)'};">${lossRate!=null?fmtPct(lossRate):'–'}</td>
+            <td><span class="badge badge--${diff<0?'danger':'warn'}">${diff<0?'손실':'초과'}</span></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ──────────────────────────────  INIT  ──────────────────────────────
+document.body.classList.add('tab-form-active');
+populateFilters();
+renderForm();
+updateOrderCount();
+
+// 대시보드 차트 월 선택 이벤트 바인딩
+document.getElementById('dash-month-select').addEventListener('change', (e) => {
+  state.dashMonth = e.target.value;
+  renderDashboard();
+});
+
+// ── 신규 버튼 이벤트 ──
+document.getElementById('btn-export-excel').addEventListener('click', exportExcel);
+
+document.getElementById('btn-export-json').addEventListener('click', () => {
+  const payload = { exportedAt: new Date().toISOString(), modelInputs: state.modelInputs, itemInputs: state.itemInputs };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `tctech_inputs_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-rollover').addEventListener('click', rolloverMonth);
+
+document.getElementById('btn-clear-history').addEventListener('click', () => {
+  if (!confirm('발주 이력을 전체 삭제하시겠습니까?')) return;
+  orderHistory = [];
+  saveHistory();
+  renderHistory();
+  updateHistoryCount();
+});
+
+// ERP 가져오기 버튼 이벤트
+document.getElementById('btn-erp-import').addEventListener('click', () => {
+  document.getElementById('erp-file-input').value = '';
+  document.getElementById('erp-file-input').click();
+});
+document.getElementById('erp-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) importERPExcel(file);
+});
+document.getElementById('btn-erp-template').addEventListener('click', downloadERPTemplate);
+document.getElementById('btn-erp-reset').addEventListener('click', () => {
+  if (!confirm('가져온 ERP/실사 데이터를 초기화하고 원본 데이터로 되돌리겠습니까?')) return;
+  state.erpStocks = {};
+  // 실사수량도 원본(MASTERS)으로 복원
+  MASTERS.forEach(m => {
+    if (state.itemInputs[m.part_no]) {
+      state.itemInputs[m.part_no].starting_stock = m.starting_stock || 0;
+    }
+  });
+  saveInputs();
+  renderERPDiscrepancy();
+  renderForm();
+  updateERPImportUI();
+});
+
+// 발주 이력 로드
+orderHistory = loadHistory();
+updateHistoryCount();
+
+// datalist 품번 목록 채우기 (수동 추가 검색용)
+(function populateMastersList() {
+  const dl = document.getElementById('masters-list');
+  if (!dl) return;
+  dl.innerHTML = MASTERS.map(m => `<option value="${sanitize(m.part_no)}">${sanitize(m.part_no)} – ${sanitize(m.part_name)}</option>`).join('');
+})();
+</script>
+</body>
+</html>
