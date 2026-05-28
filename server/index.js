@@ -16,6 +16,7 @@ app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/production-plans', require('./routes/productionPlans'));
 app.use('/api/incoming-plans', require('./routes/incomingPlans'));
 app.use('/api/purchase-orders', require('./routes/purchaseOrders'));
+app.use('/api/state', require('./routes/appState'));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));

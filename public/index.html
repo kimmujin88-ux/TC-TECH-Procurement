@@ -1252,12 +1252,21 @@ function loadInputs() {
   };
 }
 
-// 초기 로드 후 state에 주입
+// 초기 로드: localStorage 우선, 이후 서버에서 덮어쓰기
 const _loaded = loadInputs();
 state.modelInputs = _loaded.modelInputs;
 state.itemInputs = _loaded.itemInputs;
 state.orderOverrides = _loaded.orderOverrides || {};
 state.erpStocks = _loaded.erpStocks || {};
+
+// 서버 데이터 비동기 로드 (서버 데이터가 있으면 우선 적용)
+(async () => {
+  const serverLoaded = await loadFromServer();
+  if (serverLoaded) {
+    renderForm();
+    updateOrderCount();
+  }
+})();
 
 function getOrderQty(master) {
   if (state.orderOverrides[master.part_no] !== undefined) {
@@ -1267,15 +1276,43 @@ function getOrderQty(master) {
 }
 
 function saveInputs() {
+  const payload = {
+    modelInputs: state.modelInputs,
+    itemInputs: state.itemInputs,
+    orderOverrides: state.orderOverrides,
+    erpStocks: state.erpStocks
+  };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      modelInputs: state.modelInputs,
-      itemInputs: state.itemInputs,
-      orderOverrides: state.orderOverrides,
-      erpStocks: state.erpStocks
-    }));
-    flashSaved();
-  } catch(e) { console.warn('save failed', e); }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch(e) { console.warn('localStorage save failed', e); }
+  syncToServer(payload);
+  flashSaved();
+}
+
+async function syncToServer(payload) {
+  try {
+    await fetch('/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch(e) { console.warn('서버 저장 실패 (오프라인?)', e); }
+}
+
+async function loadFromServer() {
+  try {
+    const res = await fetch('/api/state');
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data && data.modelInputs) {
+      state.modelInputs = data.modelInputs;
+      state.itemInputs = data.itemInputs || {};
+      state.orderOverrides = data.orderOverrides || {};
+      state.erpStocks = data.erpStocks || {};
+      return true;
+    }
+  } catch(e) { console.warn('서버 불러오기 실패, localStorage 사용', e); }
+  return false;
 }
 
 function flashSaved() {
