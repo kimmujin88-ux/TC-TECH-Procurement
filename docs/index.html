@@ -1648,7 +1648,7 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
           : '';
         return `
           ${qtyCell}
-          <td class="cell-num cell-num--readonly ${monthClass[mo]}${isFirst ? '' : ' month-start'}" data-cell="${mo}_required">${fmt(d.required)}</td>
+          <td class="cell-num cell-num--readonly ${monthClass[mo]}" data-cell="${mo}_required">${fmt(d.required)}</td>
           <td class="has-input ${monthClass[mo]}">
             <input type="number" class="form-input" data-pn="${sanitize(m.part_no)}" data-field="${mo}_incoming" value="${d.incoming}" min="0" step="1">
           </td>
