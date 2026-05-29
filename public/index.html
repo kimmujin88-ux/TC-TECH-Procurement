@@ -838,10 +838,79 @@ input[type="number"] { -moz-appearance: textfield; }
 .abc-badge-c { color: var(--teal); font-weight: 800; font-family: var(--mono); font-size: 15px; }
 
 .history-entry { margin-bottom: 10px; }
+/* ───── LOGIN ───── */
+html.login-locked, html.login-locked body { overflow: hidden; }
+.login-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; flex-direction: column;
+  background: #ffffff; font-family: var(--sans);
+}
+.login-card { flex: 1; display: flex; min-height: 0; }
+.login-photo {
+  flex: 1.05;
+  background-color: #7fb0d4;
+  background-image: url('login-bg.png'), linear-gradient(160deg, #5b9bd5 0%, #9ec5e0 55%, #e9c2cf 100%);
+  background-size: cover, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+}
+.login-form {
+  flex: 1; display: flex; flex-direction: column; justify-content: center;
+  padding: 40px 60px; max-width: 600px;
+}
+.login-logo { height: 50px; width: auto; object-fit: contain; margin-bottom: 30px; }
+.login-title { font-size: 40px; font-weight: 800; color: #1f2937; margin-bottom: 10px; letter-spacing: -0.5px; }
+.login-sub { font-size: 13px; color: #6b7280; margin-bottom: 32px; font-weight: 600; }
+.login-label { display: block; font-size: 13px; font-weight: 700; color: #374151; margin: 0 0 7px; }
+.login-label span { color: #e11d48; }
+.login-input {
+  width: 100%; max-width: 440px; height: 48px;
+  border: 1px solid #d7dce5; border-radius: 8px; background: #eef2fb;
+  padding: 0 14px; font-size: 15px; color: #1f2937; margin-bottom: 20px;
+  outline: none; transition: border .15s, box-shadow .15s;
+}
+.login-input:focus { border-color: #4a7a62; background: #fff; box-shadow: 0 0 0 3px rgba(74,122,98,.15); }
+.login-error { color: #e11d48; font-size: 12.5px; font-weight: 600; margin: -8px 0 14px; min-height: 16px; }
+.login-btn {
+  width: 100%; max-width: 440px; height: 52px; border: none; border-radius: 30px;
+  background: #4a7a62; color: #fff; font-size: 15px; font-weight: 700; letter-spacing: 1px;
+  cursor: pointer; transition: background .15s, transform .1s;
+}
+.login-btn:hover { background: #3d6552; }
+.login-btn:active { transform: scale(.99); }
+.login-copyright {
+  text-align: center; padding: 14px; font-size: 11px; color: #9aa3af;
+  background: #f7f8fa; border-top: 1px solid #eceef1; letter-spacing: .5px;
+}
+.user-badge { font-size: 11px; color: var(--t2); margin-left: 6px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .login-photo { display: none; }
+  .login-form { max-width: none; padding: 32px 24px; }
+}
 </style>
 </head>
 <body>
 <!-- HEADER -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div class="login-photo"></div>
+    <div class="login-form">
+      <img src="logo.png" class="login-logo" alt="TC TECH">
+      <h1 class="login-title">Login</h1>
+      <p class="login-sub">TC TECH 구매품 발주·재고 관리 시스템에 오신 것을 환영합니다.</p>
+      <form id="login-form" autocomplete="off">
+        <label class="login-label" for="login-id">ID <span>*</span></label>
+        <input type="text" id="login-id" class="login-input" autocomplete="username">
+        <label class="login-label" for="login-pw">Password <span>*</span></label>
+        <input type="password" id="login-pw" class="login-input" autocomplete="current-password">
+        <div class="login-error" id="login-error"></div>
+        <button type="submit" class="login-btn">LOGIN</button>
+      </form>
+    </div>
+  </div>
+  <div class="login-copyright">COPYRIGHT (C) TC. ALL RIGHTS RESERVED.</div>
+</div>
+
 <header class="app-header">
   <div class="app-header__inner">
     <div class="brand">
@@ -857,6 +926,8 @@ input[type="number"] { -moz-appearance: textfield; }
       <button class="btn btn--ghost btn--sm" id="btn-export-json">JSON 내보내기</button>
       <button class="btn btn--ghost btn--sm" id="btn-rollover" style="color:var(--amb);border-color:var(--amb-b);">월 이월 처리</button>
       <button class="btn btn--ghost btn--sm" id="btn-reset-all">초기값 복원</button>
+      <span class="user-badge" id="user-badge"></span>
+      <button class="btn btn--ghost btn--sm" id="btn-logout">로그아웃</button>
     </div>
   </div>
 </header>
@@ -3324,6 +3395,68 @@ updateHistoryCount();
   const dl = document.getElementById('masters-list');
   if (!dl) return;
   dl.innerHTML = MASTERS.map(m => `<option value="${sanitize(m.part_no)}">${sanitize(m.part_no)} – ${sanitize(m.part_name)}</option>`).join('');
+})();
+</script>
+<script>
+// ───── 로그인 (간편 인증) ─────
+// 계정 추가/수정은 아래 ACCOUNTS 만 고치면 됩니다.  형식:  '아이디': { pw:'비밀번호', name:'표시이름' }
+// ⚠ 주의: 이 인증은 화면 가림용일 뿐 실제 보안이 아닙니다(소스 보기로 비번 노출).
+//   반드시 비밀번호를 아이디와 다른 값으로 바꾸세요. 진짜 데이터 보호는 Supabase RLS로 해야 합니다.
+(function(){
+  const ACCOUNTS = {
+    'fpteam': { pw: 'fpteam', name: '관리자' },
+    'userA':  { pw: 'userA',  name: '팀원A' },
+    'userB':  { pw: 'userB',  name: '팀원B' },
+    'userC':  { pw: 'userC',  name: '팀원C' }
+  };
+  const AUTH_KEY = 'tctech_auth_user';
+  const overlay = document.getElementById('login-overlay');
+  const form    = document.getElementById('login-form');
+  const idEl    = document.getElementById('login-id');
+  const pwEl    = document.getElementById('login-pw');
+  const errEl   = document.getElementById('login-error');
+  const badge   = document.getElementById('user-badge');
+  const logoutBtn = document.getElementById('btn-logout');
+
+  function showApp(name){
+    overlay.style.display = 'none';
+    document.documentElement.classList.remove('login-locked');
+    if (badge) badge.textContent = name ? ('👤 ' + name) : '';
+  }
+  function showLogin(){
+    overlay.style.display = 'flex';
+    document.documentElement.classList.add('login-locked');
+    if (badge) badge.textContent = '';
+    setTimeout(() => idEl && idEl.focus(), 50);
+  }
+
+  const saved = sessionStorage.getItem(AUTH_KEY);
+  if (saved && ACCOUNTS[saved]) showApp(ACCOUNTS[saved].name);
+  else showLogin();
+
+  if (form) form.addEventListener('submit', e => {
+    e.preventDefault();
+    const id = (idEl.value || '').trim();
+    const pw = (pwEl.value || '');
+    const acc = ACCOUNTS[id];
+    if (acc && acc.pw === pw) {
+      sessionStorage.setItem(AUTH_KEY, id);
+      errEl.textContent = '';
+      pwEl.value = '';
+      showApp(acc.name);
+    } else {
+      errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+      pwEl.value = '';
+      pwEl.focus();
+    }
+  });
+
+  if (logoutBtn) logoutBtn.addEventListener('click', () => {
+    sessionStorage.removeItem(AUTH_KEY);
+    if (idEl) idEl.value = '';
+    if (pwEl) pwEl.value = '';
+    showLogin();
+  });
 })();
 </script>
 </body>

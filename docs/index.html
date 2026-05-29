@@ -849,7 +849,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 .login-photo {
   flex: 1.05;
   background-color: #7fb0d4;
-  background-image: url('login-bg.jpg'), linear-gradient(160deg, #5b9bd5 0%, #9ec5e0 55%, #e9c2cf 100%);
+  background-image: url('login-bg.png'), linear-gradient(160deg, #5b9bd5 0%, #9ec5e0 55%, #e9c2cf 100%);
   background-size: cover, cover;
   background-position: center, center;
   background-repeat: no-repeat, no-repeat;
@@ -926,6 +926,8 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <button class="btn btn--ghost btn--sm" id="btn-export-json">JSON 내보내기</button>
       <button class="btn btn--ghost btn--sm" id="btn-rollover" style="color:var(--amb);border-color:var(--amb-b);">월 이월 처리</button>
       <button class="btn btn--ghost btn--sm" id="btn-reset-all">초기값 복원</button>
+      <span class="user-badge" id="user-badge"></span>
+      <button class="btn btn--ghost btn--sm" id="btn-logout">로그아웃</button>
     </div>
   </div>
 </header>
@@ -3398,6 +3400,8 @@ updateHistoryCount();
 <script>
 // ───── 로그인 (간편 인증) ─────
 // 계정 추가/수정은 아래 ACCOUNTS 만 고치면 됩니다.  형식:  '아이디': { pw:'비밀번호', name:'표시이름' }
+// ⚠ 주의: 이 인증은 화면 가림용일 뿐 실제 보안이 아닙니다(소스 보기로 비번 노출).
+//   반드시 비밀번호를 아이디와 다른 값으로 바꾸세요. 진짜 데이터 보호는 Supabase RLS로 해야 합니다.
 (function(){
   const ACCOUNTS = {
     'fpteam': { pw: 'fpteam', name: '관리자' },
