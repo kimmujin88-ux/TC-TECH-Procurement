@@ -65,12 +65,10 @@ body.tab-form-active main { height: calc(100vh - 105px); overflow: hidden; }
 }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand__mark {
-  width: 32px; height: 32px;
-  background: var(--sky); color: white;
-  display: grid; place-items: center;
-  font-weight: 700; font-size: 11px;
-  border-radius: 8px;
-  letter-spacing: 0.3px;
+  height: 36px;
+  width: auto;
+  display: flex;
+  align-items: center;
 }
 .brand__name { font-size: 14px; font-weight: 600; color: #fff; letter-spacing: 0.3px; }
 .brand__sub { font-size: 11px; color: var(--t3); margin-top: 2px; }
@@ -372,15 +370,31 @@ main {
 .cell-num--mirrored {
   color: var(--t2);
 }
-/* 그룹 전체에 병합된 제작대수 셀 - 세로 중앙 정렬, 진한 폰트 */
+/* 그룹 전체에 병합된 제작대수 셀 */
 .cell-num--qty-merged {
-  vertical-align: middle;
+  vertical-align: top;
   font-size: 13px;
   font-weight: 700;
   color: var(--t1);
   text-align: center !important;
   background: rgba(255, 255, 255, 0.04);
   border-right: 0.5px solid var(--border2) !important;
+  padding: 0 !important;
+}
+/* 제작대수 input - 상단 고정, 고정 크기 */
+td.cell-num--qty-merged input.model-header-input {
+  display: block;
+  width: 56px;
+  height: 34px;
+  margin: 4px auto 0;
+  text-align: center !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  border: 1px solid var(--border2) !important;
+  border-radius: 4px !important;
+  background: var(--bg-card2) !important;
+  color: var(--t1) !important;
+  box-sizing: border-box;
 }
 /* 그룹 전체에 병합된 모델 셀 - 세로 중앙 정렬, 진한 폰트 */
 .cell-model-merged {
@@ -455,6 +469,9 @@ input[type="number"] { -moz-appearance: textfield; }
 .kpi--red { background: var(--red-d); border-color: #7A2828; }
 .kpi--teal { background: var(--teal-d); border-color: #1E6850; }
 .kpi--amb { background: var(--amb-d); border-color: #6A4810; }
+.kpi[onclick] { transition: transform 0.15s, box-shadow 0.15s; }
+.kpi[onclick]:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+.kpi[onclick]:hover::after { content: '▶ 상세 보기'; position:absolute; bottom:8px; right:12px; font-size:9px; color:var(--t3); }
 
 .kpi__label {
   font-size: 12px; font-weight: 600;
@@ -506,7 +523,10 @@ input[type="number"] { -moz-appearance: textfield; }
 
 .dash-grid {
   display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px;
+  align-items: stretch;
 }
+.dash-grid .card { display: flex; flex-direction: column; }
+.dash-grid .card .alert-list { flex: 1; overflow-y: auto; }
 
 .chart-row {
   display: grid; grid-template-columns: 110px 1fr 80px;
@@ -826,7 +846,7 @@ input[type="number"] { -moz-appearance: textfield; }
 <header class="app-header">
   <div class="app-header__inner">
     <div class="brand">
-      <div class="brand__mark">TC</div>
+      <div class="brand__mark"><img src="logo.png" alt="TC TECH" style="height:36px; width:auto; object-fit:contain;"></div>
       <div>
         <div class="brand__name">TC TECH 구매품 발주·재고 관리 시스템</div>
         <div class="brand__sub">TEREX GENIE / HD건설기계</div>
@@ -953,25 +973,25 @@ input[type="number"] { -moz-appearance: textfield; }
   </div>
 
   <div class="kpi-grid">
-    <div class="kpi kpi--sky">
+    <div class="kpi kpi--sky" onclick="showKpiDetail('total')" style="cursor:pointer;" title="클릭하면 전체 구매품 목록을 확인할 수 있습니다">
       <div class="kpi__corner">K01</div>
       <div class="kpi__label">총 관리 구매품</div>
       <div class="kpi__value" id="kpi-total">—</div>
       <div class="kpi__delta">모델 <span id="kpi-models">—</span>종 · 구매업체 <span id="kpi-suppliers">—</span>곳</div>
     </div>
-    <div class="kpi kpi--teal">
+    <div class="kpi kpi--teal" onclick="showKpiDetail('incoming')" style="cursor:pointer;" title="클릭하면 월별 입고계획 상세를 확인할 수 있습니다">
       <div class="kpi__corner">K02</div>
       <div class="kpi__label">5~8월 총 입고계획</div>
       <div class="kpi__value" id="kpi-incoming">—</div>
       <div class="kpi__delta" id="kpi-incoming-amt"></div>
     </div>
-    <div class="kpi kpi--red">
+    <div class="kpi kpi--red" onclick="showKpiDetail('shortage')" style="cursor:pointer;" title="클릭하면 부족 발생 품목 상세를 확인할 수 있습니다">
       <div class="kpi__corner">K03</div>
       <div class="kpi__label">부족 발생 항목 (4개월 중 1회 이상)</div>
       <div class="kpi__value kpi__value--red" id="kpi-shortage">—</div>
       <div class="kpi__delta kpi__delta--alert" id="kpi-shortage-detail"></div>
     </div>
-    <div class="kpi kpi--amb">
+    <div class="kpi kpi--amb" onclick="showKpiDetail('loss')" style="cursor:pointer;" title="클릭하면 손실 발생 품목 상세를 확인할 수 있습니다">
       <div class="kpi__corner">K04</div>
       <div class="kpi__label">손실 발생 항목 (4월 실사 차이)</div>
       <div class="kpi__value" id="kpi-loss">—</div>
@@ -982,10 +1002,12 @@ input[type="number"] { -moz-appearance: textfield; }
   <div class="dash-grid">
     <div class="card">
       <div class="card__head">
-        <div class="card__title" id="chart-title">모델별 5월 필요수량 vs 입고계획</div>
+        <div>
+          <div class="card__title" id="chart-title">모델별 5월 필요수량 분포</div>
+          <div class="card__hint" style="margin-top:2px;">항목 클릭 시 4개월 재고 추이 확인</div>
+        </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <div class="card__hint" style="font-size:10px; color:var(--t3);">모델명 클릭 시 4개월 재고 추이 확인</div>
-          <select class="filter-select" id="dash-month-select" style="min-width: 80px; padding: 4px 8px; font-size: 11px;">
+          <select class="filter-select" id="dash-month-select" style="min-width: 72px; padding: 4px 8px; font-size: 11px;">
             <option value="may">5월</option>
             <option value="jun">6월</option>
             <option value="jul">7월</option>
@@ -994,12 +1016,19 @@ input[type="number"] { -moz-appearance: textfield; }
           <div class="card__hint">단위: EA</div>
         </div>
       </div>
-      <div class="card__body">
-        <div id="chart-model"></div>
-        <div class="chart-legend">
-          <span class="chart-legend__item"><span class="chart-legend__sw" style="background:#38bdf8"></span>5월 필요수량</span>
-          <span class="chart-legend__item"><span class="chart-legend__sw" style="background:#4ade80"></span>5월 입고계획</span>
+      <div class="card__body" style="display:flex; flex-direction:column; align-items:center; gap:14px; padding:14px 20px 20px;">
+        <div style="position:relative; width:200px; height:200px; flex-shrink:0;">
+          <canvas id="chart-model-canvas"></canvas>
+          <div id="chart-model-center" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none; width:90px;">
+            <div style="font-size:9px; color:var(--t3); white-space:nowrap;">총 필요수량</div>
+            <div id="chart-model-total" style="font-size:18px; font-weight:700; color:var(--t1); font-family:var(--mono); line-height:1.2;"></div>
+            <div style="font-size:9px; color:var(--t3);">EA</div>
+          </div>
         </div>
+        <div style="font-size:10px; color:var(--t3); text-align:center; margin-top:-6px;">
+          ↑ 항목 또는 그래프 클릭 시 해당 모델의 4개월 재고 추이 분석을 확인할 수 있습니다
+        </div>
+        <div id="chart-model-legend" style="display:grid; grid-template-columns:1fr 1fr; gap:3px 20px; width:100%; font-size:10px;"></div>
       </div>
     </div>
     <div class="card">
@@ -1733,7 +1762,7 @@ function renderDashboard() {
 
   // 차트 제목 및 범례 텍스트 업데이트
   const chartTitleEl = document.getElementById('chart-title');
-  if (chartTitleEl) chartTitleEl.textContent = `모델별 ${moKr} 필요수량 vs 입고계획`;
+  if (chartTitleEl) chartTitleEl.textContent = `모델별 ${moKr} 필요수량 분포`;
   
   const legendItems = document.querySelectorAll('.chart-legend__item');
   if (legendItems.length >= 2) {
@@ -1784,7 +1813,7 @@ function renderDashboard() {
   const lossSum = loss.reduce((acc, m) => acc + Math.abs((m.starting_stock || 0) - (m.erp_stock || 0)), 0);
   document.getElementById('kpi-loss-detail').textContent = `차이 합계 ${fmt(lossSum)} EA`;
   
-  // 모델별 차트
+  // 모델별 도넛 차트
   const byModel = {};
   MASTERS.forEach(m => {
     const k = displayName(m) || '(미지정)';
@@ -1794,29 +1823,57 @@ function renderDashboard() {
     byModel[k].inc += r.months[selectedMo].incoming;
   });
   const entries = Object.entries(byModel).map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.req - a.req);
-  const maxVal = Math.max(...entries.map(m => Math.max(m.req, m.inc)), 1);
-  document.getElementById('chart-model').innerHTML = entries.map(m => {
-    return `
-      <div class="chart-row" onclick="showTrendModal('${sanitize(m.name)}')">
-        <div class="chart-row__label" style="line-height:1.2">
-          ${(() => {
-            const p = m.name.split(' ');
-            let n = p[0], k = p.slice(1).join(' ');
-            if (p[1] === 'DC' || p[1] === 'OSC') {
-              n = p[0] + ' ' + p[1];
-              k = p.slice(2).join(' ');
+    .sort((a, b) => b.req - a.req).filter(e => e.req > 0);
+
+  const PALETTE = [
+    '#60AADC','#38C9A0','#A78BFA','#F59E0B','#EF4444','#3B82F6',
+    '#10B981','#F97316','#EC4899','#8B5CF6','#14B8A6','#F43F5E',
+    '#6366F1','#22D3EE','#84CC16','#E879F9','#FB923C','#34D399'
+  ];
+  const totalReq = entries.reduce((s, e) => s + e.req, 0);
+  document.getElementById('chart-model-total').textContent = fmt(totalReq);
+
+  const canvas = document.getElementById('chart-model-canvas');
+  if (window._modelChart) { window._modelChart.destroy(); }
+  if (entries.length > 0) {
+    window._modelChart = new Chart(canvas.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: entries.map(e => e.name),
+        datasets: [{
+          data: entries.map(e => e.req),
+          backgroundColor: entries.map((_, i) => PALETTE[i % PALETTE.length]),
+          borderWidth: 1,
+          borderColor: '#0B1020',
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        cutout: '62%',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)} EA (${(ctx.raw/totalReq*100).toFixed(1)}%)`
             }
-            return k ? `${sanitize(n)}<br><span style="font-size:9px; opacity:0.6; font-weight:400;">${sanitize(k)}</span>` : sanitize(n);
-          })()}
-        </div>
-        <div>
-          <div class="chart-track"><div class="chart-fill" style="width:${(m.req/maxVal*100).toFixed(1)}%"></div></div>
-          <div class="chart-track" style="margin-top:3px"><div class="chart-fill chart-fill--alt" style="width:${(m.inc/maxVal*100).toFixed(1)}%"></div></div>
-        </div>
-        <div class="chart-val">${fmt(m.req)}<br><span style="color:var(--t3)">${fmt(m.inc)}</span></div>
-      </div>
-    `;
+          }
+        },
+        onClick: (evt, els) => {
+          if (els.length > 0) showTrendModal(entries[els[0].index].name);
+        }
+      }
+    });
+  }
+
+  document.getElementById('chart-model-legend').innerHTML = entries.map((e, i) => {
+    const pct = totalReq > 0 ? (e.req / totalReq * 100).toFixed(1) : '0.0';
+    return `<div style="display:flex; align-items:center; gap:5px; cursor:pointer; padding:2px 0;" onclick="showTrendModal('${sanitize(e.name)}')" title="클릭하면 재고 추이를 확인할 수 있습니다">
+      <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${PALETTE[i % PALETTE.length]}; flex-shrink:0;"></span>
+      <span style="color:var(--t2); font-size:10px; flex:1; word-break:keep-all;">${sanitize(e.name)}</span>
+      <span style="color:var(--t3); font-family:var(--mono); flex-shrink:0; font-size:9.5px;">${pct}%</span>
+    </div>`;
   }).join('');
   
   // 우선순위 (부족 시점이 빠른 순)
@@ -1861,6 +1918,149 @@ function renderDashboard() {
       </li>
     `).join('')
     : '<div class="empty">현재 모든 구매품이 안전재고 기준을 충족합니다.</div>';
+}
+
+// ── KPI 카드 클릭 상세 모달 ──
+function showKpiDetail(type) {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.querySelector('.modal__title');
+
+  const thStyle = 'style="position:sticky;top:0;z-index:1;"';
+  const tblStyle = 'class="order-table" style="width:100%;font-size:11px;"';
+  const scrollBox = 'style="max-height:520px;overflow-y:auto;"';
+
+  if (type === 'total') {
+    modalTitle.textContent = '전체 구매품 목록 (총 ' + MASTERS.length + '건)';
+    const rows = MASTERS.map(m => {
+      const r = getResult(m);
+      const badge = m.category === '수입'
+        ? `<span class="badge badge--info" style="font-size:8.5px;">수입</span>`
+        : `<span class="badge badge--neutral" style="font-size:8.5px;">일반</span>`;
+      return `<tr>
+        <td>${sanitize(displayName(m))}</td>
+        <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+        <td>${sanitize(m.part_name)}</td>
+        <td>${sanitize(m.supplier || '-')} ${badge}</td>
+        <td class="col-num">₩${fmt(m.unit_price)}</td>
+        <td class="col-num">${m.lead_time_days || '-'}일</td>
+        <td class="col-num">${m.qty_per_unit}</td>
+        <td class="col-num">${fmt(r.start)}</td>
+      </tr>`;
+    }).join('');
+    modalBody.innerHTML = `<div ${scrollBox}><table ${tblStyle}>
+      <thead><tr ${thStyle}>
+        <th>모델</th><th>품번</th><th>품명</th><th>구매업체</th>
+        <th class="col-num">단가</th><th class="col-num">LT</th>
+        <th class="col-num">대당소요</th><th class="col-num">현재고</th>
+      </tr></thead><tbody>${rows}</tbody>
+    </table></div>`;
+
+  } else if (type === 'incoming') {
+    modalTitle.textContent = '5~8월 입고계획 상세';
+    const items = MASTERS.map(m => {
+      const r = getResult(m);
+      const inc = ['may','jun','jul','aug'].map(mo => r.months[mo].incoming);
+      const total = inc.reduce((a,b)=>a+b,0);
+      return { m, r, inc, total };
+    }).filter(x => x.total > 0).sort((a,b) => b.total - a.total);
+    const grandTotal = items.reduce((s,x)=>s+x.total,0);
+    const rows = items.map(({m, r, inc, total}) => `<tr>
+      <td>${sanitize(displayName(m))}</td>
+      <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+      <td>${sanitize(m.part_name)}</td>
+      <td>${sanitize(m.supplier||'-')}</td>
+      <td class="col-num">${fmt(r.start)}</td>
+      <td class="col-num" style="color:var(--teal);">${fmt(inc[0])}</td>
+      <td class="col-num" style="color:var(--teal);">${fmt(inc[1])}</td>
+      <td class="col-num" style="color:var(--teal);">${fmt(inc[2])}</td>
+      <td class="col-num" style="color:var(--teal);">${fmt(inc[3])}</td>
+      <td class="col-num" style="font-weight:700;">${fmt(total)}</td>
+      <td class="col-num">₩${fmt(total * (m.unit_price||0))}</td>
+    </tr>`).join('');
+    modalBody.innerHTML = `<div ${scrollBox}><table ${tblStyle}>
+      <thead><tr ${thStyle}>
+        <th>모델</th><th>품번</th><th>품명</th><th>구매업체</th>
+        <th class="col-num">현재고</th>
+        <th class="col-num">5월</th><th class="col-num">6월</th>
+        <th class="col-num">7월</th><th class="col-num">8월</th>
+        <th class="col-num">합계</th><th class="col-num">금액(추정)</th>
+      </tr></thead><tbody>${rows}
+      <tr style="border-top:2px solid var(--teal);font-weight:700;background:rgba(56,201,160,0.06);">
+        <td colspan="9" style="text-align:right;color:var(--teal);">총 합계</td>
+        <td class="col-num" style="color:var(--teal);">${fmt(grandTotal)}</td>
+        <td class="col-num" style="color:var(--teal);">₩${fmt(items.reduce((s,x)=>s+x.total*(x.m.unit_price||0),0))}</td>
+      </tr></tbody>
+    </table></div>`;
+
+  } else if (type === 'shortage') {
+    const shorts = MASTERS.filter(m => getResult(m).anyShort);
+    modalTitle.textContent = '부족 발생 항목 상세 (' + shorts.length + '건)';
+    const orderRank = {may:0, jun:1, jul:2, aug:3};
+    const sorted = shorts.map(m => {
+      const r = getResult(m);
+      return { m, r, fs: r.firstShort };
+    }).sort((a,b) => orderRank[a.fs] - orderRank[b.fs]);
+    const rows = sorted.map(({m, r, fs}) => {
+      const monthsHtml = ['may','jun','jul','aug'].map(mo => {
+        const d = r.months[mo];
+        const isS = r.shortAt[mo];
+        return `<td class="col-num" style="${isS ? 'color:var(--red);font-weight:700;' : ''}">${fmt(d.ending)}</td>`;
+      }).join('');
+      const urgency = (fs==='may'||fs==='jun')
+        ? `<span style="color:var(--red);font-weight:700;">🔴 ${MONTH_KR[fs]} 부족</span>`
+        : `<span style="color:var(--amb);font-weight:700;">🟡 ${MONTH_KR[fs]} 부족</span>`;
+      return `<tr>
+        <td>${sanitize(displayName(m))}</td>
+        <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+        <td>${sanitize(m.part_name)}</td>
+        <td>${sanitize(m.supplier||'-')}</td>
+        <td class="col-num">${m.lead_time_days||'-'}일</td>
+        <td>${urgency}</td>
+        ${monthsHtml}
+      </tr>`;
+    }).join('');
+    modalBody.innerHTML = `<div ${scrollBox}><table ${tblStyle}>
+      <thead><tr ${thStyle}>
+        <th>모델</th><th>품번</th><th>품명</th><th>구매업체</th>
+        <th class="col-num">LT</th><th>부족 시점</th>
+        <th class="col-num">5월말재고</th><th class="col-num">6월말재고</th>
+        <th class="col-num">7월말재고</th><th class="col-num">8월말재고</th>
+      </tr></thead><tbody>${rows}</tbody>
+    </table></div>`;
+
+  } else if (type === 'loss') {
+    const lossItems = MASTERS.filter(m => m.loss_rate != null && Math.abs(m.loss_rate) > 0.005);
+    modalTitle.textContent = 'ERP vs 실사재고 손실 항목 (' + lossItems.length + '건)';
+    const sorted = [...lossItems].sort((a,b) => Math.abs(b.loss_rate) - Math.abs(a.loss_rate));
+    const rows = sorted.map(m => {
+      const diff = (m.starting_stock||0) - (m.erp_stock||0);
+      const pct = (m.loss_rate * 100).toFixed(1);
+      const isOver = diff > 0;
+      const diffColor = isOver ? 'color:var(--teal);' : 'color:var(--red);';
+      return `<tr>
+        <td>${sanitize(displayName(m))}</td>
+        <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+        <td>${sanitize(m.part_name)}</td>
+        <td>${sanitize(m.supplier||'-')}</td>
+        <td class="col-num">${fmt(m.erp_stock)}</td>
+        <td class="col-num">${fmt(m.starting_stock)}</td>
+        <td class="col-num" style="${diffColor}">${diff > 0 ? '+' : ''}${fmt(diff)}</td>
+        <td class="col-num" style="${diffColor}font-weight:700;">${diff > 0 ? '+' : ''}${pct}%</td>
+        <td class="col-num">₩${fmt(Math.abs(diff) * (m.unit_price||0))}</td>
+      </tr>`;
+    }).join('');
+    modalBody.innerHTML = `<div ${scrollBox}><table ${tblStyle}>
+      <thead><tr ${thStyle}>
+        <th>모델</th><th>품번</th><th>품명</th><th>구매업체</th>
+        <th class="col-num">ERP재고</th><th class="col-num">실사재고</th>
+        <th class="col-num">차이(EA)</th><th class="col-num">손실율</th>
+        <th class="col-num">손실금액(추정)</th>
+      </tr></thead><tbody>${rows}</tbody>
+    </table></div>`;
+  }
+
+  modal.classList.add('modal-backdrop--open');
 }
 
 /**
@@ -1952,7 +2152,8 @@ function showTrendModal(modelName) {
     <div style="background: #0f172a; padding: 25px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
       <canvas id="trendChart" style="max-height: 280px;"></canvas>
     </div>
-    <div style="background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border2);">
+    <div style="background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border2); margin-bottom: 12px;">
+      <div style="font-size:11px; font-weight:700; color:var(--t2); margin-bottom:10px;">📊 월별 수급 현황 요약</div>
       <table class="order-table" style="width: 100%;">
         <thead>
           <tr>
@@ -1991,9 +2192,47 @@ function showTrendModal(modelName) {
           </tr>
         </tbody>
       </table>
-      <div style="margin-top: 15px; font-size: 11px; color: var(--t3); text-align: right;">
+      <div style="margin-top: 10px; font-size: 11px; color: var(--t3); text-align: right;">
         * 기초 재고는 4월말 현물재고 합산치이며, 기말재고는 이월된 누적 결과입니다.
       </div>
+    </div>
+    <div style="background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border2);">
+      <div style="font-size:11px; font-weight:700; color:var(--t2); margin-bottom:10px;">📦 구매품 현황 (${items.length}건)</div>
+      <table class="order-table" style="width: 100%;">
+        <thead>
+          <tr>
+            <th>품번</th>
+            <th>품명</th>
+            <th>구매업체</th>
+            <th class="col-num">단가</th>
+            <th class="col-num">LT(일)</th>
+            <th class="col-num">대당소요</th>
+            <th class="col-num">현 재고</th>
+            <th class="col-num">5월 필요</th>
+            <th class="col-num">상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(m => {
+            const r = getResult(m);
+            const isShort = r.anyShort;
+            const statusBadge = isShort
+              ? `<span style="color:var(--red); font-weight:700; font-size:10px;">⚠ 부족</span>`
+              : `<span style="color:var(--teal); font-size:10px;">✓ 정상</span>`;
+            return `<tr style="${isShort ? 'background:rgba(224,96,96,0.05);' : ''}">
+              <td style="font-family:var(--mono); font-size:10.5px;">${sanitize(m.part_no)}</td>
+              <td style="font-size:10.5px;" title="${sanitize(m.part_name)}">${sanitize(m.part_name.length > 22 ? m.part_name.slice(0,21)+'…' : m.part_name)}</td>
+              <td style="font-size:10px; color:var(--t2);">${sanitize(m.supplier || '-')}</td>
+              <td class="col-num" style="font-size:10px;">₩${fmt(m.unit_price)}</td>
+              <td class="col-num" style="font-size:10px;">${m.lead_time_days || '-'}</td>
+              <td class="col-num" style="font-size:10px;">${m.qty_per_unit}</td>
+              <td class="col-num" style="font-size:10px;">${fmt(r.start)}</td>
+              <td class="col-num" style="font-size:10px;">${fmt(r.months.may.required)}</td>
+              <td class="col-num">${statusBadge}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
     </div>
   `;
   
