@@ -458,6 +458,7 @@ input[type="number"] { -moz-appearance: textfield; }
   display: grid; grid-template-columns: repeat(4, 1fr);
   gap: 10px; margin-bottom: 20px;
 }
+.kpi-grid--5 { grid-template-columns: repeat(5, 1fr); }
 .kpi {
   background: var(--bg-card);
   padding: 14px 16px;
@@ -831,7 +832,7 @@ input[type="number"] { -moz-appearance: textfield; }
 }
 
 @media (max-width: 1100px) {
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid, .kpi-grid--5 { grid-template-columns: repeat(2, 1fr); }
   .dash-grid { grid-template-columns: 1fr; }
 }
 
@@ -1093,6 +1094,44 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <div class="kpi__label">손실 발생 항목 (4월 실사 차이)</div>
       <div class="kpi__value" id="kpi-loss">—</div>
       <div class="kpi__delta kpi__delta--alert" id="kpi-loss-detail"></div>
+    </div>
+  </div>
+
+  <!-- 재무 KPI 그룹 (금액 기준) -->
+  <div class="section-title" style="margin-top:14px;">
+    <div class="section-title__label">▎ 재무 KPI (금액 기준)</div>
+    <div class="section-title__hint">5~8월 시뮬레이션 기준 추정치 · 카드 클릭 시 상세</div>
+  </div>
+  <div class="kpi-grid kpi-grid--5">
+    <div class="kpi kpi--sky" onclick="showKpiDetail('inv-value')" style="cursor:pointer;" title="클릭하면 품목별 재고가치 상세를 확인할 수 있습니다">
+      <div class="kpi__corner">F01</div>
+      <div class="kpi__label">재고가치 (4월말 → 8월말)</div>
+      <div class="kpi__value" id="kpi-inv-value">—</div>
+      <div class="kpi__delta" id="kpi-inv-value-delta"></div>
+    </div>
+    <div class="kpi kpi--teal" onclick="showKpiDetail('consumption')" style="cursor:pointer;" title="클릭하면 월별 사용금액 상세를 확인할 수 있습니다">
+      <div class="kpi__corner">F02</div>
+      <div class="kpi__label">4개월 사용금액 (5~8월)</div>
+      <div class="kpi__value" id="kpi-consumption">—</div>
+      <div class="kpi__delta" id="kpi-consumption-delta"></div>
+    </div>
+    <div class="kpi kpi--sky" onclick="showKpiDetail('turnover')" style="cursor:pointer;" title="클릭하면 재고회전율 계산 근거를 확인할 수 있습니다">
+      <div class="kpi__corner">F03</div>
+      <div class="kpi__label">재고회전율 (연환산)</div>
+      <div class="kpi__value" id="kpi-turnover">—</div>
+      <div class="kpi__delta">4~6회 일반 · 7~9 양호 · 10+ 우수</div>
+    </div>
+    <div class="kpi kpi--teal" onclick="showKpiDetail('dio')" style="cursor:pointer;" title="클릭하면 DIO 계산 근거를 확인할 수 있습니다">
+      <div class="kpi__corner">F04</div>
+      <div class="kpi__label">DIO (일평균 재고)</div>
+      <div class="kpi__value" id="kpi-dio">—</div>
+      <div class="kpi__delta">365 ÷ 재고회전율</div>
+    </div>
+    <div class="kpi kpi--red" onclick="showKpiDetail('safety-gap')" style="cursor:pointer;" title="클릭하면 안전재고 미달 손실 상세를 확인할 수 있습니다">
+      <div class="kpi__corner">F05</div>
+      <div class="kpi__label">안전재고 미달 손실액 (위험 노출)</div>
+      <div class="kpi__value kpi__value--red" id="kpi-safety-gap">—</div>
+      <div class="kpi__delta kpi__delta--alert" id="kpi-safety-gap-delta"></div>
     </div>
   </div>
 
@@ -1516,6 +1555,46 @@ function getResult(master) {
     jul_incoming: ii.jul_incoming, aug_incoming: ii.aug_incoming
   };
   return computeRow(master, merged);
+}
+
+// 재무 KPI 계산 (금액 기준, 4개월 시뮬레이션 → 연환산)
+// 반환: { invValueStart, invValueEnd, avgInvValue, consumptionValue,
+//        annualConsumption, turnover, dio, safetyGapValue, perPart[] }
+function computeFinancialKPIs() {
+  const months = ['may', 'jun', 'jul', 'aug'];
+  let invValueStart = 0, invValueEnd = 0;
+  let consumptionValue = 0, safetyGapValue = 0;
+  const perPart = [];
+  MASTERS.forEach(m => {
+    const price = m.unit_price || 0;
+    const r = getResult(m);
+    const startV = r.start * price;
+    const endStock = Math.max(0, r.months.aug.ending);
+    const endV = endStock * price;
+    let consumeV = 0;
+    months.forEach(mo => { consumeV += r.months[mo].required * price; });
+    const reqMap = months.map(mo => r.months[mo].required);
+    // 안전재고 미달: 한 품목당 4개월 중 최대 gap만 잡아 중복 방지
+    let maxGap = 0;
+    months.forEach((mo, idx) => {
+      if (!r.shortAt[mo]) return;
+      const nextReq = mo === 'aug' ? reqMap[3] : reqMap[idx + 1];
+      if (nextReq <= 0) return;
+      const gap = nextReq - r.months[mo].ending;
+      if (gap > maxGap) maxGap = gap;
+    });
+    const gapV = maxGap * price;
+    invValueStart += startV;
+    invValueEnd += endV;
+    consumptionValue += consumeV;
+    safetyGapValue += gapV;
+    perPart.push({ m, r, startV, endV, consumeV, maxGap, gapV });
+  });
+  const avgInvValue = (invValueStart + invValueEnd) / 2;
+  const annualConsumption = consumptionValue * 3;
+  const turnover = avgInvValue > 0 ? annualConsumption / avgInvValue : 0;
+  const dio = turnover > 0 ? 365 / turnover : null;
+  return { invValueStart, invValueEnd, avgInvValue, consumptionValue, annualConsumption, turnover, dio, safetyGapValue, perPart };
 }
 
 // ──────────────────────────────  TABS  ──────────────────────────────
@@ -2015,6 +2094,31 @@ function renderDashboard() {
       </li>
     `).join('')
     : '<div class="empty">현재 모든 구매품이 안전재고 기준을 충족합니다.</div>';
+
+  // ── 재무 KPI (금액 기준) ──
+  const fin = computeFinancialKPIs();
+
+  document.getElementById('kpi-inv-value').innerHTML = '₩' + fmt(fin.invValueStart);
+  const invDelta = fin.invValueEnd - fin.invValueStart;
+  const invArrow = invDelta >= 0 ? '↑' : '↓';
+  const invDeltaColor = invDelta >= 0 ? 'var(--teal)' : 'var(--red)';
+  document.getElementById('kpi-inv-value-delta').innerHTML =
+    `8월말 예상 ₩${fmt(fin.invValueEnd)} <span style="color:${invDeltaColor};">${invArrow} ₩${fmt(Math.abs(invDelta))}</span>`;
+
+  document.getElementById('kpi-consumption').innerHTML = '₩' + fmt(fin.consumptionValue);
+  document.getElementById('kpi-consumption-delta').textContent =
+    `연환산 ₩${fmt(fin.annualConsumption)} · 월평균 ₩${fmt(fin.consumptionValue / 4)}`;
+
+  document.getElementById('kpi-turnover').innerHTML = fin.turnover.toFixed(1) + '<span class="kpi__unit">회/년</span>';
+
+  document.getElementById('kpi-dio').innerHTML = (fin.dio != null ? Math.round(fin.dio) : '—') + '<span class="kpi__unit">일</span>';
+
+  document.getElementById('kpi-safety-gap').innerHTML = '₩' + fmt(fin.safetyGapValue);
+  const shortPartsCount = fin.perPart.filter(p => p.gapV > 0).length;
+  document.getElementById('kpi-safety-gap-delta').textContent =
+    shortPartsCount > 0
+      ? `${shortPartsCount}개 품목 미달 · 평균 ₩${fmt(fin.safetyGapValue / shortPartsCount)}/품목`
+      : '미달 품목 없음';
 }
 
 // ── KPI 카드 클릭 상세 모달 ──
@@ -2155,6 +2259,162 @@ function showKpiDetail(type) {
         <th class="col-num">손실금액(추정)</th>
       </tr></thead><tbody>${rows}</tbody>
     </table></div>`;
+
+  } else if (type === 'inv-value') {
+    const fin = computeFinancialKPIs();
+    modalTitle.textContent = `재고가치 상세 (시작 ₩${fmt(fin.invValueStart)} → 8월말 ₩${fmt(fin.invValueEnd)})`;
+    const sorted = [...fin.perPart].filter(p => p.startV > 0 || p.endV > 0).sort((a, b) => b.startV - a.startV);
+    const rows = sorted.map(({ m, r, startV, endV }) => {
+      const dV = endV - startV;
+      const dColor = dV >= 0 ? 'color:var(--teal);' : 'color:var(--red);';
+      const endStock = Math.max(0, r.months.aug.ending);
+      return `<tr>
+        <td>${sanitize(displayName(m))}</td>
+        <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+        <td>${sanitize(m.part_name)}</td>
+        <td class="col-num">₩${fmt(m.unit_price)}</td>
+        <td class="col-num">${fmt(r.start)}</td>
+        <td class="col-num">₩${fmt(startV)}</td>
+        <td class="col-num">${fmt(endStock)}</td>
+        <td class="col-num">₩${fmt(endV)}</td>
+        <td class="col-num" style="${dColor}">${dV >= 0 ? '+' : ''}${fmt(dV)}</td>
+      </tr>`;
+    }).join('');
+    const totalDelta = fin.invValueEnd - fin.invValueStart;
+    const totalColor = totalDelta >= 0 ? 'var(--teal)' : 'var(--red)';
+    modalBody.innerHTML = `<div ${scrollBox}><table ${tblStyle}>
+      <thead><tr ${thStyle}>
+        <th>모델</th><th>품번</th><th>품명</th>
+        <th class="col-num">단가</th>
+        <th class="col-num">시작재고</th><th class="col-num">시작가치</th>
+        <th class="col-num">8월말재고</th><th class="col-num">8월말가치</th>
+        <th class="col-num">증감</th>
+      </tr></thead><tbody>${rows}
+      <tr style="border-top:2px solid var(--sky);font-weight:700;background:rgba(74,168,255,0.06);">
+        <td colspan="5" style="text-align:right;color:var(--sky);">총 합계</td>
+        <td class="col-num" style="color:var(--sky);">₩${fmt(fin.invValueStart)}</td>
+        <td></td>
+        <td class="col-num" style="color:var(--sky);">₩${fmt(fin.invValueEnd)}</td>
+        <td class="col-num" style="color:${totalColor};">${totalDelta >= 0 ? '+' : ''}${fmt(totalDelta)}</td>
+      </tr></tbody></table></div>`;
+
+  } else if (type === 'consumption') {
+    const fin = computeFinancialKPIs();
+    modalTitle.textContent = `5~8월 사용금액 상세 (총 ₩${fmt(fin.consumptionValue)})`;
+    const sorted = [...fin.perPart].filter(p => p.consumeV > 0).sort((a, b) => b.consumeV - a.consumeV);
+    const rows = sorted.map(({ m, r, consumeV }) => {
+      const monthsV = ['may', 'jun', 'jul', 'aug'].map(mo => r.months[mo].required * (m.unit_price || 0));
+      return `<tr>
+        <td>${sanitize(displayName(m))}</td>
+        <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+        <td>${sanitize(m.part_name)}</td>
+        <td class="col-num">₩${fmt(m.unit_price)}</td>
+        ${monthsV.map(v => `<td class="col-num">₩${fmt(v)}</td>`).join('')}
+        <td class="col-num" style="font-weight:700;">₩${fmt(consumeV)}</td>
+      </tr>`;
+    }).join('');
+    modalBody.innerHTML = `<div ${scrollBox}><table ${tblStyle}>
+      <thead><tr ${thStyle}>
+        <th>모델</th><th>품번</th><th>품명</th>
+        <th class="col-num">단가</th>
+        <th class="col-num">5월</th><th class="col-num">6월</th>
+        <th class="col-num">7월</th><th class="col-num">8월</th>
+        <th class="col-num">4개월 합계</th>
+      </tr></thead><tbody>${rows}
+      <tr style="border-top:2px solid var(--teal);font-weight:700;background:rgba(56,201,160,0.06);">
+        <td colspan="8" style="text-align:right;color:var(--teal);">총 합계</td>
+        <td class="col-num" style="color:var(--teal);">₩${fmt(fin.consumptionValue)}</td>
+      </tr></tbody></table></div>`;
+
+  } else if (type === 'turnover') {
+    const fin = computeFinancialKPIs();
+    modalTitle.textContent = '재고회전율 (연환산) 계산 근거';
+    const benchmark = fin.turnover >= 10 ? '✅ 우수' : (fin.turnover >= 7 ? '🟢 양호' : (fin.turnover >= 4 ? '🟡 일반' : '🔴 저조'));
+    modalBody.innerHTML = `
+      <div style="padding:24px;font-size:13px;line-height:1.9;color:#fff;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+          <div style="padding:14px;background:var(--bg-card);border-radius:8px;border:0.5px solid var(--border2);">
+            <div style="font-size:11px;color:var(--t3);">평균 재고가치</div>
+            <div style="font-size:20px;font-weight:700;font-family:var(--mono);">₩${fmt(fin.avgInvValue)}</div>
+            <div style="font-size:10px;color:var(--t3);margin-top:4px;">(시작 ₩${fmt(fin.invValueStart)} + 8월말 ₩${fmt(fin.invValueEnd)}) ÷ 2</div>
+          </div>
+          <div style="padding:14px;background:var(--bg-card);border-radius:8px;border:0.5px solid var(--border2);">
+            <div style="font-size:11px;color:var(--t3);">연환산 사용금액</div>
+            <div style="font-size:20px;font-weight:700;font-family:var(--mono);">₩${fmt(fin.annualConsumption)}</div>
+            <div style="font-size:10px;color:var(--t3);margin-top:4px;">4개월 ₩${fmt(fin.consumptionValue)} × 3</div>
+          </div>
+        </div>
+        <div style="text-align:center;padding:20px;background:var(--bg-card);border:1.5px solid var(--sky);border-radius:10px;">
+          <div style="font-size:12px;color:var(--t3);">재고회전율 = 연환산 사용금액 ÷ 평균 재고가치</div>
+          <div style="font-size:32px;font-weight:700;color:var(--sky);font-family:var(--mono);margin-top:8px;">${fin.turnover.toFixed(2)} <span style="font-size:14px;color:var(--t2);">회/년</span></div>
+          <div style="margin-top:8px;font-size:13px;">${benchmark}</div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:var(--bg-card2);border-radius:6px;font-size:11px;color:var(--t2);line-height:1.7;">
+          <strong style="color:#fff;">벤치마크:</strong> 4회 미만 = 저조 · 4~6회 = 일반 · 7~9회 = 양호 · 10회+ = 우수<br>
+          <strong style="color:#fff;">의미:</strong> 1년에 평균 재고가 몇 번 회전하는지. 높을수록 재고 효율이 좋고 현금 회수가 빠름.
+        </div>
+      </div>`;
+
+  } else if (type === 'dio') {
+    const fin = computeFinancialKPIs();
+    modalTitle.textContent = 'DIO (일평균 재고 보유일수) 계산 근거';
+    const dioVal = fin.dio != null ? Math.round(fin.dio) : null;
+    const benchmark = dioVal == null ? '—' : (dioVal <= 50 ? '✅ 우수' : (dioVal <= 80 ? '🟢 양호' : (dioVal <= 120 ? '🟡 일반' : '🔴 과다')));
+    modalBody.innerHTML = `
+      <div style="padding:24px;font-size:13px;line-height:1.9;color:#fff;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+          <div style="padding:14px;background:var(--bg-card);border-radius:8px;border:0.5px solid var(--border2);">
+            <div style="font-size:11px;color:var(--t3);">기준일수</div>
+            <div style="font-size:20px;font-weight:700;font-family:var(--mono);">365</div>
+            <div style="font-size:10px;color:var(--t3);margin-top:4px;">연간 일수</div>
+          </div>
+          <div style="padding:14px;background:var(--bg-card);border-radius:8px;border:0.5px solid var(--border2);">
+            <div style="font-size:11px;color:var(--t3);">재고회전율</div>
+            <div style="font-size:20px;font-weight:700;font-family:var(--mono);">${fin.turnover.toFixed(2)}</div>
+            <div style="font-size:10px;color:var(--t3);margin-top:4px;">회/년</div>
+          </div>
+        </div>
+        <div style="text-align:center;padding:20px;background:var(--bg-card);border:1.5px solid var(--teal);border-radius:10px;">
+          <div style="font-size:12px;color:var(--t3);">DIO = 365 ÷ 재고회전율</div>
+          <div style="font-size:32px;font-weight:700;color:var(--teal);font-family:var(--mono);margin-top:8px;">${dioVal != null ? dioVal : '—'} <span style="font-size:14px;color:var(--t2);">일</span></div>
+          <div style="margin-top:8px;font-size:13px;">${benchmark}</div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:var(--bg-card2);border-radius:6px;font-size:11px;color:var(--t2);line-height:1.7;">
+          <strong style="color:#fff;">벤치마크:</strong> 50일 이하 = 우수 · 51~80일 = 양호 · 81~120일 = 일반 · 121일+ = 과다<br>
+          <strong style="color:#fff;">의미:</strong> 현재 재고로 평균 며칠을 운영할 수 있는지. 낮을수록 자본 효율 좋음. 과도하게 낮으면 결품 위험.
+        </div>
+      </div>`;
+
+  } else if (type === 'safety-gap') {
+    const fin = computeFinancialKPIs();
+    const shortItems = fin.perPart.filter(p => p.gapV > 0).sort((a, b) => b.gapV - a.gapV);
+    modalTitle.textContent = `안전재고 미달 손실액 상세 (${shortItems.length}품목 · 총 ₩${fmt(fin.safetyGapValue)})`;
+    const rows = shortItems.map(({ m, r, maxGap, gapV }) => {
+      const fs = r.firstShort;
+      const urgency = (fs === 'may' || fs === 'jun')
+        ? `<span style="color:var(--red);font-weight:700;">🔴 ${MONTH_KR[fs]} 부족</span>`
+        : `<span style="color:var(--amb);font-weight:700;">🟡 ${MONTH_KR[fs]} 부족</span>`;
+      return `<tr>
+        <td>${sanitize(displayName(m))}</td>
+        <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+        <td>${sanitize(m.part_name)}</td>
+        <td>${sanitize(m.supplier || '-')}</td>
+        <td class="col-num">₩${fmt(m.unit_price)}</td>
+        <td>${urgency}</td>
+        <td class="col-num" style="color:var(--red);font-weight:700;">${fmt(maxGap)}</td>
+        <td class="col-num" style="color:var(--red);font-weight:700;">₩${fmt(gapV)}</td>
+      </tr>`;
+    }).join('');
+    modalBody.innerHTML = `<div ${scrollBox}><table ${tblStyle}>
+      <thead><tr ${thStyle}>
+        <th>모델</th><th>품번</th><th>품명</th><th>구매업체</th>
+        <th class="col-num">단가</th><th>부족 시점</th>
+        <th class="col-num">최대 미달량(EA)</th><th class="col-num">미달 금액</th>
+      </tr></thead><tbody>${rows}
+      <tr style="border-top:2px solid var(--red);font-weight:700;background:rgba(229,57,53,0.06);">
+        <td colspan="7" style="text-align:right;color:var(--red);">총 합계 (위험 노출액)</td>
+        <td class="col-num" style="color:var(--red);">₩${fmt(fin.safetyGapValue)}</td>
+      </tr></tbody></table></div>`;
   }
 
   modal.classList.add('modal-backdrop--open');
