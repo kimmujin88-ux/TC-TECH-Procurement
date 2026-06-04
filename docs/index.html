@@ -963,8 +963,8 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 <!-- TABS -->
 <nav class="tabs">
   <div class="tabs__inner">
-    <button class="tab tab--active" data-tab="form">수급 운영 계획</button>
-    <button class="tab" data-tab="dashboard">종합 모니터링 <span class="tab__count tab__count--alert" id="count-alarms">0</span></button>
+    <button class="tab tab--active" data-tab="dashboard">종합 모니터링 <span class="tab__count tab__count--alert" id="count-alarms">0</span></button>
+    <button class="tab" data-tab="form">수급 운영 계획</button>
     <button class="tab" data-tab="orders">발주 확정/관리 <span class="tab__count tab__count--alert" id="count-orders">0</span></button>
     <button class="tab" data-tab="history">발주 이력 <span class="tab__count" id="count-history">0</span></button>
   </div>
@@ -973,7 +973,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 <main>
 
 <!-- PANEL: FORM (메인) -->
-<section id="panel-form" class="panel panel--active">
+<section id="panel-form" class="panel">
 
   <div class="section-title">
     <div class="section-title__label">▎ 2026년 4월말 실사재고 기준 · 5~8월 운영 양식</div>
@@ -1064,7 +1064,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 </section>
 
 <!-- PANEL: DASHBOARD -->
-<section id="panel-dashboard" class="panel">
+<section id="panel-dashboard" class="panel panel--active">
   <div class="section-title">
     <div class="section-title__label">▎ 운영 현황 요약</div>
     <div class="section-title__hint" id="dash-updated"></div>
@@ -3968,11 +3968,10 @@ function renderERPDiscrepancy() {
 }
 
 // ──────────────────────────────  INIT  ──────────────────────────────
-document.body.classList.add('tab-form-active');
 populateFilters();
 renderForm();
 updateOrderCount();
-renderAlarms();
+renderDashboard();
 
 // 대시보드 차트 월 선택 이벤트 바인딩
 document.getElementById('dash-month-select').addEventListener('change', (e) => {
@@ -4046,9 +4045,7 @@ updateHistoryCount();
 (function(){
   const ACCOUNTS = {
     'fpteam': { pw: 'fpteam', name: '관리자' },
-    'userA':  { pw: 'userA',  name: '팀원A' },
-    'userB':  { pw: 'userB',  name: '팀원B' },
-    'userC':  { pw: 'userC',  name: '팀원C' }
+    'userA':  { pw: 'userA',  name: '팀원' }
   };
   const AUTH_KEY = 'tctech_auth_user';
   const overlay = document.getElementById('login-overlay');
