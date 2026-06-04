@@ -459,6 +459,15 @@ input[type="number"] { -moz-appearance: textfield; }
   gap: 10px; margin-bottom: 20px;
 }
 .kpi-grid--5 { grid-template-columns: repeat(5, 1fr); }
+/* 클릭 가능한 행 + 하이라이트 애니메이션 (UX 흐름 연결) */
+tbody tr[data-part-no], tbody tr[data-supplier] { cursor: pointer; transition: background 0.12s; }
+tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(255,255,255,0.04); }
+@keyframes rowFlash {
+  0%, 100% { background-color: transparent; }
+  15% { background-color: rgba(247, 199, 64, 0.30); }
+  85% { background-color: rgba(247, 199, 64, 0.10); }
+}
+.row-highlight, .row-highlight td { animation: rowFlash 2.2s ease-out; }
 .kpi {
   background: var(--bg-card);
   padding: 14px 16px;
@@ -1769,7 +1778,7 @@ function renderAlarms() {
           : `<span style="color:var(--teal);font-weight:700;">🟢 PLAN</span>`;
         const deadlineStr = a.deadline.toISOString().slice(0, 10);
         const ddayText = a.daysLeft < 0 ? `+${-a.daysLeft}일 경과` : `D-${a.daysLeft}`;
-        return `<tr>
+        return `<tr data-part-no="${sanitize(a.m.part_no)}" title="클릭 → 발주 확정/관리 탭으로 이동">
           <td>${badge}</td>
           <td style="font-family:var(--mono);font-size:10px;">${sanitize(a.m.part_no)}</td>
           <td>${sanitize(a.m.part_name)}</td>
@@ -1845,7 +1854,7 @@ function renderSupplierAnalysis() {
       ? `<span class="badge badge--info" style="font-size:8.5px;">수입</span>`
       : `<span class="badge badge--neutral" style="font-size:8.5px;">일반</span>`;
     const ssColor = g.singleSourceCount > 0 ? 'color:var(--amb);font-weight:700;' : 'color:var(--t3);';
-    return `<tr>
+    return `<tr data-supplier="${sanitize(g.supplier)}" title="클릭 → 공급사 부품 상세 모달">
       <td>${sanitize(g.supplier)}</td>
       <td>${catBadge}</td>
       <td class="col-num">${g.partCount}</td>
@@ -1917,6 +1926,67 @@ function formatAuditPath(path) {
   if (ns === 'orderOverrides') return `${parts[1]} / 발주 수정`;
   return path;
 }
+// UX 흐름 연결: 알람 행 → 발주 확정 탭 이동 + 해당 품번 행 스크롤·하이라이트
+function goToOrderRow(partNo) {
+  setActiveTab('orders');
+  setTimeout(() => {
+    const input = document.querySelector(`#panel-orders [data-pn="${partNo}"]`);
+    if (!input) return;
+    const row = input.closest('tr');
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('row-highlight');
+    setTimeout(() => row.classList.remove('row-highlight'), 2200);
+  }, 320);
+}
+
+// UX 흐름 연결: 공급사 행 → 해당 공급사 부품 상세 모달
+function showSupplierDetail(supplier) {
+  const data = computeSupplierAnalysis();
+  const sd = data.suppliers.find(s => s.supplier === supplier);
+  if (!sd) return;
+  const partSupplierCount = new Map();
+  MASTERS.forEach(m => {
+    if (!partSupplierCount.has(m.part_no)) partSupplierCount.set(m.part_no, new Set());
+    partSupplierCount.get(m.part_no).add(m.supplier);
+  });
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.querySelector('.modal__title');
+  modalTitle.textContent = `${supplier} 상세 (${sd.partCount}개 부품 · 4개월 ₩${fmt(sd.use4mAmt)} · 비중 ${(sd.sharePct * 100).toFixed(1)}% · ${sd.risk.replace(/<[^>]+>/g, '')})`;
+  const rows = sd.parts.map(m => {
+    const r = getResult(m);
+    const useAmt = ['may','jun','jul','aug'].reduce((s, mo) => s + r.months[mo].required, 0) * (m.unit_price || 0);
+    const isSingle = partSupplierCount.get(m.part_no).size === 1;
+    const ssBadge = isSingle
+      ? '<span style="color:var(--amb);font-weight:700;">단일</span>'
+      : '<span style="color:var(--t3);">멀티</span>';
+    const shortBadge = r.firstShort
+      ? `<span style="color:var(--red);font-weight:700;">🔴 ${MONTH_KR[r.firstShort]}</span>`
+      : '<span style="color:var(--teal);">✅ 안정</span>';
+    return `<tr>
+      <td>${sanitize(displayName(m))}</td>
+      <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
+      <td>${sanitize(m.part_name)}</td>
+      <td class="col-num">${m.lead_time_days || '-'}일</td>
+      <td class="col-num">₩${fmt(m.unit_price)}</td>
+      <td class="col-num">${fmt(r.start)}</td>
+      <td class="col-num">₩${fmt(useAmt)}</td>
+      <td>${ssBadge}</td>
+      <td>${shortBadge}</td>
+    </tr>`;
+  }).join('');
+  modalBody.innerHTML = `<div style="max-height:560px;overflow-y:auto;"><table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;z-index:1;">
+      <th>모델</th><th>품번</th><th>품명</th>
+      <th class="col-num">LT</th><th class="col-num">단가</th>
+      <th class="col-num">시작재고</th><th class="col-num">4개월 사용액</th>
+      <th>소싱</th><th>부족</th>
+    </tr></thead><tbody>${rows}</tbody>
+  </table></div>`;
+  modal.classList.add('modal-backdrop--open');
+}
+
 function renderAuditLog() {
   const log = state.auditLog || [];
   const summary = document.getElementById('audit-summary');
@@ -3988,6 +4058,16 @@ populateFilters();
 renderForm();
 updateOrderCount();
 renderDashboard();
+
+// UX 흐름 연결: 알람 행 → 발주 확정 / 공급사 행 → 상세 모달 (이벤트 위임)
+document.getElementById('alarm-tbody')?.addEventListener('click', e => {
+  const row = e.target.closest('tr[data-part-no]');
+  if (row) goToOrderRow(row.dataset.partNo);
+});
+document.getElementById('supplier-tbody')?.addEventListener('click', e => {
+  const row = e.target.closest('tr[data-supplier]');
+  if (row) showSupplierDetail(row.dataset.supplier);
+});
 
 // 대시보드 차트 월 선택 이벤트 바인딩
 document.getElementById('dash-month-select').addEventListener('change', (e) => {
