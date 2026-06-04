@@ -963,7 +963,9 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 <!-- TABS -->
 <nav class="tabs">
   <div class="tabs__inner">
-    <button class="tab tab--active" data-tab="dashboard">종합 모니터링 <span class="tab__count tab__count--alert" id="count-alarms">0</span></button>
+    <button class="tab tab--active" data-tab="ops">운영 현황 <span class="tab__count tab__count--alert" id="count-alarms">0</span></button>
+    <button class="tab" data-tab="finance">재무·분석</button>
+    <button class="tab" data-tab="data">데이터 점검</button>
     <button class="tab" data-tab="form">수급 운영 계획</button>
     <button class="tab" data-tab="orders">발주 확정/관리 <span class="tab__count tab__count--alert" id="count-orders">0</span></button>
     <button class="tab" data-tab="history">발주 이력 <span class="tab__count" id="count-history">0</span></button>
@@ -1064,9 +1066,10 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 </section>
 
 <!-- PANEL: DASHBOARD -->
-<section id="panel-dashboard" class="panel panel--active">
+<!-- PANEL: OPS (운영 현황) -->
+<section id="panel-ops" class="panel panel--active">
   <div class="section-title">
-    <div class="section-title__label">▎ 운영 현황 요약</div>
+    <div class="section-title__label">▎ 운영 현황</div>
     <div class="section-title__hint" id="dash-updated"></div>
   </div>
 
@@ -1097,44 +1100,6 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
-  <!-- 재무 KPI 그룹 (금액 기준) -->
-  <div class="section-title" style="margin-top:14px;">
-    <div class="section-title__label">▎ 재무 KPI (금액 기준)</div>
-    <div class="section-title__hint">5~8월 시뮬레이션 기준 추정치 · 카드 클릭 시 상세</div>
-  </div>
-  <div class="kpi-grid kpi-grid--5">
-    <div class="kpi kpi--sky" onclick="showKpiDetail('inv-value')" style="cursor:pointer;" title="클릭하면 품목별 재고가치 상세를 확인할 수 있습니다">
-      <div class="kpi__corner">F01</div>
-      <div class="kpi__label">재고가치 (4월말 → 8월말)</div>
-      <div class="kpi__value" id="kpi-inv-value">—</div>
-      <div class="kpi__delta" id="kpi-inv-value-delta"></div>
-    </div>
-    <div class="kpi kpi--teal" onclick="showKpiDetail('consumption')" style="cursor:pointer;" title="클릭하면 월별 사용금액 상세를 확인할 수 있습니다">
-      <div class="kpi__corner">F02</div>
-      <div class="kpi__label">4개월 사용금액 (5~8월)</div>
-      <div class="kpi__value" id="kpi-consumption">—</div>
-      <div class="kpi__delta" id="kpi-consumption-delta"></div>
-    </div>
-    <div class="kpi kpi--sky" onclick="showKpiDetail('turnover')" style="cursor:pointer;" title="클릭하면 재고회전율 계산 근거를 확인할 수 있습니다">
-      <div class="kpi__corner">F03</div>
-      <div class="kpi__label">재고회전율 (연환산)</div>
-      <div class="kpi__value" id="kpi-turnover">—</div>
-      <div class="kpi__delta">4~6회 일반 · 7~9 양호 · 10+ 우수</div>
-    </div>
-    <div class="kpi kpi--teal" onclick="showKpiDetail('dio')" style="cursor:pointer;" title="클릭하면 DIO 계산 근거를 확인할 수 있습니다">
-      <div class="kpi__corner">F04</div>
-      <div class="kpi__label">DIO (일평균 재고)</div>
-      <div class="kpi__value" id="kpi-dio">—</div>
-      <div class="kpi__delta">365 ÷ 재고회전율</div>
-    </div>
-    <div class="kpi kpi--red" onclick="showKpiDetail('safety-gap')" style="cursor:pointer;" title="클릭하면 안전재고 미달 손실 상세를 확인할 수 있습니다">
-      <div class="kpi__corner">F05</div>
-      <div class="kpi__label">안전재고 미달 손실액 (위험 노출)</div>
-      <div class="kpi__value kpi__value--red" id="kpi-safety-gap">—</div>
-      <div class="kpi__delta kpi__delta--alert" id="kpi-safety-gap-delta"></div>
-    </div>
-  </div>
-
   <!-- 발주 알람 (LT 역산 자동) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -1161,33 +1126,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
-  <!-- 공급사 분석 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">공급사 분석</div>
-        <div class="card__hint">금액 비중 30%↑ = 핵심 의존 · 단일소싱 70%↑ = 위주 · 멀티소싱 = 안전</div>
-      </div>
-      <div id="supplier-summary" style="font-size:11px;font-family:var(--mono);"></div>
-    </div>
-    <div class="card__body" style="padding:0; max-height:380px; overflow-y:auto;">
-      <table class="order-table" style="width:100%; font-size:11px;">
-        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
-          <th>공급사</th>
-          <th>구분</th>
-          <th class="col-num">부품 수</th>
-          <th class="col-num">4개월 사용액</th>
-          <th class="col-num">비중</th>
-          <th class="col-num">평균 LT</th>
-          <th class="col-num">단일소싱</th>
-          <th>리스크 등급</th>
-        </tr></thead>
-        <tbody id="supplier-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="dash-grid">
+  <div class="dash-grid" style="margin-top:14px;">
     <div class="card">
       <div class="card__head">
         <div>
@@ -1227,32 +1166,109 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <ul class="alert-list" id="alert-list"></ul>
     </div>
   </div>
+</section>
 
-  <!-- ERP 불일치 + ABC 분석 카드 -->
-  <div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-    <div class="card">
-      <div class="card__head">
-        <div>
-          <div class="card__title">ERP vs 실사재고 불일치 상세</div>
-          <div class="card__hint" id="erp-import-status">차이 &gt; 0.5% 품목 · 엑셀 가져오기로 월말 데이터 반영</div>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <button class="btn btn--ghost btn--sm" id="btn-erp-template">양식 다운로드</button>
-          <button class="btn btn--sm" id="btn-erp-import">엑셀 가져오기</button>
-          <button class="btn btn--ghost btn--sm" id="btn-erp-reset" style="color:var(--red);border-color:var(--red-b);display:none;">가져온 데이터 초기화</button>
-        </div>
-      </div>
-      <div class="card__body--flush" style="max-height:320px; overflow-y:auto;" id="erp-detail-body"></div>
+<!-- PANEL: FINANCE (재무·분석) -->
+<section id="panel-finance" class="panel">
+  <div class="section-title">
+    <div class="section-title__label">▎ 재무·분석</div>
+    <div class="section-title__hint">5~8월 시뮬레이션 기준 추정치 · 카드 클릭 시 상세</div>
+  </div>
+
+  <div class="kpi-grid kpi-grid--5">
+    <div class="kpi kpi--sky" onclick="showKpiDetail('inv-value')" style="cursor:pointer;" title="클릭하면 품목별 재고가치 상세를 확인할 수 있습니다">
+      <div class="kpi__corner">F01</div>
+      <div class="kpi__label">재고가치 (4월말 → 8월말)</div>
+      <div class="kpi__value" id="kpi-inv-value">—</div>
+      <div class="kpi__delta" id="kpi-inv-value-delta"></div>
     </div>
-    <input type="file" id="erp-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
-    <div class="card">
-      <div class="card__head">
+    <div class="kpi kpi--teal" onclick="showKpiDetail('consumption')" style="cursor:pointer;" title="클릭하면 월별 사용금액 상세를 확인할 수 있습니다">
+      <div class="kpi__corner">F02</div>
+      <div class="kpi__label">4개월 사용금액 (5~8월)</div>
+      <div class="kpi__value" id="kpi-consumption">—</div>
+      <div class="kpi__delta" id="kpi-consumption-delta"></div>
+    </div>
+    <div class="kpi kpi--sky" onclick="showKpiDetail('turnover')" style="cursor:pointer;" title="클릭하면 재고회전율 계산 근거를 확인할 수 있습니다">
+      <div class="kpi__corner">F03</div>
+      <div class="kpi__label">재고회전율 (연환산)</div>
+      <div class="kpi__value" id="kpi-turnover">—</div>
+      <div class="kpi__delta">4~6회 일반 · 7~9 양호 · 10+ 우수</div>
+    </div>
+    <div class="kpi kpi--teal" onclick="showKpiDetail('dio')" style="cursor:pointer;" title="클릭하면 DIO 계산 근거를 확인할 수 있습니다">
+      <div class="kpi__corner">F04</div>
+      <div class="kpi__label">DIO (일평균 재고)</div>
+      <div class="kpi__value" id="kpi-dio">—</div>
+      <div class="kpi__delta">365 ÷ 재고회전율</div>
+    </div>
+    <div class="kpi kpi--red" onclick="showKpiDetail('safety-gap')" style="cursor:pointer;" title="클릭하면 안전재고 미달 손실 상세를 확인할 수 있습니다">
+      <div class="kpi__corner">F05</div>
+      <div class="kpi__label">안전재고 미달 손실액 (위험 노출)</div>
+      <div class="kpi__value kpi__value--red" id="kpi-safety-gap">—</div>
+      <div class="kpi__delta kpi__delta--alert" id="kpi-safety-gap-delta"></div>
+    </div>
+  </div>
+
+  <!-- 공급사 분석 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">공급사 분석</div>
+        <div class="card__hint">금액 비중 30%↑ = 핵심 의존 · 단일소싱 70%↑ = 위주 · 멀티소싱 = 안전</div>
+      </div>
+      <div id="supplier-summary" style="font-size:11px;font-family:var(--mono);"></div>
+    </div>
+    <div class="card__body" style="padding:0; max-height:380px; overflow-y:auto;">
+      <table class="order-table" style="width:100%; font-size:11px;">
+        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+          <th>공급사</th>
+          <th>구분</th>
+          <th class="col-num">부품 수</th>
+          <th class="col-num">4개월 사용액</th>
+          <th class="col-num">비중</th>
+          <th class="col-num">평균 LT</th>
+          <th class="col-num">단일소싱</th>
+          <th>리스크 등급</th>
+        </tr></thead>
+        <tbody id="supplier-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ABC 분석 (연간 금액 기준) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
         <div class="card__title">ABC 분석 (연간 금액 기준)</div>
         <div class="card__hint">4개월 실적 × 3 추정</div>
       </div>
-      <div class="card__body--flush" style="max-height:320px; overflow-y:auto;" id="abc-body"></div>
     </div>
+    <div class="card__body--flush" style="max-height:380px; overflow-y:auto;" id="abc-body"></div>
   </div>
+</section>
+
+<!-- PANEL: DATA (데이터 점검) -->
+<section id="panel-data" class="panel">
+  <div class="section-title">
+    <div class="section-title__label">▎ 데이터 점검</div>
+    <div class="section-title__hint">정합성 점검 · 변경 추적</div>
+  </div>
+
+  <!-- ERP vs 실사재고 불일치 -->
+  <div class="card">
+    <div class="card__head">
+      <div>
+        <div class="card__title">ERP vs 실사재고 불일치 상세</div>
+        <div class="card__hint" id="erp-import-status">차이 &gt; 0.5% 품목 · 엑셀 가져오기로 월말 데이터 반영</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn btn--ghost btn--sm" id="btn-erp-template">양식 다운로드</button>
+        <button class="btn btn--sm" id="btn-erp-import">엑셀 가져오기</button>
+        <button class="btn btn--ghost btn--sm" id="btn-erp-reset" style="color:var(--red);border-color:var(--red-b);display:none;">가져온 데이터 초기화</button>
+      </div>
+    </div>
+    <div class="card__body--flush" style="max-height:380px; overflow-y:auto;" id="erp-detail-body"></div>
+  </div>
+  <input type="file" id="erp-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
 
   <!-- 변경 이력 (감사 로그) -->
   <div class="card" style="margin-top:14px;">
@@ -1263,7 +1279,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       </div>
       <div id="audit-summary" style="font-size:11px;font-family:var(--mono);"></div>
     </div>
-    <div class="card__body" style="padding:0; max-height:320px; overflow-y:auto;">
+    <div class="card__body" style="padding:0; max-height:380px; overflow-y:auto;">
       <table class="order-table" style="width:100%; font-size:11px;">
         <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
           <th>시각</th>
@@ -1939,7 +1955,7 @@ function setActiveTab(t) {
   document.getElementById('panel-' + t).classList.add('panel--active');
   // 양식 탭일 때만 body 스크롤 잠금 (form-wrap 내부만 스크롤됨)
   document.body.classList.toggle('tab-form-active', t === 'form');
-  if (t === 'dashboard') renderDashboard();
+  if (t === 'ops' || t === 'finance' || t === 'data') renderDashboard();
   else if (t === 'orders') renderOrders();
   else if (t === 'history') renderHistory();
   window.scrollTo({ top: 0, behavior: 'smooth' });
