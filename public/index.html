@@ -1135,6 +1135,19 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
+  <!-- 다가오는 결품 캘린더 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">📅 다가오는 결품 캘린더</div>
+        <div class="card__hint">월말 기준 부족 발생 품목 수 · "n월말 재고 < (n+1)월 필요수량" 기준</div>
+      </div>
+    </div>
+    <div class="card__body" style="padding:0;">
+      <div id="shortage-calendar-body" style="display:grid; grid-template-columns:repeat(4, 1fr);"></div>
+    </div>
+  </div>
+
   <div class="dash-grid" style="margin-top:14px;">
     <div class="card">
       <div class="card__head">
@@ -1182,6 +1195,18 @@ html.login-locked, html.login-locked body { overflow: hidden; }
   <div class="section-title">
     <div class="section-title__label">▎ 재무·분석</div>
     <div class="section-title__hint">5~8월 시뮬레이션 기준 추정치 · 카드 클릭 시 상세</div>
+  </div>
+
+  <!-- 환율 가중치 (수입품 감도분석) -->
+  <div class="card" style="padding:10px 14px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+    <div style="font-size:11px; color:var(--t2); font-weight:700;">💱 수입품 환율 가중치 (감도분석)</div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <input type="range" id="fx-weight-slider" min="80" max="120" step="1" value="100" style="width:160px;">
+      <input type="number" id="fx-weight-input" min="80" max="120" step="1" value="100" style="width:60px; padding:4px 6px; font-size:12px; font-family:var(--mono); text-align:right;">
+      <span style="font-size:11px; color:var(--t3);">%</span>
+    </div>
+    <button class="btn btn--ghost btn--sm" id="fx-weight-reset">100% 복원</button>
+    <div id="fx-weight-impact" style="font-size:10.5px; color:var(--t3); margin-left:auto;">실제 단가 기준</div>
   </div>
 
   <div class="kpi-grid kpi-grid--5">
@@ -1355,6 +1380,21 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <button class="btn btn--ghost btn--sm" id="btn-clear-history" style="color:var(--red); border-color:var(--red-b);">전체 삭제</button>
     </div>
   </div>
+
+  <!-- 필터 row -->
+  <div class="card" style="padding:10px 14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+    <input type="date" id="history-filter-from" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="시작 날짜">
+    <span style="color:var(--t3);font-size:11px;">~</span>
+    <input type="date" id="history-filter-to" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="종료 날짜">
+    <select id="history-filter-supplier" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;">
+      <option value="">전체 공급사</option>
+    </select>
+    <input type="text" id="history-filter-search" class="filter-input" placeholder="품번·품명 검색" style="font-size:11px;padding:5px 8px;flex:1;min-width:180px;">
+    <button class="btn btn--ghost btn--sm" id="history-filter-reset">초기화</button>
+    <button class="btn btn--sm" id="history-export">Excel 내보내기</button>
+    <div id="history-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+  </div>
+
   <div id="history-list"></div>
 </section>
 
@@ -1696,13 +1736,16 @@ function getResult(master) {
 // 재무 KPI 계산 (금액 기준, 4개월 시뮬레이션 → 연환산)
 // 반환: { invValueStart, invValueEnd, avgInvValue, consumptionValue,
 //        annualConsumption, turnover, dio, safetyGapValue, perPart[] }
+// state.fxWeight (80~120, 기본 100): 수입품 단가에 % 가중치 적용 (감도분석)
 function computeFinancialKPIs() {
   const months = ['may', 'jun', 'jul', 'aug'];
+  const importMultiplier = ((state && state.fxWeight) || 100) / 100;
   let invValueStart = 0, invValueEnd = 0;
   let consumptionValue = 0, safetyGapValue = 0;
   const perPart = [];
   MASTERS.forEach(m => {
-    const price = m.unit_price || 0;
+    const isImport = m.category === '수입';
+    const price = (m.unit_price || 0) * (isImport ? importMultiplier : 1);
     const r = getResult(m);
     const startV = r.start * price;
     const endStock = Math.max(0, r.months.aug.ending);
@@ -1806,6 +1849,36 @@ function renderAlarms() {
   // 탭 배지: OVERDUE + URGENT 합산
   const badgeEl = document.getElementById('count-alarms');
   if (badgeEl) badgeEl.textContent = counts[0] + counts[1];
+}
+
+// 다가오는 결품 캘린더 (월말 기준 부족 발생 품목 수)
+function renderShortageCalendar() {
+  const counts = { may: 0, jun: 0, jul: 0, aug: 0 };
+  MASTERS.forEach(m => {
+    const r = getResult(m);
+    ['may','jun','jul','aug'].forEach(mo => { if (r.shortAt[mo]) counts[mo]++; });
+  });
+  const el = document.getElementById('shortage-calendar-body');
+  if (!el) return;
+  const months = [
+    { key: 'may', label: '5월말' },
+    { key: 'jun', label: '6월말' },
+    { key: 'jul', label: '7월말' },
+    { key: 'aug', label: '8월말 (9월 추정)' }
+  ];
+  el.innerHTML = months.map((m, idx) => {
+    const n = counts[m.key];
+    let color = 'var(--teal)', icon = '🟢', risk = '안정';
+    if (n >= 20) { color = 'var(--red)'; icon = '🔴'; risk = '위험'; }
+    else if (n >= 10) { color = 'var(--amb)'; icon = '🟡'; risk = '주의'; }
+    const border = idx < months.length - 1 ? 'border-right:0.5px solid var(--border2);' : '';
+    return `<div style="text-align:center; padding:14px 8px; ${border}">
+      <div style="font-size:11px; color:var(--t3); margin-bottom:6px;">${m.label}</div>
+      <div style="font-size:30px; font-weight:700; color:${color}; font-family:var(--mono); line-height:1;">${n}</div>
+      <div style="font-size:10px; color:var(--t3); margin-top:3px;">건 부족 예상</div>
+      <div style="font-size:11px; margin-top:8px; color:${color}; font-weight:600;">${icon} ${risk}</div>
+    </div>`;
+  }).join('');
 }
 
 // 공급사 분석 (단일소싱 리스크 · 금액 비중 · 평균 LT)
@@ -2609,6 +2682,9 @@ function renderDashboard() {
 
   // ── 발주 알람 (LT 역산) ──
   renderAlarms();
+
+  // ── 결품 캘린더 ──
+  renderShortageCalendar();
 
   // ── 공급사 분석 ──
   renderSupplierAnalysis();
@@ -3856,14 +3932,51 @@ function updateHistoryCount() {
   if (el) el.textContent = orderHistory.length;
 }
 
+function applyHistoryFilters(history) {
+  const from = document.getElementById('history-filter-from')?.value || '';
+  const to = document.getElementById('history-filter-to')?.value || '';
+  const supplier = document.getElementById('history-filter-supplier')?.value || '';
+  const search = (document.getElementById('history-filter-search')?.value || '').toLowerCase().trim();
+  return history.filter(entry => {
+    const dateStr = (entry.date || '').slice(0, 10);
+    if (from && dateStr < from) return false;
+    if (to && dateStr > to) return false;
+    if (supplier && entry.supplier !== supplier) return false;
+    if (search) {
+      const hay = (entry.items || []).map(it => `${it.pn} ${it.name}`).join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
+function populateHistorySupplierSelect() {
+  const sel = document.getElementById('history-filter-supplier');
+  if (!sel) return;
+  const current = sel.value;
+  const suppliers = [...new Set(orderHistory.map(e => e.supplier).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">전체 공급사</option>' + suppliers.map(s => `<option value="${sanitize(s)}">${sanitize(s)}</option>`).join('');
+  sel.value = current; // 선택 유지
+}
+
 function renderHistory() {
   const container = document.getElementById('history-list');
   if (!container) return;
+  populateHistorySupplierSelect();
+  const filtered = applyHistoryFilters(orderHistory);
+  const summary = document.getElementById('history-summary');
+  if (summary) summary.textContent = filtered.length === orderHistory.length
+    ? `총 ${orderHistory.length}건`
+    : `${filtered.length}건 표시 / 전체 ${orderHistory.length}건`;
   if (orderHistory.length === 0) {
     container.innerHTML = '<div class="empty">발주 이력이 없습니다.<div class="empty__hint">발주서 생성 후 "발주 확정" 버튼을 누르면 기록됩니다.</div></div>';
     return;
   }
-  container.innerHTML = orderHistory.map((entry, idx) => {
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty">조건에 맞는 이력이 없습니다.<div class="empty__hint">필터를 조정해 보세요</div></div>';
+    return;
+  }
+  container.innerHTML = filtered.map(entry => {
     const date = new Date(entry.date).toLocaleString('ko-KR');
     if (entry.type === 'order') {
       return `
@@ -3875,7 +3988,7 @@ function renderHistory() {
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <span class="badge badge--info">발주확정</span>
-              <button class="btn btn--ghost btn--sm" onclick="deleteHistory(${idx})" style="color:var(--red);border-color:var(--red-b);">삭제</button>
+              <button class="btn btn--ghost btn--sm" onclick="deleteHistory('${entry.date}')" style="color:var(--red);border-color:var(--red-b);">삭제</button>
             </div>
           </div>
           <table class="order-table" style="width:100%">
@@ -3901,12 +4014,32 @@ function renderHistory() {
   }).join('');
 }
 
-function deleteHistory(idx) {
+function deleteHistory(dateStr) {
   if (!confirm('이 이력을 삭제하시겠습니까?')) return;
+  const idx = orderHistory.findIndex(e => e.date === dateStr);
+  if (idx === -1) return;
   orderHistory.splice(idx, 1);
   saveHistory();
   renderHistory();
   updateHistoryCount();
+}
+
+function exportHistory() {
+  const filtered = applyHistoryFilters(orderHistory);
+  if (filtered.length === 0) { alert('내보낼 발주 이력이 없습니다.'); return; }
+  const rows = [['발주 일시', '공급사', '품번', '품명', '모델', '수량(EA)', '단가(원)', '금액(원)']];
+  filtered.forEach(entry => {
+    const dateStr = new Date(entry.date).toLocaleString('ko-KR');
+    (entry.items || []).forEach(it => {
+      rows.push([dateStr, entry.supplier, it.pn, it.name, it.model, it.qty, it.unitPrice, it.amount]);
+    });
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:20},{wch:14},{wch:14},{wch:32},{wch:24},{wch:9},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, '발주 이력');
+  const filename = `tctech_orders_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.xlsx`;
+  XLSX.writeFile(wb, filename);
 }
 
 function logOrderConfirm(supplier, items) {
@@ -4135,6 +4268,25 @@ document.getElementById('supplier-tbody')?.addEventListener('click', e => {
   if (row) showSupplierDetail(row.dataset.supplier);
 });
 
+// 환율 가중치 (수입품 감도분석) — 슬라이더·입력 양방향 동기화
+function syncFxWeight(value) {
+  const v = Math.max(80, Math.min(120, parseInt(value, 10) || 100));
+  state.fxWeight = v;
+  const slider = document.getElementById('fx-weight-slider');
+  const input = document.getElementById('fx-weight-input');
+  if (slider) slider.value = v;
+  if (input) input.value = v;
+  const impactEl = document.getElementById('fx-weight-impact');
+  if (impactEl) {
+    if (v === 100) impactEl.textContent = '실제 단가 기준';
+    else impactEl.textContent = `수입품 단가 ${v > 100 ? '+' : ''}${v - 100}% (×${(v/100).toFixed(2)})`;
+  }
+  if (typeof renderDashboard === 'function') renderDashboard();
+}
+document.getElementById('fx-weight-slider')?.addEventListener('input', e => syncFxWeight(e.target.value));
+document.getElementById('fx-weight-input')?.addEventListener('input', e => syncFxWeight(e.target.value));
+document.getElementById('fx-weight-reset')?.addEventListener('click', () => syncFxWeight(100));
+
 // 변경 이력 필터·내보내기
 ['audit-filter-from', 'audit-filter-to', 'audit-filter-target'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', renderAuditLog);
@@ -4148,6 +4300,20 @@ document.getElementById('audit-filter-reset')?.addEventListener('click', () => {
   renderAuditLog();
 });
 document.getElementById('audit-export')?.addEventListener('click', exportAuditLog);
+
+// 발주 이력 필터·내보내기
+['history-filter-from', 'history-filter-to', 'history-filter-search'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', renderHistory);
+});
+document.getElementById('history-filter-supplier')?.addEventListener('change', renderHistory);
+document.getElementById('history-filter-reset')?.addEventListener('click', () => {
+  ['history-filter-from', 'history-filter-to', 'history-filter-search'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const supplierSel = document.getElementById('history-filter-supplier'); if (supplierSel) supplierSel.value = '';
+  renderHistory();
+});
+document.getElementById('history-export')?.addEventListener('click', exportHistory);
 
 // 대시보드 차트 월 선택 이벤트 바인딩
 document.getElementById('dash-month-select').addEventListener('change', (e) => {
