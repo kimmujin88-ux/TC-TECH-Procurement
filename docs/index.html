@@ -1284,11 +1284,22 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__head">
       <div>
         <div class="card__title">📋 변경 이력 (감사 로그)</div>
-        <div class="card__hint">데이터 변경 시 사용자·시각·이전값·이후값 자동 기록</div>
+        <div class="card__hint">데이터 변경 시 사용자·시각·이전값·이후값 자동 기록 · 최대 200건 보관</div>
       </div>
       <div id="audit-summary" style="font-size:11px;font-family:var(--mono);"></div>
     </div>
-    <div class="card__body" style="padding:0; max-height:380px; overflow-y:auto;">
+    <div style="padding:10px 14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; border-bottom:0.5px solid var(--border2); background:var(--bg-card2);">
+      <input type="date" id="audit-filter-from" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="시작 날짜">
+      <span style="color:var(--t3);font-size:11px;">~</span>
+      <input type="date" id="audit-filter-to" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="종료 날짜">
+      <select id="audit-filter-user" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;">
+        <option value="">전체 사용자</option>
+      </select>
+      <input type="text" id="audit-filter-target" class="filter-input" placeholder="대상 검색 (품번·필드)" style="font-size:11px;padding:5px 8px;flex:1;min-width:180px;">
+      <button class="btn btn--ghost btn--sm" id="audit-filter-reset">초기화</button>
+      <button class="btn btn--sm" id="audit-export">Excel 내보내기</button>
+    </div>
+    <div class="card__body" style="padding:0; max-height:420px; overflow-y:auto;">
       <table class="order-table" style="width:100%; font-size:11px;">
         <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
           <th>시각</th>
@@ -1987,15 +1998,48 @@ function showSupplierDetail(supplier) {
   modal.classList.add('modal-backdrop--open');
 }
 
+function applyAuditFilters(log) {
+  const from = document.getElementById('audit-filter-from')?.value || '';
+  const to = document.getElementById('audit-filter-to')?.value || '';
+  const user = document.getElementById('audit-filter-user')?.value || '';
+  const target = (document.getElementById('audit-filter-target')?.value || '').toLowerCase().trim();
+  return log.filter(e => {
+    if (from && e.ts && e.ts.slice(0, 10) < from) return false;
+    if (to && e.ts && e.ts.slice(0, 10) > to) return false;
+    if (user && e.user !== user) return false;
+    if (target) {
+      const targetStr = (e.field ? formatAuditPath(e.field) : (e.action === 'bulk_update' ? `대량 변경 ${e.count}건` : '')).toLowerCase();
+      if (!targetStr.includes(target)) return false;
+    }
+    return true;
+  });
+}
+
+function populateAuditUserSelect() {
+  const sel = document.getElementById('audit-filter-user');
+  if (!sel) return;
+  const current = sel.value;
+  const users = [...new Set((state.auditLog || []).map(e => e.user).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">전체 사용자</option>' + users.map(u => `<option value="${sanitize(u)}">${sanitize(u)}</option>`).join('');
+  sel.value = current; // 선택 유지
+}
+
 function renderAuditLog() {
   const log = state.auditLog || [];
+  populateAuditUserSelect();
+  const filtered = applyAuditFilters(log);
   const summary = document.getElementById('audit-summary');
-  if (summary) summary.textContent = `총 ${log.length}건 (최근부터 표시 · 최대 200건 보관)`;
+  if (summary) summary.textContent = filtered.length === log.length
+    ? `총 ${log.length}건`
+    : `${filtered.length}건 표시 / 전체 ${log.length}건`;
   const tbody = document.getElementById('audit-tbody');
   if (!tbody) return;
-  const recent = log.slice(-20).reverse();
+  const recent = filtered.slice(-100).reverse(); // 최근 100건, 신규 먼저
   if (recent.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">변경 이력 없음 (이 시점 이후 변경부터 자동 기록)</td></tr>';
+    const emptyMsg = log.length === 0
+      ? '변경 이력 없음 (이 시점 이후 변경부터 자동 기록)'
+      : '조건에 맞는 이력 없음';
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">${emptyMsg}</td></tr>`;
     return;
   }
   tbody.innerHTML = recent.map(e => {
@@ -2016,6 +2060,28 @@ function renderAuditLog() {
       <td class="col-num" style="font-family:var(--mono);font-weight:700;">${after}</td>
     </tr>`;
   }).join('');
+}
+
+function exportAuditLog() {
+  const filtered = applyAuditFilters(state.auditLog || []);
+  if (filtered.length === 0) { alert('내보낼 변경 이력이 없습니다.'); return; }
+  const rows = [['시각', '사용자', '액션', '대상', '이전', '이후']];
+  filtered.slice().reverse().forEach(e => {
+    rows.push([
+      e.ts ? new Date(e.ts).toLocaleString('ko-KR') : '',
+      e.user || '',
+      e.action === 'bulk_update' ? `대량 변경 (${e.count}건)` : (e.action || ''),
+      e.field ? formatAuditPath(e.field) : '',
+      String(e.before ?? ''),
+      String(e.after ?? '')
+    ]);
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:18},{wch:10},{wch:14},{wch:36},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, '변경 이력');
+  const filename = `tctech_audit_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.xlsx`;
+  XLSX.writeFile(wb, filename);
 }
 
 // ──────────────────────────────  TABS  ──────────────────────────────
@@ -4068,6 +4134,20 @@ document.getElementById('supplier-tbody')?.addEventListener('click', e => {
   const row = e.target.closest('tr[data-supplier]');
   if (row) showSupplierDetail(row.dataset.supplier);
 });
+
+// 변경 이력 필터·내보내기
+['audit-filter-from', 'audit-filter-to', 'audit-filter-target'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', renderAuditLog);
+});
+document.getElementById('audit-filter-user')?.addEventListener('change', renderAuditLog);
+document.getElementById('audit-filter-reset')?.addEventListener('click', () => {
+  ['audit-filter-from', 'audit-filter-to', 'audit-filter-target'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const userSel = document.getElementById('audit-filter-user'); if (userSel) userSel.value = '';
+  renderAuditLog();
+});
+document.getElementById('audit-export')?.addEventListener('click', exportAuditLog);
 
 // 대시보드 차트 월 선택 이벤트 바인딩
 document.getElementById('dash-month-select').addEventListener('change', (e) => {
