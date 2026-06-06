@@ -1339,7 +1339,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__head">
       <div>
         <div class="card__title">💾 데이터 백업·복원</div>
-        <div class="card__hint">자동 일일 백업 + 수동 백업 · 복원 시 현재 데이터는 "복원 전 자동 백업"으로 자동 보존</div>
+        <div class="card__hint">자동 일일 백업(30일 보관) + 수동 백업(영구) · 복원 시 현재 데이터 자동 보호</div>
       </div>
       <button class="btn btn--sm" id="btn-create-backup">지금 백업 만들기</button>
     </div>
@@ -2530,7 +2530,29 @@ async function autoBackupCheck() {
   if (id) {
     state.lastAutoBackupDate = todayStr;
     saveInputs(); // lastAutoBackupDate를 main row에도 저장
+    // 30일 초과 자동 백업 자동 정리 (수동 백업은 보존)
+    await cleanupOldAutoBackups();
   }
+}
+
+// 30일 초과 자동 백업 정리 (수동 백업은 영구 보존)
+async function cleanupOldAutoBackups() {
+  try {
+    const backups = await listBackups();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffIso = cutoff.toISOString();
+    const toDelete = backups.filter(b => {
+      const s = b.state_json || {};
+      return s._type === 'auto' && s._createdAt && s._createdAt < cutoffIso;
+    });
+    if (toDelete.length === 0) return;
+    for (const b of toDelete) {
+      await _supa.from('app_state').delete().eq('id', b.id);
+    }
+    console.log(`[백업 정리] 30일 초과 자동 백업 ${toDelete.length}건 삭제`);
+    renderBackups();
+  } catch (e) { console.warn('백업 정리 실패', e); }
 }
 
 // ──────────────────────────────  TABS  ──────────────────────────────
