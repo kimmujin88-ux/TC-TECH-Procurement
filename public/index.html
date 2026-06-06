@@ -480,6 +480,40 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
   font-weight: 600; vertical-align: middle;
 }
 .btn-moq-fix:hover { background: rgba(247, 199, 64, 0.25); }
+/* 권한 분리: 조회 전용 모드 (viewer-mode) */
+.viewer-banner { display: none; }
+body.viewer-mode .viewer-banner {
+  display: block; width: 100%;
+  background: rgba(247, 199, 64, 0.20); color: var(--amb);
+  text-align: center; font-size: 11px; padding: 6px 10px;
+  font-weight: 600; border-bottom: 1px solid var(--amb-b);
+  letter-spacing: 0.3px;
+}
+body.viewer-mode .form-input,
+body.viewer-mode .order-qty-input,
+body.viewer-mode #modal-confirm-order,
+body.viewer-mode #btn-rollover,
+body.viewer-mode #btn-reset-all,
+body.viewer-mode #btn-reset-orders,
+body.viewer-mode #btn-erp-import,
+body.viewer-mode #btn-erp-template,
+body.viewer-mode #btn-erp-reset,
+body.viewer-mode #btn-create-backup,
+body.viewer-mode #btn-clear-history,
+body.viewer-mode #btn-add-master,
+body.viewer-mode #order-search-add,
+body.viewer-mode #btn-order-add,
+body.viewer-mode .btn-order-del,
+body.viewer-mode .btn-moq-fix,
+body.viewer-mode #fx-weight-slider,
+body.viewer-mode #fx-weight-input,
+body.viewer-mode #fx-weight-reset,
+body.viewer-mode #masters-tbody button,
+body.viewer-mode #backup-tbody button {
+  pointer-events: none !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
 /* 글로벌 빠른 검색 드롭다운 */
 .global-search-dropdown {
   position: absolute; top: 100%; left: 0; min-width: 280px;
@@ -981,6 +1015,8 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 </style>
 </head>
 <body>
+<!-- 조회 전용 모드 배너 -->
+<div class="viewer-banner">🔒 조회 전용 모드 (팀원 계정) — 데이터 수정·발주 확정·삭제는 관리자(fpteam)로 재로그인 필요</div>
 <!-- HEADER -->
 <div class="login-overlay" id="login-overlay">
   <div class="login-card">
@@ -2380,6 +2416,7 @@ async function listBackups() {
 }
 
 async function restoreBackup(id) {
+  if (window.guardAdmin && !window.guardAdmin('백업 복원')) return;
   if (!confirm('이 백업으로 복원하시겠습니까?\n현재 데이터는 "복원 전 자동 백업"으로 먼저 저장됩니다.')) return;
   try {
     await createBackup('복원 전 자동 백업', true);
@@ -2399,6 +2436,7 @@ async function restoreBackup(id) {
 }
 
 async function deleteBackup(id) {
+  if (window.guardAdmin && !window.guardAdmin('백업 삭제')) return;
   if (!confirm('이 백업을 삭제하시겠습니까?')) return;
   try {
     const { error } = await _supa.from('app_state').delete().eq('id', id);
@@ -2550,6 +2588,7 @@ function renderMastersTable() {
 }
 
 function showMasterModal(idx) {
+  if (window.guardAdmin && !window.guardAdmin('부품 마스터 수정')) return;
   const isNew = idx === -1 || idx === undefined || idx === null;
   const m = isNew ? {} : MASTERS[idx];
   if (!isNew && !m) return;
@@ -2649,6 +2688,7 @@ async function saveMasterRecord(idx) {
 }
 
 async function deleteMasterRecord(idx) {
+  if (window.guardAdmin && !window.guardAdmin('부품 삭제')) return;
   if (idx < 0 || idx >= MASTERS.length) return;
   const m = MASTERS[idx];
   if (!confirm(`부품 "${m.part_no} · ${m.part_name}" 를 마스터에서 삭제하시겠습니까?\n관련 입력 데이터(입고계획·재고 등)는 보존됩니다.`)) return;
@@ -4507,6 +4547,7 @@ document.getElementById('modal-close-2').addEventListener('click', () =>
   document.getElementById('modal').classList.remove('modal-backdrop--open'));
 document.getElementById('modal-print').addEventListener('click', () => window.print());
 document.getElementById('modal-confirm-order').addEventListener('click', () => {
+  if (window.guardAdmin && !window.guardAdmin('발주 확정')) return;
   if (!poEditState.supplier) return;
   const delivDate = document.getElementById('po-deliv-date')?.value || '';
   const monthKey = dateToMonthKey(delivDate);
@@ -4776,6 +4817,7 @@ function renderHistory() {
 }
 
 function deleteHistory(dateStr) {
+  if (window.guardAdmin && !window.guardAdmin('이력 삭제')) return;
   if (!confirm('이 이력을 삭제하시겠습니까?')) return;
   const idx = orderHistory.findIndex(e => e.date === dateStr);
   if (idx === -1) return;
@@ -5212,8 +5254,8 @@ updateHistoryCount();
 //   반드시 비밀번호를 아이디와 다른 값으로 바꾸세요. 진짜 데이터 보호는 Supabase RLS로 해야 합니다.
 (function(){
   const ACCOUNTS = {
-    'fpteam': { pw: 'fpteam', name: '관리자' },
-    'userA':  { pw: 'userA',  name: '팀원' }
+    'fpteam': { pw: 'fpteam', name: '관리자', role: 'admin' },
+    'userA':  { pw: 'userA',  name: '팀원',   role: 'viewer' }
   };
   const AUTH_KEY = 'tctech_auth_user';
   const overlay = document.getElementById('login-overlay');
@@ -5224,20 +5266,23 @@ updateHistoryCount();
   const badge   = document.getElementById('user-badge');
   const logoutBtn = document.getElementById('btn-logout');
 
-  function showApp(name){
+  function showApp(name, role){
     overlay.style.display = 'none';
     document.documentElement.classList.remove('login-locked');
-    if (badge) badge.textContent = name ? ('👤 ' + name) : '';
+    if (badge) badge.textContent = name ? ('👤 ' + name + (role === 'viewer' ? ' (조회)' : '')) : '';
+    if (role === 'viewer') document.body.classList.add('viewer-mode');
+    else document.body.classList.remove('viewer-mode');
   }
   function showLogin(){
     overlay.style.display = 'flex';
     document.documentElement.classList.add('login-locked');
     if (badge) badge.textContent = '';
+    document.body.classList.remove('viewer-mode');
     setTimeout(() => idEl && idEl.focus(), 50);
   }
 
   const saved = sessionStorage.getItem(AUTH_KEY);
-  if (saved && ACCOUNTS[saved]) showApp(ACCOUNTS[saved].name);
+  if (saved && ACCOUNTS[saved]) showApp(ACCOUNTS[saved].name, ACCOUNTS[saved].role);
   else showLogin();
 
   if (form) form.addEventListener('submit', e => {
@@ -5249,13 +5294,25 @@ updateHistoryCount();
       sessionStorage.setItem(AUTH_KEY, id);
       errEl.textContent = '';
       pwEl.value = '';
-      showApp(acc.name);
+      showApp(acc.name, acc.role);
     } else {
       errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
       pwEl.value = '';
       pwEl.focus();
     }
   });
+
+  // 전역 권한 체크 헬퍼
+  window.isViewerMode = function() {
+    return document.body.classList.contains('viewer-mode');
+  };
+  window.guardAdmin = function(actionLabel) {
+    if (window.isViewerMode && window.isViewerMode()) {
+      alert(`🔒 조회 전용 계정은 "${actionLabel || '이 작업'}"을 수행할 수 없습니다.\n관리자(fpteam) 계정으로 다시 로그인해 주세요.`);
+      return false;
+    }
+    return true;
+  };
 
   if (logoutBtn) logoutBtn.addEventListener('click', () => {
     sessionStorage.removeItem(AUTH_KEY);
