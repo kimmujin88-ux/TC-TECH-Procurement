@@ -869,6 +869,35 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
   .kpi-grid, .kpi-grid--5 { grid-template-columns: repeat(2, 1fr); }
   .dash-grid { grid-template-columns: 1fr; }
 }
+@media (max-width: 768px) {
+  /* 헤더 */
+  .app-header__inner { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+  .brand__name { font-size: 13px; line-height: 1.2; }
+  .brand__sub { font-size: 10px; }
+  .header-actions { gap: 4px; flex-wrap: wrap; width: 100%; justify-content: flex-end; }
+  .header-actions .btn { padding: 4px 8px; font-size: 10.5px; }
+  .save-indicator { font-size: 10px; padding: 3px 6px; }
+  /* 글로벌 검색: 헤더 액션 첫줄 전체폭 */
+  .global-search-wrap { width: 100%; order: -1; margin-bottom: 4px; }
+  #global-search-input { width: 100% !important; }
+  .global-search-dropdown { left: 0; right: 0; min-width: 0; }
+  /* 탭: 가로 스크롤 */
+  .tabs__inner { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .tabs__inner::-webkit-scrollbar { height: 3px; }
+  .tab { flex-shrink: 0; padding: 8px 12px; font-size: 11.5px; }
+  /* KPI 1열, 값 축소 */
+  .kpi-grid, .kpi-grid--5 { grid-template-columns: 1fr; gap: 8px; }
+  .kpi { padding: 12px 14px; }
+  .kpi__value { font-size: 26px; }
+  /* 카드 헤드 세로 정렬 */
+  .card__head { flex-direction: column; align-items: flex-start; gap: 6px; }
+  /* 모달 폭 확장 */
+  .modal { width: 96vw !important; max-width: none !important; }
+  /* 결품 캘린더 2열 */
+  #shortage-calendar-body { grid-template-columns: repeat(2, 1fr) !important; }
+  /* ERP·변경 이력 등 2-col 카드 그리드 → 1열 */
+  .data-grid-2col { grid-template-columns: 1fr !important; }
+}
 
 /* ───── 신규 기능 CSS ───── */
 .summary-row td {
