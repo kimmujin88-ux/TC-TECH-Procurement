@@ -2030,10 +2030,40 @@ function getAlarms(today = new Date()) {
   return out;
 }
 
+// 브라우저 알림 권한 (한 번만 요청)
+function ensureNotifPermission() {
+  if (!('Notification' in window)) return Promise.resolve(false);
+  if (Notification.permission === 'granted') return Promise.resolve(true);
+  if (Notification.permission === 'denied') return Promise.resolve(false);
+  return Notification.requestPermission().then(p => p === 'granted');
+}
+
+// 긴급 알람 변화 감지 → 브라우저 알림 (overdue+urgent 합산이 증가하면 발사)
+const NOTIF_KEY = 'tctech_notif_lastUrgentCount';
+function maybeFireBrowserNotif(urgentCount, alarms) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const prev = parseInt(sessionStorage.getItem(NOTIF_KEY) || '-1', 10);
+  sessionStorage.setItem(NOTIF_KEY, String(urgentCount));
+  if (prev < 0) return; // 최초 로드 시 직전값 없음 → 알림 발사 안 함
+  if (urgentCount <= prev) return; // 감소·동일 → 발사 안 함
+  // 증가분만큼 새 긴급 발생
+  const newCount = urgentCount - prev;
+  const top = alarms.filter(a => a.urgency <= 1).slice(0, 3);
+  const body = top.map(a => `• ${a.m.part_no} (D-${a.daysLeft<0?(-a.daysLeft)+'일경과':a.daysLeft})`).join('\n')
+    + (urgentCount > top.length ? `\n외 ${urgentCount - top.length}건` : '');
+  const n = new Notification(`🔔 긴급 발주 ${newCount}건 추가 발생`, {
+    body, tag: 'tctech-urgent', requireInteraction: false
+  });
+  n.onclick = () => { window.focus(); setActiveTab('ops'); n.close(); };
+}
+
 function renderAlarms() {
   const alarms = getAlarms();
   const counts = [0, 0, 0, 0]; // overdue, urgent, soon, plan
   alarms.forEach(a => { counts[a.urgency]++; });
+
+  // 긴급 알람 카운트 변화 → 브라우저 알림 발사
+  maybeFireBrowserNotif(counts[0] + counts[1], alarms);
 
   const summary = document.getElementById('alarm-summary');
   if (summary) summary.innerHTML =
@@ -5145,6 +5175,15 @@ document.getElementById('btn-create-backup')?.addEventListener('click', async ()
 
 // 자동 일일 백업 (서버 로드 완료 후 2.5초 뒤 1회 실행)
 setTimeout(() => { if (typeof autoBackupCheck === 'function') autoBackupCheck(); }, 2500);
+
+// 브라우저 알림 권한 요청 (관리자 모드 + 처음 한 번)
+setTimeout(() => {
+  if (typeof ensureNotifPermission === 'function' && !sessionStorage.getItem('tctech_notif_asked')) {
+    ensureNotifPermission().then(granted => {
+      sessionStorage.setItem('tctech_notif_asked', granted ? 'granted' : 'denied');
+    });
+  }
+}, 4000);
 
 // 부품 마스터 관리
 document.getElementById('btn-add-master')?.addEventListener('click', () => showMasterModal(-1));
