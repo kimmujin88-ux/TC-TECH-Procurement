@@ -471,6 +471,8 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
 /* 입력 validation 시각 표시 */
 .form-input.input-invalid { border: 1.5px solid var(--red) !important; background: rgba(229, 57, 53, 0.14) !important; }
 .form-input.input-warn { border: 1.5px solid var(--amb) !important; background: rgba(247, 199, 64, 0.10) !important; }
+/* MOQ 배수 불일치 (발주 수량) */
+.order-qty-input.moq-mismatch { border: 1.5px solid var(--amb) !important; background: rgba(247, 199, 64, 0.14) !important; }
 .kpi {
   background: var(--bg-card);
   padding: 14px 16px;
@@ -2403,6 +2405,23 @@ function showExecutiveSummary() {
   modal.classList.add('modal-backdrop--open');
 }
 
+// MOQ 배수 검증 (발주 수량) - 비배수 시 노랑 경고 (저장은 그대로 진행, 비차단)
+function validateMOQOnInput(el) {
+  if (!el || !el.dataset || !el.dataset.pn) return;
+  const master = MASTERS.find(m => m.part_no === el.dataset.pn);
+  if (!master) return;
+  const val = parseInt(el.value, 10) || 0;
+  const moq = moqValue(master);
+  if (moq > 1 && val > 0 && val % moq !== 0) {
+    el.classList.add('moq-mismatch');
+    const ceil = Math.ceil(val / moq) * moq;
+    el.title = `⚠ MOQ ${master.moq_basic || moq} 배수 아님 (${val} → ${ceil} 권장)`;
+  } else {
+    el.classList.remove('moq-mismatch');
+    if ((el.title || '').startsWith('⚠ MOQ')) el.title = '';
+  }
+}
+
 // 입력 validation - 음수/잘못된 값은 빨강, 이상치 의심은 노랑 (필드별 임계치)
 function validateNumericInput(el) {
   if (!el || !el.classList || !el.classList.contains('form-input')) return;
@@ -2449,7 +2468,10 @@ function setActiveTab(t) {
   // 양식 탭일 때만 body 스크롤 잠금 (form-wrap 내부만 스크롤됨)
   document.body.classList.toggle('tab-form-active', t === 'form');
   if (t === 'ops' || t === 'finance' || t === 'data') renderDashboard();
-  else if (t === 'orders') renderOrders();
+  else if (t === 'orders') {
+    renderOrders();
+    setTimeout(() => document.querySelectorAll('.order-qty-input').forEach(validateMOQOnInput), 80);
+  }
   else if (t === 'history') renderHistory();
   if (t === 'data') renderBackups();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3966,6 +3988,7 @@ document.getElementById('panel-orders').addEventListener('input', e => {
     const pn = e.target.dataset.pn;
     const val = parseInt(e.target.value, 10) || 0;
     state.orderOverrides[pn] = val;
+    validateMOQOnInput(e.target);
     saveInputs();
     updateOrderTotals();
   }
