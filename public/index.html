@@ -1049,7 +1049,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
     <div class="header-actions">
       <div class="global-search-wrap" style="position:relative;">
-        <input type="text" id="global-search-input" class="filter-input" placeholder="🔍 품번·품명 빠른 검색" autocomplete="off" style="width:180px; padding:5px 10px; font-size:11px;">
+        <input type="text" id="global-search-input" class="filter-input" placeholder="🔍 빠른 검색 ( / )" autocomplete="off" style="width:180px; padding:5px 10px; font-size:11px;" title="단축키: / 로 포커스 · 1~6 탭 전환 · Esc 닫기">
         <div id="global-search-dropdown" class="global-search-dropdown"></div>
       </div>
       <span class="save-indicator" id="save-indicator"><span class="save-indicator__dot"></span>자동 저장</span>
@@ -5303,6 +5303,38 @@ document.getElementById('btn-create-backup')?.addEventListener('click', async ()
 
 // 자동 일일 백업 (서버 로드 완료 후 2.5초 뒤 1회 실행)
 setTimeout(() => { if (typeof autoBackupCheck === 'function') autoBackupCheck(); }, 2500);
+
+// 단축키: 1~6 탭, / 검색, Esc 모달/드롭다운 닫기
+document.addEventListener('keydown', (e) => {
+  // Esc: 모달 또는 검색 드롭다운 닫기
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('modal');
+    if (modal && modal.classList.contains('modal-backdrop--open')) {
+      modal.classList.remove('modal-backdrop--open');
+      e.preventDefault();
+      return;
+    }
+    const dd = document.getElementById('global-search-dropdown');
+    if (dd && dd.style.display === 'block') { dd.style.display = 'none'; return; }
+    return;
+  }
+  // 입력 중에는 단축키 무시
+  const tgt = e.target;
+  const isInput = tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable);
+  if (isInput) return;
+  // / : 글로벌 검색 포커스
+  if (e.key === '/') {
+    const search = document.getElementById('global-search-input');
+    if (search) { search.focus(); search.select(); e.preventDefault(); }
+    return;
+  }
+  // 1~6 : 탭 전환 (운영현황/재무분석/데이터점검/수급운영/발주확정/발주이력)
+  if (/^[1-6]$/.test(e.key)) {
+    const tabs = ['ops', 'finance', 'data', 'form', 'orders', 'history'];
+    const t = tabs[parseInt(e.key, 10) - 1];
+    if (t) { setActiveTab(t); e.preventDefault(); }
+  }
+});
 
 // 브라우저 알림 권한 요청 (관리자 모드 + 처음 한 번)
 setTimeout(() => {
