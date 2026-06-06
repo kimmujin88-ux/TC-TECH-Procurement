@@ -2663,6 +2663,10 @@ function showMasterModal(idx) {
         ${field('시작재고', 'starting_stock', 'number', v(m.starting_stock || 0), 'min="0"')}
         ${field('ERP재고', 'erp_stock', 'number', v(m.erp_stock || 0), 'min="0"')}
       </div>
+      <div style="border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
+        <label style="display:block;font-size:11px;color:var(--t2);margin-bottom:4px;">📝 메모 (선택 · 용도·특이사항·대체품 등)</label>
+        <textarea name="memo" rows="2" class="filter-input" style="width:100%;font-size:11px;padding:6px 8px;resize:vertical;min-height:48px;">${v(m.memo || '')}</textarea>
+      </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
         <button type="button" class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
         <button type="button" class="btn btn--teal" onclick="saveMasterRecord(${isNew ? -1 : idx})">저장</button>
@@ -3151,7 +3155,7 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
       ${modelCell}
       <td class="sticky-col sticky-col-2 cell-pn">${sanitize(m.part_no)}</td>
       <td class="sticky-col sticky-col-3">
-        <div class="cell-name" title="${sanitize(m.part_name)}">${sanitize(m.part_name)}</div>
+        <div class="cell-name" title="${sanitize(m.part_name)}${m.memo ? '\n\n📝 메모: ' + sanitize(m.memo) : ''}">${sanitize(m.part_name)}${m.memo ? ` <span style="color:var(--amb);font-size:11px;" title="${sanitize(m.memo)}">📝</span>` : ''}</div>
         <div class="cell-detail">
           ₩${fmt(m.unit_price)} · LT ${m.lead_time_days || '–'}일 · MOQ ${sanitize(m.moq_basic || '–')}
         </div>
