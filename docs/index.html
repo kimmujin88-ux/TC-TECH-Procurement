@@ -473,6 +473,19 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
 .form-input.input-warn { border: 1.5px solid var(--amb) !important; background: rgba(247, 199, 64, 0.10) !important; }
 /* MOQ 배수 불일치 (발주 수량) */
 .order-qty-input.moq-mismatch { border: 1.5px solid var(--amb) !important; background: rgba(247, 199, 64, 0.14) !important; }
+/* 글로벌 빠른 검색 드롭다운 */
+.global-search-dropdown {
+  position: absolute; top: 100%; left: 0; min-width: 280px;
+  background: var(--bg-card); border: 1px solid var(--border2);
+  border-radius: 8px; margin-top: 4px;
+  max-height: 340px; overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  display: none;
+}
+.global-search-item { padding: 8px 12px; cursor: pointer; border-bottom: 0.5px solid var(--border2); transition: background 0.12s; }
+.global-search-item:last-child { border-bottom: none; }
+.global-search-item:hover { background: var(--bg-card2); }
 .kpi {
   background: var(--bg-card);
   padding: 14px 16px;
@@ -963,6 +976,10 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       </div>
     </div>
     <div class="header-actions">
+      <div class="global-search-wrap" style="position:relative;">
+        <input type="text" id="global-search-input" class="filter-input" placeholder="🔍 품번·품명 빠른 검색" autocomplete="off" style="width:180px; padding:5px 10px; font-size:11px;">
+        <div id="global-search-dropdown" class="global-search-dropdown"></div>
+      </div>
       <span class="save-indicator" id="save-indicator"><span class="save-indicator__dot"></span>자동 저장</span>
       <button class="btn btn--ghost btn--sm" id="btn-exec-summary">📋 임원 요약</button>
       <button class="btn btn--ghost btn--sm" id="btn-export-excel">엑셀 내보내기</button>
@@ -2276,6 +2293,55 @@ async function renderBackups() {
       </td>
     </tr>`;
   }).join('');
+}
+
+// 글로벌 빠른 검색: 품번·품명 부분 일치 검색 → 클릭 시 수급 운영 계획 탭으로 이동·하이라이트
+function goToFormRow(partNo) {
+  setActiveTab('form');
+  const tryHighlight = (retry) => {
+    const cell = document.querySelector(`#form-tbody [data-pn="${partNo}"]`);
+    if (cell) {
+      const row = cell.closest('tr');
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.add('row-highlight');
+        setTimeout(() => row.classList.remove('row-highlight'), 2200);
+      }
+      return;
+    }
+    if (retry > 0) {
+      // 필터로 가려진 경우 → 필터 초기화 후 재시도
+      state.filters = { search: '', brand: '', model: '', supplier: '', status: '' };
+      ['search', 'filter-brand', 'filter-model', 'filter-supplier', 'filter-status'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
+      renderForm();
+      setTimeout(() => tryHighlight(0), 200);
+    }
+  };
+  setTimeout(() => tryHighlight(1), 220);
+}
+
+function showGlobalSearchDropdown(query) {
+  const dropdown = document.getElementById('global-search-dropdown');
+  if (!dropdown) return;
+  if (!query || query.trim().length < 1) { dropdown.style.display = 'none'; return; }
+  const q = query.trim().toLowerCase();
+  const matches = MASTERS.filter(m =>
+    m.part_no.toLowerCase().includes(q) || (m.part_name || '').toLowerCase().includes(q)
+  ).slice(0, 8);
+  if (matches.length === 0) {
+    dropdown.innerHTML = '<div style="padding:10px 12px;color:var(--t3);font-size:11px;">일치 결과 없음</div>';
+    dropdown.style.display = 'block';
+    return;
+  }
+  dropdown.innerHTML = matches.map(m => `
+    <div class="global-search-item" data-pn="${sanitize(m.part_no)}">
+      <div style="font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--t1);">${sanitize(m.part_no)}</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px;">${sanitize(m.part_name || '')} · ${sanitize(displayName(m))} · ${sanitize(m.supplier || '-')}</div>
+    </div>
+  `).join('');
+  dropdown.style.display = 'block';
 }
 
 // 임원 요약 1페이지 (인쇄용) - 기존 print CSS 재활용으로 modal-only printing
@@ -4647,6 +4713,29 @@ setTimeout(() => { document.querySelectorAll('.form-input').forEach(validateNume
 
 // 임원 요약 인쇄 버튼
 document.getElementById('btn-exec-summary')?.addEventListener('click', showExecutiveSummary);
+
+// 글로벌 빠른 검색 (헤더)
+const _globalSearchInput = document.getElementById('global-search-input');
+if (_globalSearchInput) {
+  _globalSearchInput.addEventListener('input', e => showGlobalSearchDropdown(e.target.value));
+  _globalSearchInput.addEventListener('focus', e => { if (e.target.value) showGlobalSearchDropdown(e.target.value); });
+}
+document.getElementById('global-search-dropdown')?.addEventListener('click', e => {
+  const item = e.target.closest('.global-search-item');
+  if (!item) return;
+  const pn = item.dataset.pn;
+  goToFormRow(pn);
+  const dd = document.getElementById('global-search-dropdown');
+  if (dd) dd.style.display = 'none';
+  if (_globalSearchInput) _globalSearchInput.value = '';
+});
+// 외부 클릭 시 드롭다운 닫기
+document.addEventListener('click', e => {
+  if (!e.target.closest('.global-search-wrap')) {
+    const dd = document.getElementById('global-search-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
 
 // 대시보드 차트 월 선택 이벤트 바인딩
 document.getElementById('dash-month-select').addEventListener('change', (e) => {
