@@ -1091,7 +1091,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
           <th class="sticky-col sticky-col-3 h-merged" rowspan="2">품명</th>
           <th class="sticky-col sticky-col-4 h-merged" rowspan="2">구매업체</th>
           <th class="h-merged" rowspan="2" style="text-align:center">대당<br>소요</th>
-          <th class="h-merged" rowspan="2" style="text-align:center">4월말<br>현물재고</th>
+          <th class="h-merged" rowspan="2" style="text-align:center" id="th-prior-stock">4월말<br>현물재고</th>
           <th class="month-may-h month-divider h-group" colspan="4">2026년 5월</th>
           <th class="month-jun-h month-divider h-group" colspan="4">2026년 6월</th>
           <th class="month-jul-h month-divider h-group" colspan="4">2026년 7월</th>
@@ -1857,6 +1857,8 @@ function updateStaticMonthLabels() {
   setText('kpi-consumption-label', `4개월 사용금액 (${rangeLabel()})`);
   setText('finance-hint-label', `${rangeLabel()} 시뮬레이션 기준 추정치 · 카드 클릭 시 상세`);
   setText('form-empty-hint', `${yearOfMonth('may')}년 ${rangeLabel()} 운영 안정`);
+  const stockTh = document.getElementById('th-prior-stock');
+  if (stockTh) stockTh.innerHTML = `${priorMonthLabel()}말<br>현물재고`;
 }
 
 function getResult(master) {
@@ -3573,11 +3575,11 @@ function showTrendModal(modelName) {
         <thead>
           <tr>
             <th>구분</th>
-            <th class="col-num">기초 (4월)</th>
-            <th class="col-num">5월</th>
-            <th class="col-num">6월</th>
-            <th class="col-num">7월</th>
-            <th class="col-num">8월</th>
+            <th class="col-num">기초 (${priorMonthLabel()})</th>
+            <th class="col-num">${monthLabel('may')}</th>
+            <th class="col-num">${monthLabel('jun')}</th>
+            <th class="col-num">${monthLabel('jul')}</th>
+            <th class="col-num">${monthLabel('aug')}</th>
           </tr>
         </thead>
         <tbody>
@@ -3608,7 +3610,7 @@ function showTrendModal(modelName) {
         </tbody>
       </table>
       <div style="margin-top: 10px; font-size: 11px; color: var(--t3); text-align: right;">
-        * 기초 재고는 4월말 현물재고 합산치이며, 기말재고는 이월된 누적 결과입니다.
+        * 기초 재고는 ${priorMonthLabel()}말 현물재고 합산치이며, 기말재고는 이월된 누적 결과입니다.
       </div>
     </div>
     <div style="background: var(--bg-card); padding: 20px; border-radius: 8px; border: 1px solid var(--border2);">
@@ -4592,9 +4594,12 @@ function exportExcel() {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: 수급운영계획
-  const h1 = ['고객사','모델','품번','품명','구매업체','대당소요','4월말재고',
-    '5월제작','5월필요','5월입고','5월재고','6월제작','6월필요','6월입고','6월재고',
-    '7월제작','7월필요','7월입고','7월재고','8월제작','8월필요','8월입고','8월재고'];
+  const _ml = (mo) => monthLabel(mo);
+  const h1 = ['고객사','모델','품번','품명','구매업체','대당소요', `${priorMonthLabel()}말재고`,
+    `${_ml('may')}제작`, `${_ml('may')}필요`, `${_ml('may')}입고`, `${_ml('may')}재고`,
+    `${_ml('jun')}제작`, `${_ml('jun')}필요`, `${_ml('jun')}입고`, `${_ml('jun')}재고`,
+    `${_ml('jul')}제작`, `${_ml('jul')}필요`, `${_ml('jul')}입고`, `${_ml('jul')}재고`,
+    `${_ml('aug')}제작`, `${_ml('aug')}필요`, `${_ml('aug')}입고`, `${_ml('aug')}재고`];
   const r1 = [h1, ...MASTERS.map(m => {
     const r = getResult(m); const dn = displayName(m);
     const cust = (dn.includes('R55C Lower Frame')||dn.includes('HX55ACR Lower Frame')||dn.includes('HX63AH Lower Frame')) ? 'HD건설기계' : 'TEREX GENIE';
