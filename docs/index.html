@@ -4811,8 +4811,11 @@ function renderHistory() {
   container.innerHTML = filtered.map(entry => {
     const date = new Date(entry.date).toLocaleString('ko-KR');
     if (entry.type === 'order') {
+      const receivedBadge = entry.received
+        ? `<span class="badge" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);">✅ 입고완료 ${entry.receivedAt ? new Date(entry.receivedAt).toLocaleDateString('ko-KR') : ''}</span>`
+        : `<button class="btn btn--sm" onclick="confirmReceipt('${entry.date}')" style="background:rgba(56,201,160,0.10);color:var(--teal);border:0.5px solid var(--teal-b);">✅ 입고 확인</button>`;
       return `
-        <div class="card history-entry">
+        <div class="card history-entry" style="${entry.received ? 'opacity:0.72;' : ''}">
           <div class="card__head">
             <div>
               <div class="card__title">${sanitize(entry.supplier)} — ${date}</div>
@@ -4820,6 +4823,7 @@ function renderHistory() {
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <span class="badge badge--info">발주확정</span>
+              ${receivedBadge}
               <button class="btn btn--ghost btn--sm" onclick="deleteHistory('${entry.date}')" style="color:var(--red);border-color:var(--red-b);">삭제</button>
             </div>
           </div>
@@ -4844,6 +4848,32 @@ function renderHistory() {
     }
     return '';
   }).join('');
+}
+
+function confirmReceipt(dateStr) {
+  if (window.guardAdmin && !window.guardAdmin('입고 확인')) return;
+  const idx = orderHistory.findIndex(e => e.date === dateStr);
+  if (idx === -1) return;
+  const entry = orderHistory[idx];
+  if (entry.received) { alert('이미 입고 확인된 발주입니다.'); return; }
+  if (!confirm(`[${entry.supplier}] 발주 입고를 확인 처리하시겠습니까?\n\n• 발주 이력에 ✅ 입고완료 마크\n• 변경 이력에 자동 기록\n• 시작재고는 별도 수정 불필요 (입고계획에 이미 반영됨)`)) return;
+  entry.received = true;
+  entry.receivedAt = new Date().toISOString();
+  entry.receivedBy = sessionStorage.getItem('tctech_auth_user') || 'unknown';
+  saveHistory();
+  renderHistory();
+  // 변경 이력 기록
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: entry.receivedBy,
+    action: 'receipt_confirm',
+    field: `order.${entry.supplier}.${dateStr.slice(0,10)}`,
+    before: '미입고',
+    after: `입고완료 (${fmt(entry.totalQty)}EA)`
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
 }
 
 function deleteHistory(dateStr) {
