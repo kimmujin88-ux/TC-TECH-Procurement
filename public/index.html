@@ -1872,6 +1872,19 @@ function priorMonthLabel() {
 function rangeLabel() { return `${monthLabel('may')}~${monthLabel('aug')}`; }
 function periodTitle() { return `${yearOfMonth('may')}년 ${rangeLabel()}`; }
 
+// 날짜 문자열(YYYY-MM-DD) → 현재 윈도우의 monthKey (may/jun/jul/aug) 또는 null (범위 외)
+function dateToMonthKey(dateStr) {
+  if (!dateStr || dateStr.length < 7) return null;
+  const y = parseInt(dateStr.slice(0, 4), 10);
+  const m = parseInt(dateStr.slice(5, 7), 10);
+  if (!y || !m) return null;
+  const sm = state.periodStartMonth || 5;
+  const sy = state.periodYear || 2026;
+  const offset = (y - sy) * 12 + (m - sm);
+  if (offset < 0 || offset > 3) return null;
+  return ['may', 'jun', 'jul', 'aug'][offset];
+}
+
 // MONTH_KR/NEXT_KR을 Proxy로 동적화 — 기존 12개 사용처 코드는 변경 불필요
 const MONTH_KR = new Proxy({}, { get: (_, key) => monthLabel(key, '말') });
 const NEXT_KR = new Proxy({}, { get: (_, key) => nextMonthLabel(key) });
@@ -4495,10 +4508,31 @@ document.getElementById('modal-close-2').addEventListener('click', () =>
 document.getElementById('modal-print').addEventListener('click', () => window.print());
 document.getElementById('modal-confirm-order').addEventListener('click', () => {
   if (!poEditState.supplier) return;
-  if (!confirm(`[${poEditState.supplier}] 발주를 확정하고 이력에 저장하시겠습니까?`)) return;
+  const delivDate = document.getElementById('po-deliv-date')?.value || '';
+  const monthKey = dateToMonthKey(delivDate);
+  const monthLbl = monthKey ? monthLabel(monthKey) : null;
+  const totalQty = poEditState.items.reduce((s, it) => s + (it.qty || 0), 0);
+  const msg = monthKey
+    ? `[${poEditState.supplier}] 발주 확정\n\n• 이력 저장\n• 납기 ${delivDate} → ${monthLbl} 입고계획에 ${fmt(totalQty)} EA 자동 반영\n\n진행하시겠습니까?`
+    : `[${poEditState.supplier}] 발주 확정 (이력만 저장)\n\n⚠ 납기일자(${delivDate || '미설정'})가 현재 운영 윈도우(${rangeLabel()}) 범위 밖이라 입고계획 자동 반영은 건너뜁니다.\n\n진행하시겠습니까?`;
+  if (!confirm(msg)) return;
   logOrderConfirm(poEditState.supplier, poEditState.items);
+  // 입고계획 자동 반영 (범위 내일 때만)
+  if (monthKey) {
+    const field = monthKey + '_incoming';
+    poEditState.items.forEach(it => {
+      const pn = it.master.part_no;
+      state.itemInputs[pn] = state.itemInputs[pn] || emptyItemInput();
+      state.itemInputs[pn][field] = (state.itemInputs[pn][field] || 0) + (it.qty || 0);
+    });
+    saveInputs();
+    renderForm();
+    updateOrderCount();
+  }
   document.getElementById('modal').classList.remove('modal-backdrop--open');
-  alert('발주가 확정되었습니다. 발주 이력 탭에서 확인하세요.');
+  alert(monthKey
+    ? `발주 확정 완료.\n${monthLbl} 입고계획에 ${fmt(totalQty)} EA 자동 반영됨.\n발주 이력 탭 / 수급 운영 계획 탭에서 확인 가능.`
+    : '발주 확정 완료 (이력만 저장).');
 });
 document.getElementById('modal').addEventListener('click', e => {
   if (e.target.id === 'modal')
