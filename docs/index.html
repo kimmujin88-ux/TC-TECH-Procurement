@@ -468,6 +468,9 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
   85% { background-color: rgba(247, 199, 64, 0.10); }
 }
 .row-highlight, .row-highlight td { animation: rowFlash 2.2s ease-out; }
+/* 입력 validation 시각 표시 */
+.form-input.input-invalid { border: 1.5px solid var(--red) !important; background: rgba(229, 57, 53, 0.14) !important; }
+.form-input.input-warn { border: 1.5px solid var(--amb) !important; background: rgba(247, 199, 64, 0.10) !important; }
 .kpi {
   background: var(--bg-card);
   padding: 14px 16px;
@@ -2270,6 +2273,33 @@ async function renderBackups() {
       </td>
     </tr>`;
   }).join('');
+}
+
+// 입력 validation - 음수/잘못된 값은 빨강, 이상치 의심은 노랑 (필드별 임계치)
+function validateNumericInput(el) {
+  if (!el || !el.classList || !el.classList.contains('form-input')) return;
+  const valStr = el.value;
+  if (valStr === '' || valStr === null) {
+    el.classList.remove('input-invalid', 'input-warn'); el.title = ''; return;
+  }
+  const val = parseFloat(valStr);
+  if (isNaN(val) || val < 0) {
+    el.classList.add('input-invalid'); el.classList.remove('input-warn');
+    el.title = '⚠ 음수 또는 잘못된 값입니다 (0 이상 입력)';
+    return;
+  }
+  const field = el.dataset.field || '';
+  let warnAt;
+  if (/_qty$/.test(field) || el.classList.contains('model-header-input')) warnAt = 5000;   // 월별 제작대수: 5천대 이상 의심
+  else if (/_incoming$/.test(field)) warnAt = 100000;                                       // 입고: 10만 EA 이상 의심
+  else if (field === 'starting_stock') warnAt = 50000;                                      // 시작재고: 5만 EA 이상 의심
+  else warnAt = 100000;                                                                     // 기타(발주수량 등)
+  if (val > warnAt) {
+    el.classList.add('input-warn'); el.classList.remove('input-invalid');
+    el.title = `⚠ 이상치 의심: ${val.toLocaleString()} (단위·자릿수 확인)`;
+    return;
+  }
+  el.classList.remove('input-invalid', 'input-warn'); el.title = '';
 }
 
 // 자동 일일 백업 (페이지 로드 후 1회 체크, 오늘자 백업 없으면 생성)
@@ -4456,6 +4486,13 @@ document.getElementById('btn-create-backup')?.addEventListener('click', async ()
 
 // 자동 일일 백업 (서버 로드 완료 후 2.5초 뒤 1회 실행)
 setTimeout(() => { if (typeof autoBackupCheck === 'function') autoBackupCheck(); }, 2500);
+
+// 입력 validation: 모든 .form-input 변경 시 자동 시각 표시 (event delegation)
+document.addEventListener('input', e => {
+  if (e.target.classList && e.target.classList.contains('form-input')) validateNumericInput(e.target);
+});
+// 초기 로드 시 기존 input들 일괄 검증
+setTimeout(() => { document.querySelectorAll('.form-input').forEach(validateNumericInput); }, 800);
 
 // 대시보드 차트 월 선택 이벤트 바인딩
 document.getElementById('dash-month-select').addEventListener('change', (e) => {
