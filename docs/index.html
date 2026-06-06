@@ -1116,6 +1116,14 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <button class="btn-reset" id="btn-filter-reset">필터 초기화</button>
   </div>
 
+  <!-- 🔁 패턴 도구 -->
+  <div style="display:flex; gap:8px; margin: 8px 0 10px; align-items: center; flex-wrap:wrap;">
+    <span style="font-size:11px; color:var(--t2); font-weight:600;">🔁 패턴 도구:</span>
+    <button class="btn btn--ghost btn--sm" id="btn-copy-may-to-rest" title="5월에 입력된 제작대수를 6/7/8월의 빈 값(0)에만 복사 (기존 입력 보호)">5월 → 6·7·8월 (빈 값만)</button>
+    <button class="btn btn--ghost btn--sm" id="btn-copy-may-to-rest-force" title="5월 제작대수를 6/7/8월에 강제 복사 (덮어쓰기, 주의)" style="color:var(--amb); border-color:var(--amb-b);">5월 → 6·7·8월 (덮어쓰기)</button>
+    <span style="font-size:10.5px; color:var(--t3); margin-left:auto;">변동 없는 모델 일괄 채움용 · 적용 후 직접 조정 가능</span>
+  </div>
+
   <!-- 양식 테이블 -->
   <div class="form-wrap">
     <table class="form-table" id="form-table">
@@ -4922,6 +4930,7 @@ function renderHistory() {
             <div style="display:flex;gap:8px;align-items:center;">
               <span class="badge badge--info">발주확정</span>
               ${receivedBadge}
+              <button class="btn btn--sm" onclick="duplicateOrderFromHistory('${entry.date}')" style="background:rgba(96,170,220,0.10); color:var(--sky); border:0.5px solid var(--sky-b);">📋 복제</button>
               <button class="btn btn--ghost btn--sm" onclick="deleteHistory('${entry.date}')" style="color:var(--red);border-color:var(--red-b);">삭제</button>
             </div>
           </div>
@@ -5304,6 +5313,78 @@ document.getElementById('btn-create-backup')?.addEventListener('click', async ()
 // 자동 일일 백업 (서버 로드 완료 후 2.5초 뒤 1회 실행)
 setTimeout(() => { if (typeof autoBackupCheck === 'function') autoBackupCheck(); }, 2500);
 
+// 패턴 도구: 5월 입력값을 6/7/8월로 복사 (빈 값만 또는 강제) - compute-first 안전
+function applyPatternMayToRest(force) {
+  if (window.guardAdmin && !window.guardAdmin('패턴 복사')) return;
+  const targets = ['jun_qty', 'jul_qty', 'aug_qty'];
+  const dnList = Object.keys(state.modelInputs);
+  if (dnList.length === 0) { alert('모델 데이터가 없습니다.'); return; }
+  // 1. 변경 사항 먼저 계산 (mutation 없음)
+  const changes = [];
+  let skippedCells = 0;
+  dnList.forEach(dn => {
+    const mi = state.modelInputs[dn];
+    const may = mi.may_qty || 0;
+    if (may === 0) return; // 소스가 0이면 복사 의미 없음
+    targets.forEach(t => {
+      const cur = mi[t] || 0;
+      if (force || cur === 0) {
+        if (cur !== may) changes.push({ dn, field: t, oldVal: cur, newVal: may });
+      } else {
+        skippedCells++;
+      }
+    });
+  });
+  if (changes.length === 0) { alert('변경할 값이 없습니다.\n(소스 5월 값이 0이거나, 빈 값 모드에서 이미 모든 대상이 입력됨)'); return; }
+  const affectedModels = new Set(changes.map(c => c.dn)).size;
+  const msg = `🔁 패턴 복사 ${force ? '(덮어쓰기)' : '(빈 값만)'}\n\n• 갱신 예정: ${changes.length}개 셀\n• 영향 모델: ${affectedModels}개\n${skippedCells > 0 ? `• 보호됨(기존 값 유지): ${skippedCells}개\n` : ''}\n적용하시겠습니까?`;
+  if (!confirm(msg)) return; // 취소 시 mutation 없음
+  // 2. 확인 후 적용
+  changes.forEach(c => { state.modelInputs[c.dn][c.field] = c.newVal; });
+  saveInputs();
+  renderForm();
+  updateOrderCount();
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'pattern_copy',
+    field: `modelInputs (5월 → 6/7/8월, ${force ? '덮어쓰기' : '빈 값만'})`,
+    before: `${skippedCells}개 보호`,
+    after: `${changes.length}개 갱신, ${affectedModels}개 모델 영향`
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
+  alert(`✅ 적용 완료: ${changes.length}개 셀 갱신 (${affectedModels}개 모델)`);
+}
+
+// 이전 발주 복제 (orderHistory → PO 모달 자동 채움)
+function duplicateOrderFromHistory(dateStr) {
+  if (window.guardAdmin && !window.guardAdmin('이전 발주 복제')) return;
+  const entry = orderHistory.find(e => e.date === dateStr);
+  if (!entry) { alert('해당 이력을 찾을 수 없습니다.'); return; }
+  const info = SUPPLIER_INFO[entry.supplier];
+  if (!info) { alert(`수신처 정보가 없는 공급사(${entry.supplier})입니다.\nSUPPLIER_INFO에 등록 후 시도해 주세요.`); return; }
+  const items = entry.items.map(it => {
+    const master = MASTERS.find(m => m.part_no === it.pn);
+    if (!master) return null;
+    return { master, qty: it.qty, bigo: '', groupKey: displayName(master) };
+  }).filter(Boolean);
+  if (items.length === 0) { alert('이 발주의 모든 부품이 마스터에 없습니다. 복제 불가.'); return; }
+  if (items.length < entry.items.length) {
+    if (!confirm(`⚠ ${entry.items.length - items.length}건은 마스터에 없어 제외됩니다.\n나머지 ${items.length}건으로 발주서를 열까요?`)) return;
+  }
+  poEditState.supplier = entry.supplier;
+  poEditState.items = items;
+  const today = new Date();
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const orderDate = today.toISOString().slice(0, 10);
+  const delivDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 12).toISOString().slice(0, 10);
+  const monthLbl = `${nextMonth.getFullYear()}년 ${nextMonth.getMonth() + 1}월`;
+  renderPOModal(entry.supplier, info, orderDate, delivDate, monthLbl);
+  document.getElementById('modal').classList.add('modal-backdrop--open');
+}
+
 // 단축키: 1~6 탭, / 검색, Esc 모달/드롭다운 닫기
 document.addEventListener('keydown', (e) => {
   // Esc: 모달 또는 검색 드롭다운 닫기
@@ -5348,6 +5429,10 @@ setTimeout(() => {
 // 부품 마스터 관리
 document.getElementById('btn-add-master')?.addEventListener('click', () => showMasterModal(-1));
 document.getElementById('master-filter')?.addEventListener('input', renderMastersTable);
+
+// 패턴 도구 (5월 → 6/7/8월)
+document.getElementById('btn-copy-may-to-rest')?.addEventListener('click', () => applyPatternMayToRest(false));
+document.getElementById('btn-copy-may-to-rest-force')?.addEventListener('click', () => applyPatternMayToRest(true));
 
 // 입력 validation: 모든 .form-input 변경 시 자동 시각 표시 (event delegation)
 document.addEventListener('input', e => {
