@@ -1046,7 +1046,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 <section id="panel-form" class="panel">
 
   <div class="section-title">
-    <div class="section-title__label">▎ 2026년 4월말 실사재고 기준 · 5~8월 운영 양식</div>
+    <div class="section-title__label" id="period-section-title">▎ 2026년 4월말 실사재고 기준 · 5~8월 운영 양식</div>
     <div class="section-title__hint">제작대수·입고계획만 입력 → 필요수량·기말재고 자동 계산</div>
   </div>
 
@@ -1150,7 +1150,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
     <div class="kpi kpi--teal" onclick="showKpiDetail('incoming')" style="cursor:pointer;" title="클릭하면 월별 입고계획 상세를 확인할 수 있습니다">
       <div class="kpi__corner">K02</div>
-      <div class="kpi__label">5~8월 총 입고계획</div>
+      <div class="kpi__label" id="kpi-incoming-label">5~8월 총 입고계획</div>
       <div class="kpi__value" id="kpi-incoming">—</div>
       <div class="kpi__delta" id="kpi-incoming-amt"></div>
     </div>
@@ -1253,7 +1253,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 <section id="panel-finance" class="panel">
   <div class="section-title">
     <div class="section-title__label">▎ 재무·분석</div>
-    <div class="section-title__hint">5~8월 시뮬레이션 기준 추정치 · 카드 클릭 시 상세</div>
+    <div class="section-title__hint" id="finance-hint-label">5~8월 시뮬레이션 기준 추정치 · 카드 클릭 시 상세</div>
   </div>
 
   <!-- 환율 가중치 (수입품 감도분석) -->
@@ -1277,7 +1277,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
     <div class="kpi kpi--teal" onclick="showKpiDetail('consumption')" style="cursor:pointer;" title="클릭하면 월별 사용금액 상세를 확인할 수 있습니다">
       <div class="kpi__corner">F02</div>
-      <div class="kpi__label">4개월 사용금액 (5~8월)</div>
+      <div class="kpi__label" id="kpi-consumption-label">4개월 사용금액 (5~8월)</div>
       <div class="kpi__value" id="kpi-consumption">—</div>
       <div class="kpi__delta" id="kpi-consumption-delta"></div>
     </div>
@@ -1449,7 +1449,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
   <div id="order-groups"></div>
   <div id="order-empty" class="empty" style="display:none">
     현재 모든 구매품이 1개월 안전재고 기준을 충족합니다.
-    <div class="empty__hint">2026년 5~8월 운영 안정</div>
+    <div class="empty__hint" id="form-empty-hint">2026년 5~8월 운영 안정</div>
   </div>
 </section>
 
@@ -1508,12 +1508,14 @@ const STORAGE_KEY_V1 = 'tctech_inputs_v1';
 
 // ──────────────────────────────  STATE  ──────────────────────────────
 const state = {
-  modelInputs: {},   // { displayName: {may_qty, jun_qty, jul_qty, aug_qty} }
+  modelInputs: {},   // { displayName: {may_qty, jun_qty, jul_qty, aug_qty} } — may/jun/jul/aug는 상대 위치
   itemInputs: {},    // { part_no: {may_incoming, jun_incoming, jul_incoming, aug_incoming} }
   erpStocks: {},     // { part_no: erpQty } — ERP 가져오기로 덮어쓰는 값
   filters: { search: '', brand: '', model: '', supplier: '', status: '' },
   dashMonth: 'may',
-  saveTimer: null
+  saveTimer: null,
+  periodStartMonth: 5,  // 현재 4개월 윈도우의 시작 월 (may=이 값, jun=+1, ...). 이월 처리 시 +1
+  periodYear: 2026      // 시작 월의 연도 (12월 넘어가면 +1)
 };
 
 function emptyModelInput() {
@@ -1662,6 +1664,7 @@ state.erpStocks = _loaded.erpStocks || {};
 (async () => {
   const serverLoaded = await loadFromServer();
   if (serverLoaded) {
+    updateStaticMonthLabels(); // 서버에 저장된 periodStartMonth로 라벨 동기화
     renderForm();
     updateOrderCount();
     renderAlarms();
@@ -1681,7 +1684,9 @@ function saveInputs() {
     itemInputs: state.itemInputs,
     orderOverrides: state.orderOverrides,
     erpStocks: state.erpStocks,
-    lastAutoBackupDate: state.lastAutoBackupDate
+    lastAutoBackupDate: state.lastAutoBackupDate,
+    periodStartMonth: state.periodStartMonth,
+    periodYear: state.periodYear
   };
 
   // 변경 이력 추적 (이전 스냅샷과 diff)
@@ -1744,6 +1749,8 @@ async function loadFromServer() {
       state.erpStocks = d.erpStocks || {};
       state.auditLog = d.auditLog || [];
       state.lastAutoBackupDate = d.lastAutoBackupDate;
+      if (d.periodStartMonth) state.periodStartMonth = d.periodStartMonth;
+      if (d.periodYear) state.periodYear = d.periodYear;
       if (typeof snapshotForAudit === 'function') _lastSavedSnapshot = snapshotForAudit();
       return true;
     }
@@ -1801,8 +1808,56 @@ function computeRow(master, inp) {
   return result;
 }
 
-const MONTH_KR = { may: '5월말', jun: '6월말', jul: '7월말', aug: '8월말' };
-const NEXT_KR = { may: '6월', jun: '7월', jul: '8월', aug: '9월(추정)' };
+// ──── 동적 월 라벨 (state.periodStartMonth/periodYear 기반, 월 windowed 슬라이드 지원) ────
+const _MONTH_OFFSET = { may: 0, jun: 1, jul: 2, aug: 3 };
+function monthLabel(monthKey, suffix = '') {
+  const off = _MONTH_OFFSET[monthKey];
+  if (off === undefined) return monthKey;
+  const sm = (state && state.periodStartMonth) || 5;
+  let m = sm + off; while (m > 12) m -= 12;
+  return `${m}월${suffix}`;
+}
+function nextMonthLabel(monthKey) {
+  const off = _MONTH_OFFSET[monthKey];
+  if (off === undefined) return monthKey;
+  const sm = (state && state.periodStartMonth) || 5;
+  let m = sm + off + 1; while (m > 12) m -= 12;
+  return monthKey === 'aug' ? `${m}월(추정)` : `${m}월`;
+}
+function yearOfMonth(monthKey) {
+  const off = _MONTH_OFFSET[monthKey] || 0;
+  const sm = (state && state.periodStartMonth) || 5;
+  const sy = (state && state.periodYear) || 2026;
+  return sy + Math.floor((sm - 1 + off) / 12);
+}
+function priorMonthLabel() {
+  const sm = (state && state.periodStartMonth) || 5;
+  let m = sm - 1; if (m < 1) m += 12;
+  return `${m}월`;
+}
+function rangeLabel() { return `${monthLabel('may')}~${monthLabel('aug')}`; }
+function periodTitle() { return `${yearOfMonth('may')}년 ${rangeLabel()}`; }
+
+// MONTH_KR/NEXT_KR을 Proxy로 동적화 — 기존 12개 사용처 코드는 변경 불필요
+const MONTH_KR = new Proxy({}, { get: (_, key) => monthLabel(key, '말') });
+const NEXT_KR = new Proxy({}, { get: (_, key) => nextMonthLabel(key) });
+
+// 정적 HTML 월 라벨 일괄 갱신 (init/rollover 시 호출)
+function updateStaticMonthLabels() {
+  ['may', 'jun', 'jul', 'aug'].forEach(mo => {
+    document.querySelectorAll(`.month-${mo}-h.h-group`).forEach(h => {
+      h.textContent = `${yearOfMonth(mo)}년 ${monthLabel(mo)}`;
+    });
+    const opt = document.querySelector(`#dash-month-select option[value="${mo}"]`);
+    if (opt) opt.textContent = monthLabel(mo);
+  });
+  const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  setText('period-section-title', `▎ ${yearOfMonth('may')}년 ${priorMonthLabel()}말 실사재고 기준 · ${rangeLabel()} 운영 양식`);
+  setText('kpi-incoming-label', `${rangeLabel()} 총 입고계획`);
+  setText('kpi-consumption-label', `4개월 사용금액 (${rangeLabel()})`);
+  setText('finance-hint-label', `${rangeLabel()} 시뮬레이션 기준 추정치 · 카드 클릭 시 상세`);
+  setText('form-empty-hint', `${yearOfMonth('may')}년 ${rangeLabel()} 운영 안정`);
+}
 
 function getResult(master) {
   const dn = displayName(master);
@@ -4571,9 +4626,11 @@ function exportExcel() {
   XLSX.writeFile(wb, `tctech_재고관리_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-// ── 월 이월 처리 ──
+// ── 월 이월 처리 (데이터 시프트 + periodStartMonth +1, 연 wrap 처리) ──
 function rolloverMonth() {
-  if (!confirm('⚠️ 월 이월 처리를 진행합니다.\n\n• 5월 기말재고 → 새 4월말 현물재고\n• 월별 계획이 한 달씩 앞으로 이동합니다\n\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?')) return;
+  const beforeMay = monthLabel('may');
+  const beforeJun = monthLabel('jun');
+  if (!confirm(`⚠️ 월 이월 처리를 진행합니다.\n\n• ${beforeMay} 기말재고 → 새 사이클의 시작재고\n• 월별 계획이 한 달씩 앞으로 이동\n• 시작 월: ${beforeMay} → ${beforeJun}\n\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
   MASTERS.forEach(m => {
     const r = getResult(m);
     const ii = state.itemInputs[m.part_no] || emptyItemInput();
@@ -4589,10 +4646,17 @@ function rolloverMonth() {
     const mi = state.modelInputs[dn];
     state.modelInputs[dn] = { may_qty: mi.jun_qty||0, jun_qty: mi.jul_qty||0, jul_qty: mi.aug_qty||0, aug_qty: 0 };
   });
+  // 시작 월 +1 (12 초과 시 1월로 wrap + 연도 +1)
+  state.periodStartMonth = (state.periodStartMonth || 5) + 1;
+  if (state.periodStartMonth > 12) {
+    state.periodStartMonth = 1;
+    state.periodYear = (state.periodYear || 2026) + 1;
+  }
   saveInputs();
+  updateStaticMonthLabels();
   renderForm();
   updateOrderCount();
-  alert('월 이월 처리가 완료되었습니다.\n5월 기말재고가 새 시작재고로 반영되었습니다.');
+  alert(`월 이월 처리 완료.\n새 운영 윈도우: ${rangeLabel()} (${yearOfMonth('may')}년 기준)`);
 }
 
 // ── ABC 분석 데이터 ──
@@ -4703,6 +4767,7 @@ function renderERPDiscrepancy() {
 
 // ──────────────────────────────  INIT  ──────────────────────────────
 populateFilters();
+updateStaticMonthLabels();  // 정적 월 라벨을 현재 state.periodStartMonth에 맞춰 갱신
 renderForm();
 updateOrderCount();
 renderDashboard();
