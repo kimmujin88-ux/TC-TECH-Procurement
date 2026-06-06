@@ -4659,46 +4659,140 @@ function importERPExcel(file) {
         return;
       }
 
-      let matched = 0, skipped = 0;
       const knownPNs = new Set(MASTERS.map(m => m.part_no));
-
+      const changes = [];
+      const skipped = [];
       rows.slice(1).forEach(row => {
         const pn = String(row[pnCol]||'').trim();
-        if (!pn || !knownPNs.has(pn)) { skipped++; return; }
-
+        if (!pn) return;
+        if (!knownPNs.has(pn)) { skipped.push({ pn }); return; }
+        const ii = state.itemInputs[pn] || emptyItemInput();
+        const change = { pn, master: MASTERS.find(m => m.part_no === pn) };
+        let has = false;
         if (actualCol !== -1) {
           const val = parseInt(String(row[actualCol]||'').replace(/,/g,''), 10);
           if (!isNaN(val)) {
-            if (!state.itemInputs[pn]) state.itemInputs[pn] = emptyItemInput();
-            state.itemInputs[pn].starting_stock = val;
+            change.actualBefore = ii.starting_stock || 0;
+            change.actualAfter = val;
+            if (change.actualBefore !== change.actualAfter) has = true;
           }
         }
         if (erpCol !== -1) {
           const val = parseInt(String(row[erpCol]||'').replace(/,/g,''), 10);
-          if (!isNaN(val)) state.erpStocks[pn] = val;
+          if (!isNaN(val)) {
+            change.erpBefore = state.erpStocks[pn];
+            change.erpAfter = val;
+            if (change.erpBefore !== change.erpAfter) has = true;
+          }
         }
-        matched++;
+        if (has) changes.push(change);
       });
-
-      saveInputs();
-      renderForm();
-      renderERPDiscrepancy();
-      updateERPImportUI();
-
-      const msg = [
-        `✅ 가져오기 완료`,
-        `• 매칭 품목: ${matched}건`,
-        skipped > 0 ? `• 건너뜀 (미등록 품번): ${skipped}건` : '',
-        actualCol === -1 ? '• ⚠️ 실사수량 컬럼 미인식 (ERP수량만 업데이트됨)' : '',
-        erpCol   === -1 ? '• ⚠️ ERP수량 컬럼 미인식 (실사수량만 업데이트됨)'  : ''
-      ].filter(Boolean).join('\n');
-      alert(msg);
+      showERPPreviewModal({
+        filename: file.name, header, pnCol, actualCol, erpCol, changes, skipped
+      });
 
     } catch(err) {
       alert('파일 파싱 오류: ' + err.message);
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+function showERPPreviewModal(p) {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.querySelector('.modal__title');
+  modalTitle.textContent = `ERP 가져오기 미리보기 — ${p.filename}`;
+  const colInfo = `
+    품번 ✅ "${sanitize(String(p.header[p.pnCol] || ''))}"
+    ${p.actualCol !== -1 ? `· 실사수량 ✅ "${sanitize(String(p.header[p.actualCol] || ''))}"` : '· 실사수량 ⚠️ 미인식'}
+    ${p.erpCol !== -1 ? `· ERP재고 ✅ "${sanitize(String(p.header[p.erpCol] || ''))}"` : '· ERP재고 ⚠️ 미인식'}
+  `;
+  const rows = p.changes.map(c => {
+    const actCell = ('actualBefore' in c)
+      ? `<td class="col-num">${fmt(c.actualBefore)}</td><td class="col-num" style="color:var(--t3);">→</td><td class="col-num" style="color:var(--sky);font-weight:600;">${fmt(c.actualAfter)}</td>`
+      : `<td colspan="3" style="text-align:center;color:var(--t3);">변경 없음</td>`;
+    const erpCell = ('erpBefore' in c)
+      ? `<td class="col-num">${c.erpBefore == null ? '–' : fmt(c.erpBefore)}</td><td class="col-num" style="color:var(--t3);">→</td><td class="col-num" style="color:var(--sky);font-weight:600;">${fmt(c.erpAfter)}</td>`
+      : `<td colspan="3" style="text-align:center;color:var(--t3);">변경 없음</td>`;
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:10px;">${sanitize(c.pn)}</td>
+      <td>${sanitize((c.master && c.master.part_name) || '-')}</td>
+      ${actCell}${erpCell}
+    </tr>`;
+  }).join('');
+  modalBody.innerHTML = `
+    <div style="padding:18px 22px;color:var(--t1);">
+      <div style="margin-bottom:10px;font-size:11px;color:var(--t2);line-height:1.7;">
+        <strong>인식된 컬럼:</strong> ${colInfo}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
+        <div style="padding:10px;background:var(--bg-card);border-radius:6px;text-align:center;">
+          <div style="font-size:10px;color:var(--t3);">변경 예정</div>
+          <div style="font-size:20px;font-weight:700;color:var(--sky);font-family:var(--mono);">${p.changes.length}건</div>
+        </div>
+        <div style="padding:10px;background:var(--bg-card);border-radius:6px;text-align:center;">
+          <div style="font-size:10px;color:var(--t3);">미등록 품번 스킵</div>
+          <div style="font-size:20px;font-weight:700;color:var(--amb);font-family:var(--mono);">${p.skipped.length}건</div>
+        </div>
+        <div style="padding:10px;background:var(--bg-card);border-radius:6px;text-align:center;">
+          <div style="font-size:10px;color:var(--t3);">총 처리</div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--mono);">${p.changes.length + p.skipped.length}건</div>
+        </div>
+      </div>
+      <div style="max-height:340px;overflow-y:auto;border:0.5px solid var(--border2);border-radius:6px;">
+        <table class="order-table" style="width:100%;font-size:11px;">
+          <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+            <th>품번</th><th>품명</th>
+            <th class="col-num" colspan="3">실사재고 (현재 → 신규)</th>
+            <th class="col-num" colspan="3">ERP재고 (현재 → 신규)</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:var(--t3);padding:20px;">변경할 데이터가 없습니다.</td></tr>'}</tbody>
+        </table>
+      </div>
+      ${p.skipped.length > 0 ? `
+      <details style="margin-top:10px;font-size:11px;color:var(--t3);">
+        <summary style="cursor:pointer;color:var(--amb);">⚠️ 미등록 품번 ${p.skipped.length}건 보기 (마스터에 없는 품번 — 마스터 등록 후 재시도 필요)</summary>
+        <div style="margin-top:6px;padding:8px;background:var(--bg-card);border-radius:4px;max-height:120px;overflow-y:auto;font-family:var(--mono);font-size:10px;">
+          ${p.skipped.map(s => sanitize(s.pn)).join(', ')}
+        </div>
+      </details>` : ''}
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+        <button class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
+        <button class="btn btn--teal" id="btn-erp-apply" ${p.changes.length === 0 ? 'disabled style="opacity:0.4;"' : ''}>적용 (${p.changes.length}건)</button>
+      </div>
+    </div>
+  `;
+  modal.classList.add('modal-backdrop--open');
+  const applyBtn = document.getElementById('btn-erp-apply');
+  if (applyBtn) applyBtn.addEventListener('click', () => applyERPChanges(p.changes));
+}
+
+function applyERPChanges(changes) {
+  if (window.guardAdmin && !window.guardAdmin('ERP 가져오기 적용')) return;
+  changes.forEach(c => {
+    if ('actualAfter' in c) {
+      if (!state.itemInputs[c.pn]) state.itemInputs[c.pn] = emptyItemInput();
+      state.itemInputs[c.pn].starting_stock = c.actualAfter;
+    }
+    if ('erpAfter' in c) state.erpStocks[c.pn] = c.erpAfter;
+  });
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'erp_import',
+    field: `ERP 가져오기 일괄`,
+    before: '(가져오기 전)',
+    after: `${changes.length}건 갱신`
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
+  renderForm();
+  renderERPDiscrepancy();
+  updateERPImportUI();
+  document.getElementById('modal').classList.remove('modal-backdrop--open');
+  alert(`✅ ERP 가져오기 적용 완료\n${changes.length}건 갱신됨 · 변경 이력에 자동 기록`);
 }
 
 function updateERPImportUI() {
