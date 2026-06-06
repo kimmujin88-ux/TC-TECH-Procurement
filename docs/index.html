@@ -473,6 +473,13 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
 .form-input.input-warn { border: 1.5px solid var(--amb) !important; background: rgba(247, 199, 64, 0.10) !important; }
 /* MOQ 배수 불일치 (발주 수량) */
 .order-qty-input.moq-mismatch { border: 1.5px solid var(--amb) !important; background: rgba(247, 199, 64, 0.14) !important; }
+.btn-moq-fix {
+  font-size: 9.5px; padding: 1px 6px; margin-left: 4px;
+  border: 0.5px solid var(--amb-b); background: rgba(247, 199, 64, 0.10);
+  color: var(--amb); cursor: pointer; border-radius: 3px;
+  font-weight: 600; vertical-align: middle;
+}
+.btn-moq-fix:hover { background: rgba(247, 199, 64, 0.25); }
 /* 글로벌 빠른 검색 드롭다운 */
 .global-search-dropdown {
   position: absolute; top: 100%; left: 0; min-width: 280px;
@@ -3786,6 +3793,7 @@ function renderDomesticGroup(supplier, items) {
               <td class="col-num">${row.master.qty_per_unit}</td>
               <td class="has-input">
                 <input type="number" class="form-input order-qty-input" data-pn="${sanitize(row.master.part_no)}" value="${row.qty}" min="0">
+                <button class="btn-moq-fix" data-pn="${sanitize(row.master.part_no)}" title="MOQ 배수로 자동 올림">MOQ↑</button>
               </td>
               <td class="col-num">₩${fmt(row.master.unit_price)}</td>
               <td class="col-num">₩${fmt(row.qty * (row.master.unit_price || 0))}</td>
@@ -3855,6 +3863,7 @@ function renderImportGroup(supplier, items) {
               <td class="col-num">${row.master.qty_per_unit}</td>
               <td class="has-input">
                 <input type="number" class="form-input order-qty-input" data-pn="${sanitize(row.master.part_no)}" value="${row.qty}" min="0">
+                <button class="btn-moq-fix" data-pn="${sanitize(row.master.part_no)}" title="MOQ 배수로 자동 올림">MOQ↑</button>
               </td>
               <td class="col-num">₩${fmt(row.master.unit_price)}</td>
               <td class="col-num">₩${fmt(row.qty * (row.master.unit_price || 0))}</td>
@@ -4077,6 +4086,21 @@ function updateOrderTotals() {
 }
 
 document.getElementById('panel-orders').addEventListener('click', e => {
+  if (e.target.classList.contains('btn-moq-fix')) {
+    const pn = e.target.dataset.pn;
+    const master = MASTERS.find(m => m.part_no === pn);
+    if (!master) return;
+    const moq = moqValue(master);
+    if (moq <= 1) { alert('MOQ 정보가 없거나 1 이하라 자동 맞춤 불가'); return; }
+    const currentVal = state.orderOverrides[pn] !== undefined ? state.orderOverrides[pn] : suggestedQty(master);
+    const rounded = Math.ceil(currentVal / moq) * moq;
+    state.orderOverrides[pn] = rounded;
+    saveInputs();
+    const input = document.querySelector(`#panel-orders .order-qty-input[data-pn="${pn}"]`);
+    if (input) { input.value = rounded; validateMOQOnInput(input); }
+    updateOrderTotals();
+    return;
+  }
   if (e.target.closest('.btn-order-del')) {
     const pn = e.target.closest('.btn-order-del').dataset.pn;
     delete state.orderOverrides[pn];
