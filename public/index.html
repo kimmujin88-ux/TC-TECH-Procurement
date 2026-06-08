@@ -1253,6 +1253,18 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
+  <!-- 🏗 모델별 잔여 생산 캐파 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🏗 모델별 잔여 생산 캐파</div>
+        <div class="card__hint">현 재고로 추가 생산 가능 대수 = min(부품별 stock ÷ 대당소요). bottleneck 부품과 발주 우선순위 확인</div>
+      </div>
+      <div id="capacity-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="capacity-body"></div>
+  </div>
+
   <!-- 📊 결품 간트 타임라인 -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -1385,6 +1397,30 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
+  <!-- 💸 기회손실 정밀화 (모델 ASP 기반) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">💸 기회손실 정밀화 (모델 ASP 기반)</div>
+        <div class="card__hint">부족 부품 → 못 만드는 모델 대수 × ASP(평균 판매가) = 매출 손실 추정 · ASP 미입력 시 0 처리</div>
+      </div>
+      <div id="opploss-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:380px;overflow-y:auto;" id="opploss-body"></div>
+  </div>
+
+  <!-- 🪨 데드 스톡 분석 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🪨 데드 스톡 분석</div>
+        <div class="card__hint">윈도우 4개월 동안 사용량 0 + 시작재고 보유 = 죽은 자본 · 단종/대체품 검토 권장</div>
+      </div>
+      <div id="deadstock-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="deadstock-body"></div>
+  </div>
+
   <!-- 🎯 공급사 종합 평가 -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -1395,6 +1431,30 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <div id="supplier-score-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
     </div>
     <div class="card__body" style="padding:0;max-height:380px;overflow-y:auto;" id="supplier-score-body"></div>
+  </div>
+
+  <!-- 🤝 단가 재협상 알림 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🤝 단가 재협상 알림</div>
+        <div class="card__hint">priceHistory 마지막 변경 후 6개월 경과 + 인상 추세 또는 무변경 12개월+ → 재협상 후보 자동 추출</div>
+      </div>
+      <div id="renegot-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:280px;overflow-y:auto;" id="renegot-body"></div>
+  </div>
+
+  <!-- 🗓 시즈널리티 (전년 동기 비교) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🗓 시즈널리티 (전년 동기 비교)</div>
+        <div class="card__hint">백업 스냅샷 중 같은 월(또는 ±15일)에 가장 가까운 시점과 KPI 비교 · 12개월+ 백업 누적 시 정확도 향상</div>
+      </div>
+      <div id="season-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:260px;overflow-y:auto;" id="season-body"></div>
   </div>
 
   <!-- 📈 단가 변동 추이 -->
@@ -1445,6 +1505,18 @@ html.login-locked, html.login-locked body { overflow: hidden; }
   </div>
   <input type="file" id="erp-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
 
+  <!-- 📋 재고 실사 차이 (ERP vs 시스템) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">📋 재고 실사 차이 (ERP/실사 vs 시스템)</div>
+        <div class="card__hint">마스터 erp_stock 필드와 시스템 시작재고 비교 · variance ≥5% 알람 · 0이면 비교 미실시</div>
+      </div>
+      <div id="variance-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="variance-body"></div>
+  </div>
+
   <!-- 🩺 마스터 데이터 정합성 점검 -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -1492,6 +1564,34 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <div style="margin-top:10px;font-size:10.5px;color:var(--t3);line-height:1.6;">
         💡 <strong>운영 가이드:</strong> 안전계수 1.0 = 다음달 1개월치만 확보 (현재 시스템 기본). 1.5 = 1.5개월치 = 약간의 여유. 2.0 = 2개월치 = 공급 불안정 시 사용.<br>
         품목별로 LT가 다르므로, 장LT 품목은 마스터에서 개별 안전계수(예: 2.0)를 지정 권장.
+      </div>
+      <div style="margin-top:14px;padding-top:10px;border-top:0.5px solid var(--border2);">
+        <div style="font-size:11px;font-weight:700;color:var(--t1);margin-bottom:8px;">📊 보유비용 시뮬레이션 (연간 추정)</div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--t2);">
+          <span>자본비용율 (%):</span>
+          <input type="number" id="carrying-capital-pct" value="5" min="0" max="30" step="0.5" style="width:70px;font-size:11px;padding:4px 6px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:3px;text-align:center;font-family:var(--mono);">
+          <span>+ 보관비용율 (%):</span>
+          <input type="number" id="carrying-storage-pct" value="2" min="0" max="20" step="0.5" style="width:70px;font-size:11px;padding:4px 6px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:3px;text-align:center;font-family:var(--mono);">
+          <span>= 합계 <strong id="carrying-total-pct" style="color:var(--teal);font-family:var(--mono);">7.0%</strong>/년</span>
+          <button class="btn btn--ghost btn--sm" id="btn-recalc-carrying" style="margin-left:auto;">재계산</button>
+        </div>
+        <div id="carrying-result" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+            <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">현 안전계수의 총 재고가치</div>
+            <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--t1);" id="carrying-stock-now">-</div>
+          </div>
+          <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+            <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">연간 보유비용 (자본+보관)</div>
+            <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--amb);" id="carrying-cost-now">-</div>
+          </div>
+          <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+            <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">안전계수 +0.5 시 추가 비용</div>
+            <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red);" id="carrying-cost-plus">-</div>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--t3);line-height:1.6;">
+          💡 자본비용 = 재고에 묶인 돈의 기회비용(예: 정기예금 금리 또는 차입금리). 보관비용 = 창고/관리비. 안전계수 조정 시 비용 가시성 확보.
+        </div>
       </div>
     </div>
   </div>
@@ -2957,10 +3057,11 @@ function showMasterModal(idx) {
           ${field('대당소요', 'qty_per_unit', 'number', v(m.qty_per_unit || 1), 'min="0" step="any"')}
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 18px;border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px 18px;border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
         ${field('시작재고', 'starting_stock', 'number', v(m.starting_stock || 0), 'min="0"')}
         ${field('ERP재고', 'erp_stock', 'number', v(m.erp_stock || 0), 'min="0"')}
         ${field('안전계수 (배)', 'safety_factor', 'number', v(m.safety_factor || ''), 'min="0" step="0.1" placeholder="비우면 전역값"')}
+        ${field('수율 손실 (%)', 'loss_rate_pct', 'number', v(m.loss_rate ? (m.loss_rate * 100) : ''), 'min="0" max="50" step="0.1" placeholder="0~50, 비우면 0"')}
       </div>
       <div style="border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
         <label style="display:block;font-size:11px;color:var(--t2);margin-bottom:4px;">📝 메모 (선택 · 용도·특이사항·대체품 등)</label>
@@ -3015,6 +3116,10 @@ async function saveMasterRecord(idx) {
   // safety_factor는 비어있으면 삭제(전역값 사용), 값 있으면 숫자 변환
   if (data.safety_factor === '' || data.safety_factor == null) delete data.safety_factor;
   else data.safety_factor = Number(data.safety_factor) || undefined;
+  // loss_rate: % 입력 → 소수 변환
+  if (data.loss_rate_pct === '' || data.loss_rate_pct == null) data.loss_rate = 0;
+  else data.loss_rate = Math.min(0.5, Math.max(0, Number(data.loss_rate_pct) / 100));
+  delete data.loss_rate_pct;
   if (!data.part_no || !data.part_name) { alert('품번과 품명은 필수입니다.'); return; }
   const isNew = idx === -1;
   const source = (data.change_source || '').trim();
@@ -3311,14 +3416,14 @@ function setActiveTab(t) {
   // 양식 탭일 때만 body 스크롤 잠금 (form-wrap 내부만 스크롤됨)
   document.body.classList.toggle('tab-form-active', t === 'form');
   if (t === 'ops' || t === 'finance' || t === 'data') renderDashboard();
-  if (t === 'ops') { if (typeof renderShortageGantt === 'function') renderShortageGantt(); }
+  if (t === 'ops') { if (typeof renderShortageGantt === 'function') renderShortageGantt(); if (typeof renderCapacityCard === 'function') renderCapacityCard(); }
   else if (t === 'orders') {
     renderOrders();
     setTimeout(() => document.querySelectorAll('.order-qty-input').forEach(validateMOQOnInput), 80);
   }
   else if (t === 'history') renderHistory();
-  if (t === 'data') { renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); if (typeof renderDataQualityCard === 'function') renderDataQualityCard(); }
-  if (t === 'finance') { if (typeof renderPriceTrendCard === 'function') renderPriceTrendCard(); if (typeof renderSupplierScoreCard === 'function') renderSupplierScoreCard(); }
+  if (t === 'data') { renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); if (typeof renderDataQualityCard === 'function') renderDataQualityCard(); if (typeof renderVarianceCard === 'function') renderVarianceCard(); }
+  if (t === 'finance') { if (typeof renderPriceTrendCard === 'function') renderPriceTrendCard(); if (typeof renderSupplierScoreCard === 'function') renderSupplierScoreCard(); if (typeof renderDeadStockCard === 'function') renderDeadStockCard(); if (typeof renderOpportunityLossCard === 'function') renderOpportunityLossCard(); if (typeof renderSeasonalityCard === 'function') renderSeasonalityCard(); if (typeof renderRenegotiationCard === 'function') renderRenegotiationCard(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.querySelectorAll('.tab').forEach(btn => {
@@ -4440,8 +4545,11 @@ function suggestedQty(master) {
     Math.max(0, reqs[3] - r.months.aug.ending)
   ];
   const maxShort = Math.max(...shortages);
+  // 수율(loss_rate) 반영: 100개 발주해도 5% 불량이면 95개만 가용 → 100/(1-0.05)=105.26개 발주 필요
+  const loss = Math.min(0.5, Math.max(0, Number(master.loss_rate) || 0));
+  const adjusted = loss > 0 ? maxShort / (1 - loss) : maxShort;
   const moq = moqValue(master) || 1;
-  return Math.ceil(maxShort / moq) * moq;
+  return Math.ceil(adjusted / moq) * moq;
 }
 
 function renderOrders() {
@@ -6205,6 +6313,37 @@ document.querySelectorAll('#safety-preset [data-sf]').forEach(btn => {
 });
 setTimeout(updateSafetyStockUI, 800);
 
+// 보유비용 시뮬레이션
+function updateCarryingCost() {
+  const capPct = Number(document.getElementById('carrying-capital-pct')?.value) || 0;
+  const storPct = Number(document.getElementById('carrying-storage-pct')?.value) || 0;
+  const totalPct = capPct + storPct;
+  const totalEl = document.getElementById('carrying-total-pct');
+  if (totalEl) totalEl.textContent = totalPct.toFixed(1) + '%';
+  const sf = Number(state.safetyStockMultiplier) > 0 ? Number(state.safetyStockMultiplier) : 1.0;
+  let stockValue = 0;
+  MASTERS.forEach(m => {
+    const inp = state.itemInputs[m.part_no] || {};
+    const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
+    stockValue += stock * (m.unit_price || 0);
+  });
+  const carryingCost = stockValue * (totalPct / 100);
+  // 안전계수 +0.5 가정 시 추가 재고가치 (단순: 비례 가정)
+  const sfPlus = sf + 0.5;
+  const stockPlus = stockValue * (sfPlus / sf);
+  const costPlus = (stockPlus - stockValue) * (totalPct / 100);
+  const el1 = document.getElementById('carrying-stock-now');
+  if (el1) el1.textContent = '₩' + fmt(Math.round(stockValue));
+  const el2 = document.getElementById('carrying-cost-now');
+  if (el2) el2.textContent = '₩' + fmt(Math.round(carryingCost));
+  const el3 = document.getElementById('carrying-cost-plus');
+  if (el3) el3.textContent = '+₩' + fmt(Math.round(costPlus)) + '/년';
+}
+document.getElementById('carrying-capital-pct')?.addEventListener('input', updateCarryingCost);
+document.getElementById('carrying-storage-pct')?.addEventListener('input', updateCarryingCost);
+document.getElementById('btn-recalc-carrying')?.addEventListener('click', updateCarryingCost);
+setTimeout(updateCarryingCost, 1000);
+
 // LT 실측 vs 마스터 — 발주이력의 발주일과 입고확인일 차이로 자동 산출
 function buildLTActuals() {
   const map = {};
@@ -6304,6 +6443,81 @@ function exportLTComparison() {
 document.getElementById('btn-export-lt')?.addEventListener('click', exportLTComparison);
 setTimeout(renderLTComparison, 900);
 
+// 모델별 잔여 생산 캐파 — 시작재고와 ending 재고 기준 가능 대수 + bottleneck
+function computeModelCapacity() {
+  const modelMap = {};
+  MASTERS.forEach(m => {
+    const key = m.model || displayName(m);
+    if (!key) return;
+    if (!modelMap[key]) modelMap[key] = [];
+    modelMap[key].push(m);
+  });
+  return Object.entries(modelMap).map(([model, parts]) => {
+    let nowBottleneck = null, endBottleneck = null;
+    let minNow = Infinity, minEnd = Infinity;
+    parts.forEach(m => {
+      const inp = state.itemInputs[m.part_no] || {};
+      const qpu = Number(m.qty_per_unit) || 0;
+      if (qpu <= 0) return;
+      const start = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
+      const nowUnits = Math.floor(start / qpu);
+      if (nowUnits < minNow) { minNow = nowUnits; nowBottleneck = m; }
+      const r = getResult(m);
+      const endStock = Math.max(0, r.months.aug.ending);
+      const endUnits = Math.floor(endStock / qpu);
+      if (endUnits < minEnd) { minEnd = endUnits; endBottleneck = m; }
+    });
+    return {
+      model, partCount: parts.length,
+      nowCapacity: minNow === Infinity ? 0 : minNow,
+      endCapacity: minEnd === Infinity ? 0 : minEnd,
+      nowBottleneck, endBottleneck
+    };
+  }).sort((a, b) => a.nowCapacity - b.nowCapacity);
+}
+
+function renderCapacityCard() {
+  const container = document.getElementById('capacity-body');
+  const summary = document.getElementById('capacity-summary');
+  if (!container) return;
+  const rows = computeModelCapacity();
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">모델 데이터 없음</div>';
+    return;
+  }
+  const critical = rows.filter(r => r.nowCapacity < 10).length;
+  if (summary) summary.innerHTML = `${rows.length} 모델 · <span style="color:${critical > 0 ? 'var(--red)' : 'var(--teal)'};font-weight:700;">캐파&lt;10대 ${critical}개</span>`;
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>모델</th>
+      <th class="col-num">부품</th>
+      <th class="col-num">현재 캐파</th>
+      <th class="col-num">${monthLabel('aug')}말 캐파</th>
+      <th>현재 bottleneck</th>
+      <th>${monthLabel('aug')}말 bottleneck</th>
+    </tr></thead>
+    <tbody>${rows.map(r => {
+      const nowColor = r.nowCapacity < 10 ? 'var(--red)' : r.nowCapacity < 30 ? 'var(--amb)' : 'var(--teal)';
+      const endColor = r.endCapacity < 10 ? 'var(--red)' : r.endCapacity < 30 ? 'var(--amb)' : 'var(--teal)';
+      const nb = r.nowBottleneck, eb = r.endBottleneck;
+      return `<tr>
+        <td><strong>${sanitize(r.model)}</strong></td>
+        <td class="col-num">${r.partCount}</td>
+        <td class="col-num" style="font-family:var(--mono);font-weight:800;color:${nowColor};">${fmt(r.nowCapacity)}</td>
+        <td class="col-num" style="font-family:var(--mono);font-weight:800;color:${endColor};">${fmt(r.endCapacity)}</td>
+        <td style="font-size:10.5px;">${nb ? `<span style="font-family:var(--mono);" class="cap-bn" data-pn="${sanitize(nb.part_no)}" style="cursor:pointer;color:var(--sky);">${sanitize(nb.part_no)}</span> <span style="color:var(--t3);">${sanitize(nb.part_name)}</span>` : '-'}</td>
+        <td style="font-size:10.5px;">${eb ? `<span style="font-family:var(--mono);" class="cap-bn" data-pn="${sanitize(eb.part_no)}" style="cursor:pointer;color:var(--sky);">${sanitize(eb.part_no)}</span> <span style="color:var(--t3);">${sanitize(eb.part_name)}</span>` : '-'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>
+  <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+    💡 <strong>현재 캐파</strong> = 시작재고로 만들 수 있는 추가 대수 / <strong>${monthLabel('aug')}말 캐파</strong> = 윈도우 끝 ending 재고 기준. bottleneck 클릭 → 해당 부품 행 이동.
+  </div>`;
+  container.querySelectorAll('.cap-bn').forEach(el => {
+    el.addEventListener('click', () => goToFormRow(el.dataset.pn));
+  });
+}
+
 // 결품 간트 타임라인 — 부족 발생 시점부터 윈도우 끝까지 막대
 function renderShortageGantt() {
   const container = document.getElementById('gantt-body');
@@ -6354,6 +6568,59 @@ function renderShortageGantt() {
   container.querySelectorAll('.gantt-row').forEach(row => {
     row.addEventListener('click', () => goToFormRow(row.dataset.pn));
   });
+}
+
+// 재고 실사 차이 (ERP/실사 vs 시스템 시작재고)
+function renderVarianceCard() {
+  const container = document.getElementById('variance-body');
+  const summary = document.getElementById('variance-summary');
+  if (!container) return;
+  const rows = MASTERS.map(m => {
+    const inp = state.itemInputs[m.part_no] || {};
+    const sys = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
+    const erp = Number(m.erp_stock || 0);
+    if (erp <= 0) return null;
+    const diff = sys - erp;
+    const variance = erp > 0 ? Math.abs(diff) / erp : 0;
+    return { m, sys, erp, diff, variance };
+  }).filter(Boolean).sort((a, b) => b.variance - a.variance);
+  const total = rows.length;
+  const critical = rows.filter(r => r.variance >= 0.05).length;
+  const accuracy = total > 0 ? ((total - critical) / total) * 100 : null;
+  if (summary) summary.innerHTML = accuracy !== null
+    ? `샘플 ${total} · 일치율 <span style="color:${accuracy >= 95 ? 'var(--teal)' : accuracy >= 80 ? 'var(--amb)' : 'var(--red)'};font-weight:700;">${accuracy.toFixed(1)}%</span> · ≥5% 차이 ${critical}건`
+    : `<span style="color:var(--t3);">erp_stock 입력된 품목 없음</span>`;
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">마스터 erp_stock 필드 미입력 — 입력 후 자동 비교됩니다</div>';
+    return;
+  }
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>품번</th><th>품명</th>
+      <th class="col-num">시스템</th>
+      <th class="col-num">ERP/실사</th>
+      <th class="col-num">차이</th>
+      <th class="col-num">variance</th>
+      <th style="text-align:right;">조치</th>
+    </tr></thead>
+    <tbody>${rows.slice(0, 80).map(r => {
+      const sign = r.diff > 0 ? '+' : '';
+      const vColor = r.variance >= 0.05 ? 'var(--red)' : r.variance >= 0.01 ? 'var(--amb)' : 'var(--teal)';
+      const idx = MASTERS.indexOf(r.m);
+      return `<tr>
+        <td style="font-family:var(--mono);">${sanitize(r.m.part_no)}</td>
+        <td>${sanitize(r.m.part_name)}</td>
+        <td class="col-num" style="font-family:var(--mono);">${fmt(r.sys)}</td>
+        <td class="col-num" style="font-family:var(--mono);">${fmt(r.erp)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:${vColor};font-weight:700;">${sign}${fmt(r.diff)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:${vColor};font-weight:700;">${(r.variance * 100).toFixed(1)}%</td>
+        <td style="text-align:right;"><button class="btn btn--ghost btn--sm" onclick="showMasterModal(${idx})">검토</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>
+  <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+    💡 일치율 = (variance &lt; 5% 품목 수) ÷ 전체 erp_stock 입력 품목 수. 정기 실사 후 마스터 erp_stock 갱신 시 자동 재계산.
+  </div>`;
 }
 
 // 마스터 데이터 정합성 자동 점검
@@ -6429,6 +6696,298 @@ function renderDataQualityCard() {
         <td style="text-align:right;"><button class="btn btn--ghost btn--sm" onclick="showMasterModal(${iss.idx})">수정</button></td>
       </tr>`).join('')}</tbody>
   </table>`;
+}
+
+// 단가 재협상 알림 — 6개월+ 인상 추세 또는 12개월+ 무변경
+function renderRenegotiationCard() {
+  const container = document.getElementById('renegot-body');
+  const summary = document.getElementById('renegot-summary');
+  if (!container) return;
+  const now = Date.now();
+  const rows = MASTERS.map(m => {
+    const ph = m.priceHistory || [];
+    if (ph.length === 0) return null;
+    const last = ph[ph.length - 1];
+    const lastTs = new Date(last.ts).getTime();
+    const monthsSince = Math.floor((now - lastTs) / (1000 * 60 * 60 * 24 * 30));
+    const first = ph[0].after;
+    const cur = last.after;
+    const trendPct = first > 0 ? ((cur - first) / first) * 100 : 0;
+    let reason = null;
+    if (monthsSince >= 6 && trendPct >= 5) reason = `6개월+ 경과 + 인상 추세 +${trendPct.toFixed(1)}%`;
+    else if (monthsSince >= 12) reason = `12개월+ 무변경 (재협상 적기)`;
+    else if (monthsSince >= 6 && ph.length >= 3) reason = `6개월+ 경과 + 변경 ${ph.length}회 (안정성 검토)`;
+    if (!reason) return null;
+    return { m, monthsSince, trendPct, count: ph.length, lastTs, reason, cur };
+  }).filter(Boolean).sort((a, b) => b.monthsSince - a.monthsSince);
+  if (summary) summary.innerHTML = rows.length > 0
+    ? `<span style="color:var(--amb);font-weight:700;">재협상 후보 ${rows.length}건</span>`
+    : `<span style="color:var(--teal);">재협상 시점 도래 품목 없음</span>`;
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--teal);padding:24px;font-size:11px;">✅ 재협상 시점 도래 품목 없음<br><span style="font-size:10px;color:var(--t3);">priceHistory 누적 시 자동 감지 (단가 변경 시 사유/출처 입력 권장)</span></div>';
+    return;
+  }
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>품번</th><th>품명</th><th>공급사</th>
+      <th class="col-num">현 단가</th>
+      <th class="col-num">경과</th>
+      <th class="col-num">누적 변동</th>
+      <th>사유</th>
+    </tr></thead>
+    <tbody>${rows.slice(0, 50).map(r => {
+      const sign = r.trendPct > 0 ? '+' : '';
+      const tColor = r.trendPct >= 10 ? 'var(--red)' : r.trendPct >= 5 ? 'var(--amb)' : 'var(--t2)';
+      return `<tr>
+        <td style="font-family:var(--mono);">${sanitize(r.m.part_no)}</td>
+        <td>${sanitize(r.m.part_name)}</td>
+        <td style="font-size:10.5px;">${sanitize(r.m.supplier || '-')}</td>
+        <td class="col-num" style="font-family:var(--mono);">₩${fmt(r.cur)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:var(--amb);font-weight:700;">${r.monthsSince}개월</td>
+        <td class="col-num" style="font-family:var(--mono);color:${tColor};">${sign}${r.trendPct.toFixed(1)}%</td>
+        <td style="font-size:10.5px;color:var(--t2);">${sanitize(r.reason)}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+// 시즈널리티 (전년 동기 백업 스냅샷과 비교)
+async function renderSeasonalityCard() {
+  const container = document.getElementById('season-body');
+  const summary = document.getElementById('season-summary');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:18px;font-size:11px;">백업 스냅샷 조회 중...</div>';
+  try {
+    const backups = await listBackups();
+    if (backups.length === 0) {
+      container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">백업 없음 — 백업이 12개월+ 누적되면 전년 동기 비교 가능</div>';
+      if (summary) summary.innerHTML = '<span style="color:var(--t3);">데이터 없음</span>';
+      return;
+    }
+    const today = new Date();
+    const targetTs = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()).getTime();
+    let closest = null, closestDiff = Infinity;
+    backups.forEach(b => {
+      const bts = b.state_json?._createdAt ? new Date(b.state_json._createdAt).getTime() : new Date(b.updated_at).getTime();
+      const diff = Math.abs(bts - targetTs);
+      if (diff < closestDiff) { closestDiff = diff; closest = { b, bts }; }
+    });
+    const closestDays = Math.floor(closestDiff / 86400000);
+    if (!closest || closestDays > 45) {
+      container.innerHTML = `<div style="text-align:center;color:var(--amb);padding:24px;font-size:11px;">전년 동기(±45일) 백업 없음<br><span style="font-size:10px;color:var(--t3);">가장 가까운 백업: ${closest ? new Date(closest.bts).toLocaleDateString('ko-KR') + ` (${closestDays}일 전)` : 'N/A'}</span></div>`;
+      if (summary) summary.innerHTML = `<span style="color:var(--amb);">동기 백업 없음 (가까운: ${closest ? closestDays + '일' : '-'})</span>`;
+      return;
+    }
+    const s = closest.b.state_json || {};
+    const past = { itemInputs: s.itemInputs || {}, orderHistory: s.orderHistory || [] };
+    let pastStockValue = 0, pastShort = 0, pastOrderCount = past.orderHistory.length;
+    MASTERS.forEach(m => {
+      const ipt = past.itemInputs[m.part_no] || {};
+      const stock = Number(ipt.starting_stock) || 0;
+      pastStockValue += stock * (m.unit_price || 0);
+      const monthlyNeed = ['may', 'jun', 'jul', 'aug'].reduce((acc, mk) => {
+        const prod = Number(ipt[mk + '_prod']) || 0;
+        return acc + prod * (m.qty_per_unit || 0);
+      }, 0);
+      if (stock < monthlyNeed) pastShort++;
+    });
+    let curStockValue = 0, curShort = 0;
+    MASTERS.forEach(m => {
+      const inp = state.itemInputs[m.part_no] || {};
+      const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
+      curStockValue += stock * (m.unit_price || 0);
+      if (getResult(m).anyShort) curShort++;
+    });
+    const curOrderCount = (state.orderHistory || []).length;
+    const delta = (cur, pst) => {
+      if (pst === 0) return cur === 0 ? '·' : '+∞';
+      const d = ((cur - pst) / pst) * 100;
+      return (d > 0 ? '+' : '') + d.toFixed(1) + '%';
+    };
+    const deltaColor = (cur, pst) => {
+      if (pst === 0) return 'var(--t3)';
+      const d = (cur - pst) / pst;
+      return Math.abs(d) >= 0.3 ? 'var(--red)' : Math.abs(d) >= 0.1 ? 'var(--amb)' : 'var(--teal)';
+    };
+    if (summary) summary.innerHTML = `전년 동기 백업: <span style="color:var(--teal);">${new Date(closest.bts).toLocaleDateString('ko-KR')}</span> (${closestDays}일 차)`;
+    container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+      <thead><tr style="background:var(--bg-card2);">
+        <th>KPI</th>
+        <th class="col-num">현재</th>
+        <th class="col-num">전년 동기</th>
+        <th class="col-num">변동률</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>총 재고가치</strong></td>
+          <td class="col-num" style="font-family:var(--mono);">₩${fmt(curStockValue)}</td>
+          <td class="col-num" style="font-family:var(--mono);color:var(--t3);">₩${fmt(pastStockValue)}</td>
+          <td class="col-num" style="font-family:var(--mono);font-weight:700;color:${deltaColor(curStockValue, pastStockValue)};">${delta(curStockValue, pastStockValue)}</td>
+        </tr>
+        <tr>
+          <td><strong>부족 품번 수</strong></td>
+          <td class="col-num" style="font-family:var(--mono);">${fmt(curShort)}</td>
+          <td class="col-num" style="font-family:var(--mono);color:var(--t3);">${fmt(pastShort)}</td>
+          <td class="col-num" style="font-family:var(--mono);font-weight:700;color:${deltaColor(curShort, pastShort)};">${delta(curShort, pastShort)}</td>
+        </tr>
+        <tr>
+          <td><strong>누적 발주 이력</strong></td>
+          <td class="col-num" style="font-family:var(--mono);">${fmt(curOrderCount)}건</td>
+          <td class="col-num" style="font-family:var(--mono);color:var(--t3);">${fmt(pastOrderCount)}건</td>
+          <td class="col-num" style="font-family:var(--mono);font-weight:700;color:${deltaColor(curOrderCount, pastOrderCount)};">${delta(curOrderCount, pastOrderCount)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+      💡 ±30% 변동은 red, ±10% 이상은 amber. 동일 모델 라인업이라는 가정 하 비교. 신규/단종 모델 영향은 별도 해석 필요.
+    </div>`;
+  } catch (e) {
+    container.innerHTML = `<div style="text-align:center;color:var(--red);padding:18px;font-size:11px;">조회 실패: ${e.message || e}</div>`;
+  }
+}
+
+// 기회손실 정밀화 (모델 ASP × 못 만든 대수)
+function computeOpportunityLoss() {
+  state.modelASP = state.modelASP || {};
+  const lossByModel = {};
+  MASTERS.forEach(m => {
+    const r = getResult(m);
+    if (!r.anyShort) return;
+    const model = m.model || displayName(m);
+    if (!model) return;
+    const qpu = Number(m.qty_per_unit) || 1;
+    if (qpu <= 0) return;
+    const reqs = ['may', 'jun', 'jul', 'aug'].map(mo => r.months[mo].required);
+    const shortages = [
+      Math.max(0, reqs[1] - r.months.may.ending),
+      Math.max(0, reqs[2] - r.months.jun.ending),
+      Math.max(0, reqs[3] - r.months.jul.ending),
+      Math.max(0, reqs[3] - r.months.aug.ending)
+    ];
+    const maxShort = Math.max(...shortages);
+    const lostUnits = Math.floor(maxShort / qpu);
+    if (lostUnits <= 0) return;
+    if (!lossByModel[model]) lossByModel[model] = { units: Infinity, bottleneck: null, parts: 0 };
+    if (lostUnits < lossByModel[model].units) {
+      lossByModel[model].units = lostUnits;
+      lossByModel[model].bottleneck = m;
+    }
+    lossByModel[model].parts++;
+  });
+  return Object.entries(lossByModel).map(([model, x]) => {
+    const asp = Number(state.modelASP[model]) || 0;
+    const lostUnits = x.units === Infinity ? 0 : x.units;
+    return { model, lostUnits, asp, loss: asp * lostUnits, bottleneck: x.bottleneck, partCount: x.parts };
+  }).sort((a, b) => b.loss - a.loss);
+}
+
+function renderOpportunityLossCard() {
+  const container = document.getElementById('opploss-body');
+  const summary = document.getElementById('opploss-summary');
+  if (!container) return;
+  const rows = computeOpportunityLoss();
+  const totalLoss = rows.reduce((s, r) => s + r.loss, 0);
+  const aspMissing = rows.filter(r => r.asp === 0 && r.lostUnits > 0).length;
+  if (summary) summary.innerHTML = rows.length > 0
+    ? `${rows.length} 모델 영향 · <span style="color:var(--red);font-weight:700;">예상 손실 ₩${fmt(totalLoss)}</span>${aspMissing > 0 ? ` · <span style="color:var(--amb);">ASP 미입력 ${aspMissing}</span>` : ''}`
+    : `<span style="color:var(--teal);">부족으로 인한 모델 영향 없음</span>`;
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--teal);padding:24px;font-size:11px;">✅ 부족으로 인한 모델 생산 영향 없음</div>';
+    return;
+  }
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>모델</th>
+      <th class="col-num">못 만들 대수</th>
+      <th>bottleneck 부품</th>
+      <th class="col-num">모델 ASP (원)</th>
+      <th class="col-num">기회손실 (원)</th>
+    </tr></thead>
+    <tbody>${rows.map(r => {
+      const bn = r.bottleneck;
+      return `<tr>
+        <td><strong>${sanitize(r.model)}</strong></td>
+        <td class="col-num" style="font-family:var(--mono);font-weight:700;color:var(--amb);">${fmt(r.lostUnits)}</td>
+        <td style="font-size:10.5px;">${bn ? `<span style="font-family:var(--mono);cursor:pointer;color:var(--sky);" class="opp-bn" data-pn="${sanitize(bn.part_no)}">${sanitize(bn.part_no)}</span> <span style="color:var(--t3);">${sanitize(bn.part_name)}</span>` : '-'}</td>
+        <td class="col-num">
+          <input type="number" class="asp-input" data-model="${sanitize(r.model)}" value="${r.asp || ''}" min="0" step="10000" placeholder="입력" style="width:140px;font-family:var(--mono);font-size:11px;padding:4px 6px;background:var(--bg-card);border:0.5px solid ${r.asp === 0 ? 'var(--amb-b)' : 'var(--border2)'};color:var(--t1);border-radius:3px;text-align:right;">
+        </td>
+        <td class="col-num" style="font-family:var(--mono);font-weight:700;color:${r.loss > 0 ? 'var(--red)' : 'var(--t3)'};">${r.loss > 0 ? '₩' + fmt(r.loss) : '-'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>
+  <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+    💡 <strong>ASP(Average Selling Price)</strong>는 영업 부서 제공 평균 판매가. 영업 협조 후 입력 → 자동 누적. 모델별 마진 차이를 반영해 임원 보고용 매출 손실 추정에 사용.
+  </div>`;
+  container.querySelectorAll('.asp-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const model = inp.dataset.model;
+      const before = Number(state.modelASP[model] || 0);
+      const after = Number(inp.value) || 0;
+      if (before === after) return;
+      state.modelASP[model] = after;
+      state.auditLog = state.auditLog || [];
+      state.auditLog.push({
+        ts: new Date().toISOString(),
+        user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+        action: 'model_asp_update',
+        field: `modelASP.${model}`,
+        before: fmt(before), after: fmt(after)
+      });
+      if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+      saveInputs();
+      renderOpportunityLossCard();
+    });
+  });
+  container.querySelectorAll('.opp-bn').forEach(el => {
+    el.addEventListener('click', () => goToFormRow(el.dataset.pn));
+  });
+}
+
+// 데드 스톡 분석 — 윈도우 사용량 0 + 시작재고 보유
+function renderDeadStockCard() {
+  const container = document.getElementById('deadstock-body');
+  const summary = document.getElementById('deadstock-summary');
+  if (!container) return;
+  const rows = MASTERS.map(m => {
+    const r = getResult(m);
+    const inp = state.itemInputs[m.part_no] || {};
+    const stock = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
+    const totalReq = ['may', 'jun', 'jul', 'aug'].reduce((s, mo) => s + r.months[mo].required, 0);
+    if (totalReq > 0 || stock <= 0) return null;
+    const value = stock * (m.unit_price || 0);
+    return { m, stock, value };
+  }).filter(Boolean).sort((a, b) => b.value - a.value);
+  const totalValue = rows.reduce((s, r) => s + r.value, 0);
+  if (summary) summary.innerHTML = rows.length > 0
+    ? `${rows.length} 품목 · 묶인 자본 <span style="color:var(--red);font-weight:700;">₩${fmt(totalValue)}</span>`
+    : `<span style="color:var(--teal);">데드 스톡 없음</span>`;
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--teal);padding:24px;font-size:11px;">✅ 데드 스톡 없음 — 모든 시작재고 보유 품목이 윈도우 내 사용 예정</div>';
+    return;
+  }
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>품번</th><th>품명</th><th>공급사</th>
+      <th class="col-num">시작재고</th>
+      <th class="col-num">단가</th>
+      <th class="col-num">묶인 자본</th>
+      <th>메모</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `
+      <tr>
+        <td style="font-family:var(--mono);">${sanitize(r.m.part_no)}</td>
+        <td>${sanitize(r.m.part_name)}</td>
+        <td style="font-size:10.5px;">${sanitize(r.m.supplier || '-')}</td>
+        <td class="col-num" style="font-family:var(--mono);">${fmt(r.stock)}</td>
+        <td class="col-num" style="font-family:var(--mono);">₩${fmt(r.m.unit_price)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:var(--red);font-weight:700;">₩${fmt(r.value)}</td>
+        <td style="font-size:10px;color:var(--t3);">${sanitize(r.m.memo || '-')}</td>
+      </tr>`).join('')}</tbody>
+  </table>
+  <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+    💡 검토 가이드: 6개월 이상 데드 → 단종/대체품 후보 / A/S 부품 → 메모에 명시 후 정상 / 시즌성 품목 → 다음 윈도우 활성화 예정 표시.
+  </div>`;
 }
 
 // 공급사 종합 평가 점수화
