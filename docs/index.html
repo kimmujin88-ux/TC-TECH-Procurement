@@ -1408,6 +1408,45 @@ html.login-locked, html.login-locked body { overflow: hidden; }
   </div>
   <input type="file" id="erp-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
 
+  <!-- 🛡 안전재고 설정 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🛡 안전재고 설정</div>
+        <div class="card__hint">부족 판정 = n월말 재고 < (n+1)월 필요수량 × 안전계수 · 품목별 안전계수는 부품 마스터에서 개별 지정 가능</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <label style="font-size:11px;color:var(--t2);">전역 안전계수 (배):</label>
+        <input type="number" id="safety-multiplier" min="0.1" max="5" step="0.1" style="font-size:11px;padding:5px 8px;width:80px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;text-align:center;font-family:var(--mono);font-weight:700;">
+        <span id="safety-preset" style="display:flex;gap:4px;">
+          <button class="btn btn--ghost btn--sm" data-sf="1.0" style="font-size:10px;padding:3px 8px;">1.0 (기본)</button>
+          <button class="btn btn--ghost btn--sm" data-sf="1.5" style="font-size:10px;padding:3px 8px;">1.5</button>
+          <button class="btn btn--ghost btn--sm" data-sf="2.0" style="font-size:10px;padding:3px 8px;">2.0 (보수)</button>
+        </span>
+      </div>
+    </div>
+    <div class="card__body" style="padding:10px 16px;font-size:11px;color:var(--t2);line-height:1.7;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;">
+        <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+          <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">현재 적용 (전역)</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--teal);" id="safety-current">1.0 배</div>
+        </div>
+        <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+          <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">개별 안전계수 설정 품목</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--sky);" id="safety-overrides-count">0 품번</div>
+        </div>
+        <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+          <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">현재 부족 품번 수</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red);" id="safety-short-count">- 품번</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:10.5px;color:var(--t3);line-height:1.6;">
+        💡 <strong>운영 가이드:</strong> 안전계수 1.0 = 다음달 1개월치만 확보 (현재 시스템 기본). 1.5 = 1.5개월치 = 약간의 여유. 2.0 = 2개월치 = 공급 불안정 시 사용.<br>
+        품목별로 LT가 다르므로, 장LT 품목은 마스터에서 개별 안전계수(예: 2.0)를 지정 권장.
+      </div>
+    </div>
+  </div>
+
   <!-- 🔧 부품 마스터 관리 -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -1436,6 +1475,23 @@ html.login-locked, html.login-locked body { overflow: hidden; }
         </tr></thead>
         <tbody id="masters-tbody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ⏱ LT 실측 vs 마스터 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">⏱ LT 실측 vs 마스터</div>
+        <div class="card__hint">발주이력의 발주일·입고확인일 차이로 자동 산출 · 갭 ±30% 이상이면 마스터 LT 재검토 권장 · 입고 확인 데이터 누적 시 정확도 향상</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="lt-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+        <button class="btn btn--ghost btn--sm" id="btn-export-lt">실측 LT Excel</button>
+      </div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;">
+      <div id="lt-comparison-body"></div>
     </div>
   </div>
 
@@ -1503,6 +1559,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="section-title__label">▎ 발주 확정 및 관리</div>
     <div style="display: flex; gap: 8px; align-items: center;">
       <div class="section-title__hint">수량 수정 시 자동 저장됩니다.</div>
+      <button class="btn btn--sm" id="btn-bulk-print-po" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);">📑 발주서 일괄 인쇄</button>
       <button class="btn btn--ghost btn--sm" id="btn-reset-orders" style="color: var(--red); border-color: var(--red-b);">수정 사항 전체 초기화</button>
     </div>
   </div>
@@ -1869,14 +1926,19 @@ function computeRow(master, inp) {
     result.months[m] = { qty, required, incoming, ending };
     prevEnding = ending;
   }
-  // 부족 판정: n월말 재고 < (n+1)월 필요수량
+  // 부족 판정: n월말 재고 < (n+1)월 필요수량 × 안전계수
   // 9월은 데이터 없음 → 8월말은 8월 필요수량으로 비교 (임시)
+  // 안전계수: 품목별 safety_factor 우선, 없으면 state.safetyStockMultiplier (기본 1.0)
   const reqs = months.map(m => result.months[m].required);
+  const sf = (Number(master.safety_factor) > 0)
+    ? Number(master.safety_factor)
+    : (Number(state.safetyStockMultiplier) > 0 ? Number(state.safetyStockMultiplier) : 1.0);
+  result.safetyFactor = sf;
   result.shortAt = {
-    may: result.months.may.ending < reqs[1],  // < 6월 필요
-    jun: result.months.jun.ending < reqs[2],  // < 7월 필요
-    jul: result.months.jul.ending < reqs[3],  // < 8월 필요
-    aug: result.months.aug.ending < reqs[3]   // < 9월(=8월 추정)
+    may: result.months.may.ending < reqs[1] * sf,
+    jun: result.months.jun.ending < reqs[2] * sf,
+    jul: result.months.jul.ending < reqs[3] * sf,
+    aug: result.months.aug.ending < reqs[3] * sf
   };
   result.anyShort = result.shortAt.may || result.shortAt.jun || result.shortAt.jul || result.shortAt.aug;
   // 최초 부족 시점
@@ -2772,9 +2834,10 @@ function showMasterModal(idx) {
           ${field('대당소요', 'qty_per_unit', 'number', v(m.qty_per_unit || 1), 'min="0" step="any"')}
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 18px;border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
         ${field('시작재고', 'starting_stock', 'number', v(m.starting_stock || 0), 'min="0"')}
         ${field('ERP재고', 'erp_stock', 'number', v(m.erp_stock || 0), 'min="0"')}
+        ${field('안전계수 (배)', 'safety_factor', 'number', v(m.safety_factor || ''), 'min="0" step="0.1" placeholder="비우면 전역값"')}
       </div>
       <div style="border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
         <label style="display:block;font-size:11px;color:var(--t2);margin-bottom:4px;">📝 메모 (선택 · 용도·특이사항·대체품 등)</label>
@@ -2798,6 +2861,9 @@ async function saveMasterRecord(idx) {
   ['lead_time_days', 'unit_price', 'qty_per_unit', 'starting_stock', 'erp_stock'].forEach(k => {
     if (data[k] !== '' && data[k] != null) data[k] = Number(data[k]) || 0;
   });
+  // safety_factor는 비어있으면 삭제(전역값 사용), 값 있으면 숫자 변환
+  if (data.safety_factor === '' || data.safety_factor == null) delete data.safety_factor;
+  else data.safety_factor = Number(data.safety_factor) || undefined;
   if (!data.part_no || !data.part_name) { alert('품번과 품명은 필수입니다.'); return; }
   const isNew = idx === -1;
   if (isNew) {
@@ -3075,7 +3141,7 @@ function setActiveTab(t) {
     setTimeout(() => document.querySelectorAll('.order-qty-input').forEach(validateMOQOnInput), 80);
   }
   else if (t === 'history') renderHistory();
-  if (t === 'data') { renderBackups(); renderMastersTable(); }
+  if (t === 'data') { renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.querySelectorAll('.tab').forEach(btn => {
@@ -3321,6 +3387,7 @@ function onModelInputChange(e) {
   
   saveInputs();
   updateOrderCount();
+  if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI();
 }
 
 // 품목의 입고계획 변경 → 해당 행만 재계산
@@ -5086,6 +5153,7 @@ function confirmReceipt(dateStr) {
   });
   if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
   saveInputs();
+  if (typeof renderLTComparison === 'function') renderLTComparison();
 }
 
 function deleteHistory(dateStr) {
@@ -5201,6 +5269,121 @@ function exportExcel() {
 }
 
 // ── 월 이월 처리 (데이터 시프트 + periodStartMonth +1, 연 wrap 처리) ──
+// 월 마감 체크리스트 모달 — 이월 전 점검 항목 표시 + 자동 백업 → rolloverMonth 호출
+async function showMonthCloseChecklist() {
+  if (window.guardAdmin && !window.guardAdmin('월 이월 처리')) return;
+  const beforeLabel = monthLabel('may');
+  const afterLabel = monthLabel('jun');
+  const beforeRange = rangeLabel();
+  const issues = [];
+
+  // 1. 미확인 입고
+  const unreceivedOrders = (state.orderHistory || []).filter(o => !o.received);
+  if (unreceivedOrders.length > 0) {
+    const samples = unreceivedOrders.slice(0, 3).map(o => `${o.date || ''} ${o.supplier || ''}`.trim()).filter(Boolean).join(', ');
+    issues.push({
+      severity: 'warn', title: '미확인 입고', count: unreceivedOrders.length,
+      detail: `${unreceivedOrders.length}건의 발주가 아직 입고 확인되지 않음${samples ? ` (예: ${samples})` : ''}`,
+      action: '발주 이력 탭에서 ✅ 입고 확인 버튼 클릭'
+    });
+  }
+  // 2. 미확정 발주 (부족인데 override 없음)
+  const unconfirmedShort = MASTERS.filter(m => {
+    const r = getResult(m);
+    const hasOverride = state.orderOverrides && state.orderOverrides[m.part_no] !== undefined;
+    return r.anyShort && !hasOverride;
+  });
+  if (unconfirmedShort.length > 0) {
+    const samples = unconfirmedShort.slice(0, 3).map(m => m.part_no).join(', ');
+    issues.push({
+      severity: 'critical', title: '미확정 발주 (부족 품목)', count: unconfirmedShort.length,
+      detail: `${unconfirmedShort.length}개 품목이 부족 상태이나 발주 미확정 (예: ${samples})`,
+      action: '발주 확정 탭에서 발주서 생성·확정'
+    });
+  }
+  // 3. 다음 사이클 첫 달 제작대수 0
+  const missingProd = [];
+  Object.entries(state.modelInputs || {}).forEach(([dn, mi]) => {
+    if (!mi || (Number(mi.jun_qty) || 0) === 0) missingProd.push(dn);
+  });
+  if (missingProd.length > 0) {
+    issues.push({
+      severity: 'warn', title: `${afterLabel} 제작대수 누락`, count: missingProd.length,
+      detail: `이월 후 ${afterLabel} 제작대수=0인 모델 ${missingProd.length}개 (예: ${missingProd.slice(0, 3).join(', ')})`,
+      action: '수급 운영 계획에서 영업 부서 확인 후 입력'
+    });
+  }
+  // 4. 최근 백업 조회
+  let backupInfo = null;
+  try {
+    const backups = await listBackups();
+    if (backups.length > 0) {
+      const latest = backups[0];
+      const ts = latest.state_json?._createdAt ? new Date(latest.state_json._createdAt) : new Date(latest.updated_at);
+      const daysAgo = Math.floor((Date.now() - ts.getTime()) / 86400000);
+      backupInfo = { ts, daysAgo };
+    }
+  } catch (e) {}
+
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.querySelector('.modal__title');
+  modalTitle.textContent = '📅 월 이월 처리 체크리스트';
+  const sevColor = { critical: 'var(--red)', warn: 'var(--amb)' };
+  const sevIcon = { critical: '🔴', warn: '🟡' };
+
+  modalBody.innerHTML = `<div style="padding:18px 22px;color:var(--t1);">
+    <div style="background:rgba(245,158,11,0.08);border-left:3px solid var(--amb);padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:11px;color:var(--t2);">
+      ⚠ <strong style="color:var(--amb);">이월 처리 전 점검</strong> · 현재 윈도우 <strong>${beforeRange}</strong> → 새 윈도우 첫 달 <strong>${afterLabel}</strong><br>
+      이월 직전 자동 백업이 생성되며, 되돌리려면 데이터 점검 → 백업 미리보기·복원 사용.
+    </div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:6px;font-weight:600;">
+      점검 결과: ${issues.length > 0 ? `<span style="color:var(--red);">${issues.length}개 항목 확인 필요</span>` : '<span style="color:var(--teal);">모든 항목 OK</span>'}
+    </div>
+    <div style="border:0.5px solid var(--border2);border-radius:6px;overflow:hidden;">
+      ${issues.length === 0
+        ? `<div style="text-align:center;color:var(--teal);padding:24px;font-size:12px;">✅ 점검 항목 이상 없음 — 이월 진행 가능</div>`
+        : issues.map(iss => `
+        <div style="padding:12px 14px;border-bottom:0.5px solid var(--border2);background:var(--bg-card);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <div style="font-size:11.5px;font-weight:700;color:${sevColor[iss.severity]};">
+              ${sevIcon[iss.severity]} ${iss.title}
+              <span style="color:var(--t1);font-weight:800;margin-left:6px;">${iss.count}</span>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--t2);margin-bottom:3px;">${sanitize(iss.detail)}</div>
+          <div style="font-size:10.5px;color:var(--t3);">→ ${sanitize(iss.action)}</div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;font-size:11px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--t3);">최근 백업:</span>
+      <span style="${backupInfo ? (backupInfo.daysAgo <= 7 ? 'color:var(--teal);' : 'color:var(--amb);') : 'color:var(--red);'}font-family:var(--mono);">
+        ${backupInfo ? `${backupInfo.daysAgo}일 전 · ${backupInfo.ts.toLocaleString('ko-KR')}` : '백업 없음 (권장: 이월 전 백업)'}
+      </span>
+    </div>
+    <div style="margin-top:14px;padding:10px 14px;background:rgba(56,201,160,0.06);border:0.5px solid var(--teal-b);border-radius:6px;font-size:10.5px;color:var(--t2);line-height:1.7;">
+      ☑ <strong style="color:var(--teal);">이월 진행 시 자동 처리:</strong><br>
+      &nbsp;&nbsp;1. "월 이월 처리 자동 백업" 즉시 생성<br>
+      &nbsp;&nbsp;2. ${beforeLabel} 기말재고 → 새 사이클 시작재고<br>
+      &nbsp;&nbsp;3. 월별 계획·입고 한 칸씩 앞으로 이동<br>
+      &nbsp;&nbsp;4. 운영 윈도우 +1 (${beforeRange} → ${afterLabel}~)
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;gap:8px;">
+      <button class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
+      <button class="btn" id="btn-checklist-proceed" style="background:var(--amb);color:#1a1a1a;font-weight:700;">점검 완료 · 이월 진행</button>
+    </div>
+  </div>`;
+  modal.classList.add('modal-backdrop--open');
+
+  document.getElementById('btn-checklist-proceed').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-checklist-proceed');
+    btn.disabled = true; btn.textContent = '백업 생성 중...';
+    try { await createBackup('월 이월 처리 자동 백업', false); } catch (e) { console.warn('이월 전 백업 실패', e); }
+    document.getElementById('modal').classList.remove('modal-backdrop--open');
+    rolloverMonth();
+  });
+}
+
 function rolloverMonth() {
   const beforeMay = monthLabel('may');
   const beforeJun = monthLabel('jun');
@@ -5635,6 +5818,285 @@ setTimeout(() => {
   if (!localStorage.getItem('tctech_tutorial_seen')) showTutorialModal();
 }, 1800);
 
+// 안전재고 전역 multiplier 핸들러
+function updateSafetyStockUI() {
+  const cur = Number(state.safetyStockMultiplier) > 0 ? Number(state.safetyStockMultiplier) : 1.0;
+  const input = document.getElementById('safety-multiplier');
+  if (input && document.activeElement !== input) input.value = cur.toFixed(1);
+  const curEl = document.getElementById('safety-current');
+  if (curEl) curEl.textContent = cur.toFixed(1) + ' 배';
+  const overrideCount = MASTERS.filter(m => Number(m.safety_factor) > 0).length;
+  const overrideEl = document.getElementById('safety-overrides-count');
+  if (overrideEl) overrideEl.textContent = overrideCount + ' 품번';
+  const shortCount = MASTERS.filter(m => getResult(m).anyShort).length;
+  const shortEl = document.getElementById('safety-short-count');
+  if (shortEl) shortEl.textContent = shortCount + ' 품번';
+}
+function applySafetyMultiplier(newVal, source) {
+  if (window.guardAdmin && !window.guardAdmin('안전재고 설정')) return;
+  const v = Math.max(0.1, Math.min(5, Number(newVal) || 1.0));
+  const before = Number(state.safetyStockMultiplier) > 0 ? Number(state.safetyStockMultiplier) : 1.0;
+  if (Math.abs(before - v) < 0.001) { updateSafetyStockUI(); return; }
+  state.safetyStockMultiplier = v;
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'safety_multiplier_update',
+    field: '전역 안전계수',
+    before: before.toFixed(1) + ' 배',
+    after: v.toFixed(1) + ' 배 (' + (source || 'manual') + ')'
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
+  renderForm();
+  updateOrderCount();
+  updateSafetyStockUI();
+}
+document.getElementById('safety-multiplier')?.addEventListener('change', (e) => applySafetyMultiplier(e.target.value, 'input'));
+document.querySelectorAll('#safety-preset [data-sf]').forEach(btn => {
+  btn.addEventListener('click', () => applySafetyMultiplier(btn.dataset.sf, 'preset ' + btn.dataset.sf));
+});
+setTimeout(updateSafetyStockUI, 800);
+
+// LT 실측 vs 마스터 — 발주이력의 발주일과 입고확인일 차이로 자동 산출
+function buildLTActuals() {
+  const map = {};
+  (state.orderHistory || []).forEach(o => {
+    if (!o.received || !o.receivedAt || !o.date) return;
+    const d1 = new Date(o.date);
+    const d2 = new Date(o.receivedAt);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return;
+    const days = Math.floor((d2 - d1) / 86400000);
+    if (days < 0 || days > 365) return;
+    (o.items || []).forEach(it => {
+      if (!it.partNo) return;
+      map[it.partNo] = map[it.partNo] || [];
+      map[it.partNo].push(days);
+    });
+  });
+  return map;
+}
+
+function renderLTComparison() {
+  const container = document.getElementById('lt-comparison-body');
+  if (!container) return;
+  const map = buildLTActuals();
+  const rows = MASTERS.map(m => {
+    const arr = map[m.part_no] || [];
+    if (arr.length === 0) return null;
+    const avg = arr.reduce((s, x) => s + x, 0) / arr.length;
+    const masterLT = Number(m.lead_time_days) || 0;
+    const gap = avg - masterLT;
+    const gapPct = masterLT > 0 ? (gap / masterLT) * 100 : 0;
+    return { m, avg, max: Math.max(...arr), min: Math.min(...arr), count: arr.length, gap, gapPct };
+  }).filter(Boolean).sort((a, b) => Math.abs(b.gapPct) - Math.abs(a.gapPct));
+
+  const summaryEl = document.getElementById('lt-summary');
+  if (summaryEl) {
+    const critical = rows.filter(r => Math.abs(r.gapPct) >= 30).length;
+    summaryEl.innerHTML = `샘플 ${rows.length}품목 · <span style="color:${critical > 0 ? 'var(--red)' : 'var(--teal)'};font-weight:700;">갭 30%+ ${critical}건</span>`;
+  }
+
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">실측 LT 데이터 없음 · 발주 이력에서 ✅ 입고 확인을 하면 자동 누적됩니다</div>';
+    return;
+  }
+
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>품번</th><th>품명</th><th>공급사</th>
+      <th class="col-num">마스터 LT</th>
+      <th class="col-num">실측 평균</th>
+      <th class="col-num">min~max</th>
+      <th class="col-num">샘플</th>
+      <th class="col-num">갭</th>
+    </tr></thead>
+    <tbody>${rows.slice(0, 50).map(r => {
+      const absPct = Math.abs(r.gapPct);
+      const gapColor = absPct >= 30 ? 'var(--red)' : absPct >= 15 ? 'var(--amb)' : 'var(--teal)';
+      const sign = r.gap > 0 ? '+' : '';
+      return `<tr>
+        <td style="font-family:var(--mono);">${sanitize(r.m.part_no)}</td>
+        <td>${sanitize(r.m.part_name)}</td>
+        <td style="font-size:10.5px;">${sanitize(r.m.supplier || '-')}</td>
+        <td class="col-num" style="font-family:var(--mono);">${r.m.lead_time_days || '-'}일</td>
+        <td class="col-num" style="font-family:var(--mono);font-weight:700;">${r.avg.toFixed(1)}일</td>
+        <td class="col-num" style="font-family:var(--mono);font-size:10px;color:var(--t3);">${r.min}~${r.max}</td>
+        <td class="col-num">${r.count}건</td>
+        <td class="col-num" style="font-family:var(--mono);color:${gapColor};font-weight:700;">${sign}${r.gap.toFixed(1)}일 (${sign}${r.gapPct.toFixed(0)}%)</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function exportLTComparison() {
+  if (typeof XLSX === 'undefined') { alert('Excel 라이브러리 로드 실패'); return; }
+  const map = buildLTActuals();
+  const rows = MASTERS.map(m => {
+    const arr = map[m.part_no] || [];
+    if (arr.length === 0) return null;
+    const avg = arr.reduce((s, x) => s + x, 0) / arr.length;
+    const masterLT = Number(m.lead_time_days) || 0;
+    return {
+      품번: m.part_no, 품명: m.part_name, 공급사: m.supplier || '',
+      마스터LT_일: masterLT,
+      실측평균_일: Number(avg.toFixed(1)),
+      최소: Math.min(...arr), 최대: Math.max(...arr),
+      샘플수: arr.length,
+      갭_일: Number((avg - masterLT).toFixed(1)),
+      갭_퍼센트: masterLT > 0 ? Number(((avg - masterLT) / masterLT * 100).toFixed(0)) : null
+    };
+  }).filter(Boolean);
+  if (rows.length === 0) { alert('실측 LT 데이터가 없습니다.'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'LT_실측_vs_마스터');
+  XLSX.writeFile(wb, `LT_실측_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+document.getElementById('btn-export-lt')?.addEventListener('click', exportLTComparison);
+setTimeout(renderLTComparison, 900);
+
+// 발주서 일괄 인쇄 — 새 창에서 공급사별 페이지 break로 분리 → 브라우저 인쇄/PDF 저장
+function bulkPrintPOs() {
+  if (window.guardAdmin && !window.guardAdmin('발주서 일괄 인쇄')) return;
+  const shorts = MASTERS.filter(m => getResult(m).anyShort || state.orderOverrides[m.part_no] !== undefined);
+  const bySupplier = {};
+  shorts.forEach(m => {
+    const sup = m.supplier || '';
+    if (!sup || !SUPPLIER_INFO[sup]) return;
+    if (!bySupplier[sup]) bySupplier[sup] = [];
+    bySupplier[sup].push(m);
+  });
+  const suppliers = Object.keys(bySupplier);
+  if (suppliers.length === 0) { alert('인쇄 대상 발주서 없음 (국내 공급사 + 부족 품목 필요)'); return; }
+  if (!confirm(`${suppliers.length}개 공급사의 발주서를 새 창에 한 번에 표시합니다.\n각 발주서는 페이지 break로 분리되어 PDF 저장 가능.\n\n진행하시겠습니까?`)) return;
+
+  const today = new Date();
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const orderDate = today.toISOString().slice(0, 10);
+  const delivDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 12).toISOString().slice(0, 10);
+  const monthLabelStr = `${nextMonth.getFullYear()}년 ${nextMonth.getMonth() + 1}월`;
+  const logoSrc = document.querySelector('header img, .po-header-logo img')?.src || 'logo.png';
+
+  const allPOs = suppliers.map(supplier => {
+    const info = SUPPLIER_INFO[supplier];
+    const items = bySupplier[supplier].map(m => ({
+      master: m, qty: getOrderQty(m), bigo: typeof defaultBigo === 'function' ? defaultBigo(m) : '', groupKey: displayName(m)
+    })).filter(it => it.qty > 0);
+    if (items.length === 0) return '';
+    const grouped = {};
+    items.forEach(it => { if (!grouped[it.groupKey]) grouped[it.groupKey] = []; grouped[it.groupKey].push(it); });
+    let totalQty = 0, totalAmt = 0;
+    items.forEach(it => { totalQty += it.qty; totalAmt += it.qty * (it.master.unit_price || 0); });
+    const itemsHtml = Object.entries(grouped).map(([groupKey, gItems]) =>
+      gItems.map((it, i) => `
+        <tr>
+          <td>${i === 0 ? sanitize(groupKey) : ''}</td>
+          <td class="po-mono">${sanitize(it.master.part_no)}</td>
+          <td>${sanitize(it.master.part_name)}</td>
+          <td class="po-right po-mono">${fmt(it.qty)}</td>
+          <td class="po-right po-mono">${fmt(it.master.unit_price)}</td>
+          <td class="po-right po-mono">${fmt(it.qty * (it.master.unit_price || 0))}</td>
+          <td>${sanitize(it.bigo || '')}</td>
+        </tr>`).join('')
+    ).join('');
+    return `<div class="bulk-po-page">
+      <div class="po-header-logo"><img src="${logoSrc}" alt="TC TECH"></div>
+      <div class="po-title">${sanitize(monthLabelStr)} 구매품 발주서</div>
+      <div class="po-info-grid">
+        <div class="po-info-block"><div class="po-info-head">발 주 처</div>
+          <table class="po-info-table">
+            <tr><th>회사명</th><td>${sanitize(BUYER_INFO.company)}</td><th>담당자</th><td>${sanitize(BUYER_INFO.contact)}</td></tr>
+            <tr><th>사업자번호</th><td>${sanitize(BUYER_INFO.bizNo)}</td><th>연락처</th><td>${sanitize(BUYER_INFO.phone)}</td></tr>
+            <tr><th>대표자</th><td>${sanitize(BUYER_INFO.ceo)}</td><th>발주일자</th><td>${orderDate}</td></tr>
+            <tr><th>주소</th><td colspan="3">${sanitize(BUYER_INFO.address)}</td></tr>
+          </table>
+        </div>
+        <div class="po-info-block"><div class="po-info-head">수 신 처</div>
+          <table class="po-info-table">
+            <tr><th>회사명</th><td>${sanitize(info.company)}</td><th>담당자</th><td>${sanitize(info.contact)}</td></tr>
+            <tr><th>사업자번호</th><td>${sanitize(info.bizNo)}</td><th>연락처</th><td>${sanitize(info.phone)}</td></tr>
+            <tr><th>대표자</th><td>${sanitize(info.ceo)}</td><th>납기일자</th><td>${delivDate}</td></tr>
+            <tr><th>주소</th><td colspan="3">${sanitize(info.address)}</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="po-section-head">▶  ${sanitize(monthLabelStr.split(' ')[1])} 발주분 (확정)</div>
+      <table class="po-items-table">
+        <thead><tr>
+          <th class="po-w-model">모델</th><th class="po-w-pn">품번</th><th>품명</th>
+          <th class="po-right po-w-qty">발주 수량(EA)</th>
+          <th class="po-right po-w-price">단가(원)</th>
+          <th class="po-right po-w-amt">금액(원)</th>
+          <th class="po-w-bigo">비고</th>
+        </tr></thead>
+        <tbody>
+          ${itemsHtml}
+          <tr><td colspan="7" class="po-blank-cell"><span class="po-blank-label">이  하  여  백</span></td></tr>
+          <tr class="po-total-row">
+            <td colspan="3" class="po-right">공급가액 합계</td>
+            <td class="po-right po-mono">${fmt(totalQty)}</td>
+            <td></td>
+            <td class="po-right po-mono">${fmt(totalAmt)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="po-stamp-area">
+        <div class="po-stamp-block"><div class="po-stamp-label">발주처 확인</div><div class="po-stamp-box"></div></div>
+        <div class="po-stamp-block"><div class="po-stamp-label">수신처 확인</div><div class="po-stamp-box"></div></div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  const fullHtml = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><title>발주서 일괄 (${suppliers.length}건) - ${monthLabelStr}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  body { font-family: 'Malgun Gothic', sans-serif; color: #000; margin: 0; padding: 0; background: #fff; font-size: 11px; }
+  .bulk-po-page { padding: 14mm; page-break-after: always; box-sizing: border-box; }
+  .bulk-po-page:last-child { page-break-after: auto; }
+  .po-header-logo { text-align: right; margin-bottom: 8px; }
+  .po-header-logo img { height: 36px; }
+  .po-title { font-size: 22px; font-weight: 800; text-align: center; margin: 6px 0 14px; }
+  .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .po-info-block { border: 1.5px solid #000; }
+  .po-info-head { background: #d0d0d0; text-align: center; font-weight: 700; padding: 4px; font-size: 12px; }
+  .po-info-table { width: 100%; border-collapse: collapse; }
+  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 4px 6px; font-size: 10.5px; vertical-align: middle; }
+  .po-info-table th { background: #f0f0f0; width: 22%; text-align: left; font-weight: 700; }
+  .po-section-head { font-size: 13px; font-weight: 700; margin: 8px 0 6px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
+  .po-items-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  .po-items-table th, .po-items-table td { border: 0.5px solid #555; padding: 4px 5px; }
+  .po-items-table th { background: #d0d0d0; text-align: center; font-weight: 700; }
+  .po-w-model { width: 18%; } .po-w-pn { width: 13%; } .po-w-qty { width: 8%; } .po-w-price { width: 10%; } .po-w-amt { width: 12%; } .po-w-bigo { width: 14%; }
+  .po-right { text-align: right; }
+  .po-mono { font-family: Consolas, 'Courier New', monospace; }
+  .po-blank-cell { text-align: center; padding: 10px 0; background: #fafafa; }
+  .po-blank-label { color: #888; font-size: 10px; letter-spacing: 4px; }
+  .po-total-row td { background: #f0f0f0; font-weight: 700; }
+  .po-stamp-area { display: flex; gap: 20px; margin-top: 18px; justify-content: flex-end; }
+  .po-stamp-block { text-align: center; }
+  .po-stamp-label { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+  .po-stamp-box { width: 120px; height: 60px; border: 1.5px solid #000; }
+  @media screen { body { background: #f5f5f5; } .bulk-po-page { background: #fff; max-width: 200mm; margin: 20px auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); } }
+  @media print { .no-print { display: none !important; } }
+</style></head><body>
+${allPOs}
+<div class="no-print" style="position:fixed;top:10px;right:10px;background:#fff;border:1px solid #ccc;padding:10px 14px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.15);z-index:9999;">
+  <button onclick="window.print()" style="padding:8px 16px;background:#111;color:#fff;border:0;cursor:pointer;font-size:13px;font-weight:700;border-radius:3px;">🖨 인쇄 / PDF 저장</button>
+  <span style="margin-left:10px;color:#555;font-size:11px;">${suppliers.length}개 공급사 · 페이지 break 분리</span>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('팝업이 차단되었습니다. 브라우저 팝업 허용 후 재시도해 주세요.'); return; }
+  w.document.write(fullHtml);
+  w.document.close();
+}
+document.getElementById('btn-bulk-print-po')?.addEventListener('click', bulkPrintPOs);
+
 // 글로벌 빠른 검색 (헤더)
 const _globalSearchInput = document.getElementById('global-search-input');
 if (_globalSearchInput) {
@@ -5676,7 +6138,7 @@ document.getElementById('btn-export-json').addEventListener('click', () => {
   a.click(); URL.revokeObjectURL(url);
 });
 
-document.getElementById('btn-rollover').addEventListener('click', rolloverMonth);
+document.getElementById('btn-rollover').addEventListener('click', showMonthCloseChecklist);
 
 document.getElementById('btn-clear-history').addEventListener('click', () => {
   if (!confirm('발주 이력을 전체 삭제하시겠습니까?')) return;
