@@ -2505,11 +2505,115 @@ async function renderBackups() {
       <td>${sanitize(s._label || '-')}</td>
       <td style="font-size:10px;">${sanitize(s._createdBy || '-')}</td>
       <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn--ghost btn--sm" onclick="previewBackup('${b.id}')" style="margin-right:4px;">🔍 미리보기</button>
         <button class="btn btn--sm" onclick="restoreBackup('${b.id}')" style="margin-right:4px;">복원</button>
         <button class="btn btn--ghost btn--sm" onclick="deleteBackup('${b.id}')" style="color:var(--red);border-color:var(--red-b);">삭제</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+// 백업 미리보기 (read-only) - 현재 상태를 변경하지 않고 그 시점 데이터를 모달로 표시
+async function previewBackup(id) {
+  try {
+    const { data, error } = await _supa.from('app_state').select('state_json').eq('id', id).single();
+    if (error || !data) throw error || new Error('백업 데이터 없음');
+    const s = data.state_json || {};
+    const itemInputs = s.itemInputs || {};
+    const orderHistory = s.orderHistory || [];
+    const periodMonth = s.periodStartMonth || 5;
+    const periodYear = s.periodYear || new Date().getFullYear();
+    const tsStr = s._createdAt ? new Date(s._createdAt).toLocaleString('ko-KR') : '-';
+    const label = s._label || '-';
+    const createdBy = s._createdBy || '-';
+    const type = s._type === 'auto' ? '🔄 자동' : '✏ 수동';
+
+    // 백업 시점의 부족 시뮬레이션 (현재 MASTERS 기준 - 마스터는 보통 안 바뀜)
+    let shortCount = 0, totalStockValue = 0, totalOrderQty = 0;
+    MASTERS.forEach(m => {
+      const ipt = itemInputs[m.part_no] || {};
+      const stock = Number(ipt.current_stock) || 0;
+      totalStockValue += stock * (m.unit_price || 0);
+      const monthlyNeed = ['may', 'jun', 'jul', 'aug'].reduce((acc, mk) => {
+        const prod = Number(ipt[mk + '_prod']) || 0;
+        return acc + prod * (m.qty_per_unit || 0);
+      }, 0);
+      if (stock < monthlyNeed) shortCount++;
+    });
+    orderHistory.forEach(o => {
+      (o.items || []).forEach(it => totalOrderQty += (it.qty || 0));
+    });
+
+    const periodLabel = `${periodYear}년 ${periodMonth}월 ~ ${periodMonth + 3}월`;
+    const modal = document.getElementById('modal');
+    const modalBody = document.getElementById('modal-body');
+    const modalTitle = document.querySelector('.modal__title');
+    modalTitle.textContent = `🔍 백업 미리보기 (읽기 전용)`;
+
+    const historyRows = orderHistory.slice().reverse().slice(0, 50).map(o => {
+      const items = (o.items || []);
+      const sumQty = items.reduce((a, it) => a + (it.qty || 0), 0);
+      const sumAmt = items.reduce((a, it) => {
+        const m = MASTERS.find(x => x.part_no === it.partNo);
+        return a + (it.qty || 0) * (m?.unit_price || 0);
+      }, 0);
+      const receivedBadge = o.received
+        ? '<span style="color:var(--teal);font-size:10px;">✅ 입고</span>'
+        : '<span style="color:var(--t3);font-size:10px;">대기</span>';
+      return `<tr>
+        <td style="font-family:var(--mono);font-size:10px;">${sanitize(o.date || '-')}</td>
+        <td>${sanitize(o.supplier || '-')}</td>
+        <td class="col-num">${items.length}건</td>
+        <td class="col-num" style="font-family:var(--mono);">${fmt(sumQty)}</td>
+        <td class="col-num" style="font-family:var(--mono);">₩${fmt(sumAmt)}</td>
+        <td>${receivedBadge}</td>
+      </tr>`;
+    }).join('');
+
+    modalBody.innerHTML = `<div style="padding:18px 22px;color:var(--t1);">
+      <div style="background:rgba(56,201,160,0.08);border-left:3px solid var(--teal);padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:11px;color:var(--t2);">
+        ℹ <strong style="color:var(--teal);">읽기 전용 보기</strong> · 현재 데이터는 변경되지 않습니다. 이 시점으로 되돌리려면 모달 닫기 후 "복원" 버튼 사용.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:14px;font-size:11px;">
+        <div><span style="color:var(--t3);">백업 시점:</span> <strong style="font-family:var(--mono);">${tsStr}</strong></div>
+        <div><span style="color:var(--t3);">유형:</span> ${type}</div>
+        <div><span style="color:var(--t3);">레이블:</span> ${sanitize(label)}</div>
+        <div><span style="color:var(--t3);">작성자:</span> ${sanitize(createdBy)}</div>
+        <div><span style="color:var(--t3);">운영 기간:</span> <strong style="color:var(--sky);">${periodLabel}</strong></div>
+        <div><span style="color:var(--t3);">발주 이력:</span> <strong>${orderHistory.length}건</strong></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+        <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--t3);margin-bottom:4px;">총 재고가치 (백업 시점)</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--t1);">₩${fmt(Math.round(totalStockValue))}</div>
+        </div>
+        <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--t3);margin-bottom:4px;">안전재고 미달 (현 MASTERS 기준)</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${shortCount > 0 ? 'var(--red)' : 'var(--teal)'};">${shortCount} 품번</div>
+        </div>
+        <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+          <div style="font-size:10px;color:var(--t3);margin-bottom:4px;">누적 발주 수량</div>
+          <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--t1);">${fmt(totalOrderQty)} EA</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:6px;font-weight:600;">📜 발주 이력 (최근 50건)</div>
+      <div style="border:0.5px solid var(--border2);border-radius:6px;max-height:340px;overflow-y:auto;">
+        ${orderHistory.length === 0 ? '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">발주 이력 없음</div>' :
+        `<table class="order-table" style="width:100%;font-size:11px;">
+          <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+            <th>날짜</th><th>공급사</th><th class="col-num">품목</th><th class="col-num">수량</th><th class="col-num">금액</th><th>상태</th>
+          </tr></thead>
+          <tbody>${historyRows}</tbody>
+        </table>`}
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;gap:8px;">
+        <button class="btn" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">닫기</button>
+      </div>
+    </div>`;
+    modal.classList.add('modal-backdrop--open');
+  } catch (e) {
+    alert('미리보기 실패: ' + (e.message || e));
+  }
 }
 
 // 글로벌 빠른 검색: 품번·품명 부분 일치 검색 → 클릭 시 수급 운영 계획 탭으로 이동·하이라이트
