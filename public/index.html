@@ -6203,35 +6203,50 @@ function showTutorialModal() {
   modalTitle.textContent = '도움말 — TC TECH 발주·재고 관리 시스템';
   const kbd = (k) => `<kbd style="background:var(--bg-card2);padding:1px 6px;border-radius:3px;border:0.5px solid var(--border2);font-family:var(--mono);font-size:10.5px;">${k}</kbd>`;
   modalBody.innerHTML = `<div style="padding:20px 24px;color:var(--t1);line-height:1.7;font-size:12.5px;">
-    <p style="margin:0 0 14px;color:var(--t2);">매일 첫 화면은 <strong style="color:var(--sky);">운영 현황 탭</strong>입니다. 알람 클릭 → 발주 → 입고 확인 흐름.</p>
+    <p style="margin:0 0 14px;color:var(--t2);">매일 첫 화면은 <strong style="color:var(--sky);">운영 현황 탭 → 🎯 오늘의 액션</strong>. 그날 처리할 일을 한 화면에 자동 집계합니다.</p>
     <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card);">
       <div style="font-weight:700;color:var(--sky);margin-bottom:6px;">📌 이 시스템은?</div>
       <ul style="margin:0;padding-left:18px;color:var(--t2);">
-        <li>TEREX GENIE / HD건설기계 구매품 발주·재고 통합 관리</li>
-        <li>5명 팀원 공유 클라우드 시스템 (Supabase)</li>
+        <li>TC TECH 구매품 발주·재고 통합 관리 (TEREX GENIE / HD건설기계)</li>
+        <li>관리자 1명 + 팀원 1명 (총 2명) 공유 클라우드 시스템 (Supabase)</li>
         <li>현재 운영 윈도우: <strong style="color:var(--t1);">${rangeLabel()}</strong> (4개월)</li>
+        <li>월 이월 처리 자동화 → 다음 사이클 자동 이행 (5월→6월→…)</li>
       </ul>
     </div>
     <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card);">
       <div style="font-weight:700;color:var(--teal);margin-bottom:6px;">🗺️ 탭 구조</div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;color:var(--t2);font-size:11.5px;">
-        <div><strong style="color:var(--t1);">1. 📊 운영 현황</strong></div><div>매일 첫 화면 · KPI + 알람 + 결품캘린더 + 차트</div>
-        <div><strong style="color:var(--t1);">2. 💰 재무·분석</strong></div><div>임원 보고용 · 재고가치/회전율/공급사 의존도</div>
-        <div><strong style="color:var(--t1);">3. 🔍 데이터 점검</strong></div><div>ERP·부품마스터·백업·변경이력</div>
+        <div><strong style="color:var(--t1);">1. 📊 운영 현황</strong></div><div>🎯 오늘의 액션 · KPI · 알람 · 결품캘린더/간트 · 모델별 캐파 · ROP/EOQ</div>
+        <div><strong style="color:var(--t1);">2. 💰 재무·분석</strong></div><div>임원 보고용 · 재고가치 · ABC · 공급사 평가 · 기회손실 · 데드스톡 · 단가추이 · 재협상 · 통계 SS · XYZ · What-if 등</div>
+        <div><strong style="color:var(--t1);">3. 🔍 데이터 점검</strong></div><div>부품마스터 · 정합성 7룰 · LT 실측 · 재고 실사 · 라이프사이클 · 백업 · 변경이력 · 자가 진단</div>
         <div><strong style="color:var(--t1);">4. ✏️ 수급 운영 계획</strong></div><div>제작대수·입고계획 입력 (메인 작업)</div>
-        <div><strong style="color:var(--t1);">5. 📦 발주 확정/관리</strong></div><div>부족 품목 발주서 생성·확정</div>
-        <div><strong style="color:var(--t1);">6. 📋 발주 이력</strong></div><div>과거 발주 조회·복제·입고확인</div>
+        <div><strong style="color:var(--t1);">5. 📦 발주 확정/관리</strong></div><div>부족 품목 발주서 생성·확정 · 미발주 사유 입력 · 발주서 일괄 인쇄</div>
+        <div><strong style="color:var(--t1);">6. 📋 발주 이력</strong></div><div>과거 발주 조회·복제·부분 입고 확인</div>
       </div>
     </div>
     <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card);">
       <div style="font-weight:700;color:var(--amb);margin-bottom:6px;">⚙️ 일상 작업 흐름</div>
       <ol style="margin:0;padding-left:18px;color:var(--t2);font-size:11.5px;">
-        <li>운영 현황 → 알람 카드 확인 (긴급 발주 N건)</li>
-        <li>알람 row 클릭 → 자동으로 발주 확정/관리 탭 이동 + 행 하이라이트</li>
-        <li>공급사별 발주서 생성 → 수량 검토 → "발주 확정"</li>
+        <li><strong style="color:var(--t1);">🎯 오늘의 액션</strong> 카드 확인 → 우선순위순 처리</li>
+        <li>알람 row 클릭 → 발주 확정 탭 자동 이동 + 행 하이라이트</li>
+        <li>공급사별 발주서 생성 → 수량 검토 → "발주 확정" (또는 📑 일괄 인쇄)</li>
+        <li>부족인데 발주 안 한 품목 → <strong style="color:var(--amb);">사유 입력 필수</strong> (감사 가능성)</li>
         <li>자동: 입고계획 반영 + 이력 저장</li>
-        <li>실제 입고 시 → 발주 이력 → "✅ 입고 확인"</li>
+        <li>실제 입고 → 발주 이력 → "✅ 입고 확인" (부분 입고 지원)</li>
       </ol>
+    </div>
+    <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card);">
+      <div style="font-weight:700;color:var(--sky);margin-bottom:6px;">📈 주요 분석 기능 (임원 보고용)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;color:var(--t2);font-size:11px;line-height:1.7;">
+        <div><strong style="color:var(--t1);">🏗 모델별 잔여 캐파</strong> 부품→몇 대 가능 + bottleneck</div>
+        <div><strong style="color:var(--t1);">📐 ROP / EOQ</strong> 재고이론 기반 즉시 발주 알림</div>
+        <div><strong style="color:var(--t1);">💸 기회손실</strong> 못 만든 모델 × ASP</div>
+        <div><strong style="color:var(--t1);">🪨 데드 스톡</strong> 묶인 자본 자동 산출</div>
+        <div><strong style="color:var(--t1);">🎯 공급사 평가</strong> 납기·단가·의존도 100점</div>
+        <div><strong style="color:var(--t1);">🤝 단가 재협상</strong> 12개월+ 무변경 자동 추출</div>
+        <div><strong style="color:var(--t1);">📊 통계적 안전재고</strong> LT 변동성 기반</div>
+        <div><strong style="color:var(--t1);">🎛 What-if 시뮬레이션</strong> 생산/LT/단가 ±%</div>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;background:var(--bg-card);">
@@ -6239,25 +6254,29 @@ function showTutorialModal() {
         <div style="color:var(--t2);font-size:11.5px;line-height:1.9;">
           <div>${kbd('1')}~${kbd('6')} 탭 전환</div>
           <div>${kbd('/')} 글로벌 검색 포커스</div>
+          <div>${kbd('Ctrl')}+${kbd('Z')} 1단계 되돌리기</div>
           <div>${kbd('Esc')} 모달 닫기</div>
         </div>
       </div>
       <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;background:var(--bg-card);">
-        <div style="font-weight:700;color:var(--red);margin-bottom:6px;">🔐 계정·권한</div>
+        <div style="font-weight:700;color:var(--red);margin-bottom:6px;">🔐 계정·권한 (2명 운영)</div>
         <div style="color:var(--t2);font-size:11.5px;line-height:1.7;">
-          <div><strong style="color:var(--t1);">fpteam</strong> : 관리자 (전체)</div>
+          <div><strong style="color:var(--t1);">fpteam</strong> : 관리자 (전체 권한)</div>
           <div><strong style="color:var(--t1);">userA</strong> : 팀원 (조회만)</div>
-          <div style="font-size:10.5px;margin-top:4px;color:var(--t3);">조회 모드: 상단 노란 배너 + 수정 차단</div>
+          <div style="font-size:10.5px;margin-top:4px;color:var(--t3);">조회 모드: 상단 노란 배너 + 모든 입력·버튼 차단</div>
         </div>
       </div>
     </div>
     <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:14px;background:var(--bg-card);">
       <div style="font-weight:700;color:var(--teal);margin-bottom:8px;">🆘 자주 묻는 질문</div>
-      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 잘못 입력했어요. 되돌릴 수 있나요?</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">데이터 점검 → 백업·복원 → 이전 시점 백업으로 복원 가능. 자동 일일 백업이 30일 보관됨.</div></details>
-      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 새 부품을 추가하고 싶어요.</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">데이터 점검 → 부품 마스터 관리 → "+ 부품 추가". 품번이 중복되지 않아야 함.</div></details>
-      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 9월(다음 사이클)이 되면 어떻게 하나요?</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">헤더의 "월 이월 처리" 클릭. ${rangeLabel()} → 다음 4개월 윈도우로 자동 이행. 데이터·라벨 모두 자동 갱신.</div></details>
-      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 임원에게 보고서가 필요해요.</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">헤더의 "📋 임원 요약" → 1페이지 (KPI + 알람 + 공급사) → 인쇄 또는 PDF 저장.</div></details>
-      <details><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 매월 비슷한 발주를 반복해요.</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">발주 이력 탭 → 이전 발주의 "📋 복제" 버튼 → 같은 품목으로 PO 모달 자동 열림 → 수량만 조정.</div></details>
+      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 잘못 입력했어요. 되돌릴 수 있나요?</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">① 헤더 <strong>↶ 되돌리기</strong> 버튼 또는 ${kbd('Ctrl')}+${kbd('Z')} (마지막 변경 1단계) · ② 더 이전이면 데이터 점검 → 백업·복원 → 🔍 미리보기로 시점 확인 후 복원. 일일 자동 백업이 30일 보관됨.</div></details>
+      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 새 부품을 추가하고 싶어요.</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">데이터 점검 → 부품 마스터 관리 → "+ 부품 추가". 품번 중복 불가. 단가/LT 변경 시 사유/출처(견적서·인보이스 번호) 입력 → priceHistory에 자동 누적되어 단가 추이·재협상 분석에 활용됨.</div></details>
+      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 안전재고를 더 보수적으로 잡고 싶어요.</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">데이터 점검 → 🛡 안전재고 설정. 전역 안전계수(1.0 = 1개월치, 1.5/2.0 보수적). 품목별 개별 안전계수는 마스터 모달에서 지정. 변경 시 부족 판정 즉시 재계산 + 연간 보유비 시뮬레이션 표시.</div></details>
+      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 9월(다음 사이클)이 되면 어떻게 하나요?</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">헤더의 "월 이월 처리" 클릭 → 자동 체크리스트(미확인 입고·미발주 사유 등) → 자동 백업 → 이월 실행. 데이터·라벨 모두 자동 갱신.</div></details>
+      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 임원에게 보고서가 필요해요.</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">헤더의 "📋 임원 요약" → 1페이지 (KPI + 알람 + 공급사 TOP5) → 인쇄/PDF 저장. 추가로 재무·분석 탭의 📈 단가 변동·🎯 공급사 평가·💸 기회손실 카드도 보고 자료로 활용.</div></details>
+      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 매월 비슷한 발주를 반복해요.</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">발주 이력 탭 → 이전 발주의 "📋 복제" 버튼 → 같은 품목으로 PO 모달 자동 열림 → 수량만 조정. 또는 📑 발주서 일괄 인쇄로 국내 공급사 부족 품목 일괄 PDF 생성.</div></details>
+      <details style="margin-bottom:4px;"><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 일부만 입고됐는데 어떻게 처리하나요?</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">발주 이력 → ✅ 입고 확인 클릭 → 품목별 실제 입고 수량 입력. 잔량은 자동으로 "부분 입고" 표시 + 다음 입고 시 추가 확인 가능.</div></details>
+      <details><summary style="cursor:pointer;color:var(--t1);font-size:11.5px;">Q. 시스템이 정상 작동하는지 확인하려면?</summary><div style="padding:6px 0 6px 14px;color:var(--t2);font-size:11px;">데이터 점검 → ⚙ 시스템 자가 진단 → "진단 실행". 함수·state·저장 흐름·라이브러리 9종 자동 점검. 매주 1회 권장.</div></details>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:8px;">
       <label style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px;cursor:pointer;">
