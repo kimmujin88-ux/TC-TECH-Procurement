@@ -2290,6 +2290,18 @@ const sum = arr => arr.reduce((a, b) => a + (b || 0), 0);
 const sanitize = s => (s || '').toString().replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 
 // 핵심 계산: 한 품목의 4개월 시뮬레이션
+// 공용 부품 처리: 같은 part_no를 사용하는 모든 모델 row의 필요량 합계
+function computeAggregateRequired(partNo, monthKey) {
+  let total = 0;
+  MASTERS.forEach(m => {
+    if (m.part_no !== partNo) return;
+    const dn = displayName(m);
+    const mi = (state.modelInputs && state.modelInputs[dn]) || emptyModelInput();
+    total += (mi[`${monthKey}_qty`] || 0) * (m.qty_per_unit || 0);
+  });
+  return total;
+}
+
 function computeRow(master, inp) {
   const qpu = master.qty_per_unit || 1;
   const start = inp.starting_stock || 0;
@@ -2299,15 +2311,15 @@ function computeRow(master, inp) {
   for (const m of months) {
     const qty = inp[`${m}_qty`] || 0;
     const incoming = inp[`${m}_incoming`] || 0;
-    const required = qty * qpu;
-    const ending = prevEnding + incoming - required;
-    result.months[m] = { qty, required, incoming, ending };
+    const required = qty * qpu;                                  // 이 모델 사용분 (표시용)
+    const requiredTotal = computeAggregateRequired(master.part_no, m); // 같은 part_no 전체 합계
+    const ending = prevEnding + incoming - requiredTotal;        // 합계 기반 ending
+    result.months[m] = { qty, required, requiredTotal, incoming, ending };
     prevEnding = ending;
   }
-  // 부족 판정: n월말 재고 < (n+1)월 필요수량 × 안전계수
-  // 9월은 데이터 없음 → 8월말은 8월 필요수량으로 비교 (임시)
+  // 부족 판정: n월말 재고 < (n+1)월 필요수량(합계) × 안전계수
   // 안전계수: 품목별 safety_factor 우선, 없으면 state.safetyStockMultiplier (기본 1.0)
-  const reqs = months.map(m => result.months[m].required);
+  const reqs = months.map(m => result.months[m].requiredTotal);
   const sf = (Number(master.safety_factor) > 0)
     ? Number(master.safety_factor)
     : (Number(state.safetyStockMultiplier) > 0 ? Number(state.safetyStockMultiplier) : 1.0);
@@ -2416,7 +2428,11 @@ function computeFinancialKPIs() {
   let invValueStart = 0, invValueEnd = 0;
   let consumptionValue = 0, safetyGapValue = 0;
   const perPart = [];
+  // 공용 부품 중복 방지: 같은 part_no는 한 번만 카운트 (requiredTotal이 이미 모델 합계)
+  const seenPartNo = new Set();
   MASTERS.forEach(m => {
+    if (seenPartNo.has(m.part_no)) return;
+    seenPartNo.add(m.part_no);
     const isImport = m.category === '수입';
     const price = (m.unit_price || 0) * (isImport ? importMultiplier : 1);
     const r = getResult(m);
@@ -2424,8 +2440,8 @@ function computeFinancialKPIs() {
     const endStock = Math.max(0, r.months.aug.ending);
     const endV = endStock * price;
     let consumeV = 0;
-    months.forEach(mo => { consumeV += r.months[mo].required * price; });
-    const reqMap = months.map(mo => r.months[mo].required);
+    months.forEach(mo => { consumeV += r.months[mo].requiredTotal * price; });
+    const reqMap = months.map(mo => r.months[mo].requiredTotal);
     // 안전재고 미달: 한 품목당 4개월 중 최대 gap만 잡아 중복 방지
     let maxGap = 0;
     months.forEach((mo, idx) => {
@@ -4719,7 +4735,8 @@ function moqValue(master) {
 // 권장 발주량 계산
 function suggestedQty(master) {
   const r = getResult(master);
-  const reqs = ['may','jun','jul','aug'].map(mo => r.months[mo].required);
+  // 공용 부품: 부품 전체 필요량(requiredTotal) 기준 부족분 산정
+  const reqs = ['may','jun','jul','aug'].map(mo => r.months[mo].requiredTotal);
   const shortages = [
     Math.max(0, reqs[1] - r.months.may.ending),
     Math.max(0, reqs[2] - r.months.jun.ending),
@@ -4736,7 +4753,16 @@ function suggestedQty(master) {
 
 function renderOrders() {
   // 부족 품목 또는 사용자가 수동으로 수량/품목을 조정한 모든 항목 추출
-  const shorts = MASTERS.filter(m => getResult(m).anyShort || state.orderOverrides[m.part_no] !== undefined);
+  // 공용 부품 중복 방지: 같은 part_no는 한 번만 등장 (발주는 부품 단위)
+  const _seenPN = new Set();
+  const shorts = MASTERS.filter(m => {
+    if (_seenPN.has(m.part_no)) return false;
+    if (getResult(m).anyShort || state.orderOverrides[m.part_no] !== undefined) {
+      _seenPN.add(m.part_no);
+      return true;
+    }
+    return false;
+  });
   
   if (shorts.length === 0) {
     document.getElementById('order-groups').innerHTML = '';
