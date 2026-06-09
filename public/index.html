@@ -509,7 +509,22 @@ body.viewer-mode #fx-weight-slider,
 body.viewer-mode #fx-weight-input,
 body.viewer-mode #fx-weight-reset,
 body.viewer-mode #masters-tbody button,
-body.viewer-mode #backup-tbody button {
+body.viewer-mode #backup-tbody button,
+body.viewer-mode #btn-undo,
+body.viewer-mode #btn-bulk-print-po,
+body.viewer-mode .unmet-reason-input,
+body.viewer-mode .recv-qty-input,
+body.viewer-mode .asp-input,
+body.viewer-mode #safety-multiplier,
+body.viewer-mode #safety-preset button,
+body.viewer-mode #carrying-capital-pct,
+body.viewer-mode #carrying-storage-pct,
+body.viewer-mode #btn-recalc-carrying,
+body.viewer-mode #eoq-order-cost,
+body.viewer-mode #service-level,
+body.viewer-mode #whatif-prod,
+body.viewer-mode #whatif-lt,
+body.viewer-mode #whatif-price {
   pointer-events: none !important;
   opacity: 0.4 !important;
   cursor: not-allowed !important;
@@ -1615,6 +1630,22 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="lifecycle-body"></div>
   </div>
 
+  <!-- ⚙ 시스템 자가 진단 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">⚙ 시스템 자가 진단</div>
+        <div class="card__hint">함수/state/저장 흐름 자동 점검 · 모든 항목 ✅면 시스템 정상</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn--sm" id="btn-run-diagnostics">진단 실행</button>
+      </div>
+    </div>
+    <div class="card__body" style="padding:14px;" id="diagnostics-body">
+      <div style="text-align:center;color:var(--t3);padding:14px;font-size:11px;">"진단 실행" 클릭</div>
+    </div>
+  </div>
+
   <!-- 🩺 마스터 데이터 정합성 점검 -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -2059,6 +2090,14 @@ state.modelInputs = _loaded.modelInputs;
 state.itemInputs = _loaded.itemInputs;
 state.orderOverrides = _loaded.orderOverrides || {};
 state.erpStocks = _loaded.erpStocks || {};
+// 신규 state 필드 초기화 (localStorage에서도 폴백)
+state.modelASP = _loaded.modelASP || {};
+state.unmetReasons = _loaded.unmetReasons || {};
+if (_loaded.safetyStockMultiplier != null) state.safetyStockMultiplier = _loaded.safetyStockMultiplier;
+if (_loaded.exchangeRate != null) state.exchangeRate = _loaded.exchangeRate;
+if (_loaded.auditLog) state.auditLog = _loaded.auditLog;
+if (_loaded.periodStartMonth) state.periodStartMonth = _loaded.periodStartMonth;
+if (_loaded.periodYear) state.periodYear = _loaded.periodYear;
 
 // 서버 데이터 비동기 로드 (서버 데이터가 있으면 우선 적용)
 (async () => {
@@ -2143,7 +2182,12 @@ function saveInputs() {
     erpStocks: state.erpStocks,
     lastAutoBackupDate: state.lastAutoBackupDate,
     periodStartMonth: state.periodStartMonth,
-    periodYear: state.periodYear
+    periodYear: state.periodYear,
+    // 신규 state 필드 영속화 (안전화 단계 추가)
+    safetyStockMultiplier: state.safetyStockMultiplier,
+    modelASP: state.modelASP || {},
+    unmetReasons: state.unmetReasons || {},
+    exchangeRate: state.exchangeRate
   };
 
   // 변경 이력 추적 (이전 스냅샷과 diff)
@@ -2208,6 +2252,11 @@ async function loadFromServer() {
       state.lastAutoBackupDate = d.lastAutoBackupDate;
       if (d.periodStartMonth) state.periodStartMonth = d.periodStartMonth;
       if (d.periodYear) state.periodYear = d.periodYear;
+      // 신규 state 필드 복원 (안전화 단계 추가)
+      if (d.safetyStockMultiplier != null) state.safetyStockMultiplier = d.safetyStockMultiplier;
+      state.modelASP = d.modelASP || {};
+      state.unmetReasons = d.unmetReasons || {};
+      if (d.exchangeRate != null) state.exchangeRate = d.exchangeRate;
       if (typeof snapshotForAudit === 'function') _lastSavedSnapshot = snapshotForAudit();
       return true;
     }
@@ -6545,6 +6594,9 @@ function exportLTComparison() {
 document.getElementById('btn-export-lt')?.addEventListener('click', exportLTComparison);
 setTimeout(renderLTComparison, 900);
 
+// ⚙ 시스템 자가 진단 버튼
+document.getElementById('btn-run-diagnostics')?.addEventListener('click', runSystemDiagnostics);
+
 // 📐 ROP / EOQ 권장 — 재고이론 기반
 function computeROPandEOQ() {
   const orderCost = Number(document.getElementById('eoq-order-cost')?.value) || 50000;
@@ -6866,6 +6918,86 @@ function renderShortageGantt() {
   container.querySelectorAll('.gantt-row').forEach(row => {
     row.addEventListener('click', () => goToFormRow(row.dataset.pn));
   });
+}
+
+// ⚙ 시스템 자가 진단 — 함수/state/저장 흐름 점검
+function runSystemDiagnostics() {
+  const checks = [];
+  // 핵심 함수 존재 확인 (최근 추가분 + 핵심)
+  const requiredFns = [
+    'computeRow', 'getResult', 'getOrderQty', 'suggestedQty', 'moqValue',
+    'renderForm', 'renderOrders', 'renderHistory', 'renderDashboard',
+    'saveInputs', 'saveHistory', 'saveMastersToServer', 'loadFromServer', 'loadInputs',
+    'renderActionQueue', 'renderCapacityCard', 'renderShortageGantt', 'renderROPandEOQ',
+    'renderPriceTrendCard', 'renderSupplierScoreCard', 'renderDeadStockCard', 'renderOpportunityLossCard',
+    'renderSeasonalityCard', 'renderRenegotiationCard', 'renderStatisticalSafety', 'renderXYZAnalysis', 'renderWhatIf',
+    'renderVarianceCard', 'renderLifecycleCard', 'renderDataQualityCard', 'renderLTComparison',
+    'renderUnmetCard', 'updateSafetyStockUI', 'updateCarryingCost', 'showMonthCloseChecklist',
+    'previewBackup', 'confirmReceipt', 'applyReceipt', 'performUndo', 'pushUndoSnapshot',
+    'bulkPrintPOs', 'showTutorialModal', 'showExecutiveSummary'
+  ];
+  let missingFns = requiredFns.filter(fn => typeof window[fn] !== 'function');
+  checks.push({
+    name: '핵심 함수 정의',
+    pass: missingFns.length === 0,
+    detail: missingFns.length === 0 ? `${requiredFns.length}개 함수 모두 정의됨` : `누락: ${missingFns.join(', ')}`
+  });
+  // state 신규 필드 영속화 확인
+  const persistFields = ['modelInputs', 'itemInputs', 'orderOverrides', 'erpStocks', 'modelASP', 'unmetReasons', 'safetyStockMultiplier'];
+  let missingState = persistFields.filter(f => state[f] === undefined);
+  checks.push({
+    name: 'state 신규 필드 초기화',
+    pass: missingState.length === 0,
+    detail: missingState.length === 0 ? `${persistFields.length}개 필드 모두 초기화됨` : `누락(초기값 없음): ${missingState.join(', ')}`
+  });
+  // saveInputs payload에 신규 필드 포함 확인 (source 검사)
+  const saveSrc = saveInputs.toString();
+  const expectedKeys = ['modelASP', 'unmetReasons', 'safetyStockMultiplier'];
+  let missingPayload = expectedKeys.filter(k => !saveSrc.includes(k));
+  checks.push({
+    name: 'saveInputs 영속화 누락',
+    pass: missingPayload.length === 0,
+    detail: missingPayload.length === 0 ? '신규 필드 모두 payload에 포함' : `payload 누락: ${missingPayload.join(', ')}`
+  });
+  // localStorage 접근 가능 여부
+  let localStorageOK = true;
+  try { localStorage.setItem('_diag', '1'); localStorage.removeItem('_diag'); }
+  catch(e) { localStorageOK = false; }
+  checks.push({ name: 'localStorage 접근', pass: localStorageOK, detail: localStorageOK ? '쓰기·읽기 가능' : '브라우저 제한 (시크릿 모드?)' });
+  // Supabase 클라이언트 초기화
+  checks.push({ name: 'Supabase 클라이언트', pass: typeof _supa === 'object' && _supa !== null, detail: typeof _supa === 'object' ? 'createClient 성공' : '초기화 실패' });
+  // MASTERS 데이터 무결성
+  const masterInvalid = MASTERS.filter(m => !m.part_no || !m.part_name).length;
+  checks.push({ name: 'MASTERS 필수 필드', pass: masterInvalid === 0, detail: `${MASTERS.length}건 중 ${masterInvalid}건 결함 (part_no/part_name 누락)` });
+  // 라이브러리 확인
+  checks.push({ name: 'Chart.js 로드', pass: typeof Chart !== 'undefined', detail: typeof Chart !== 'undefined' ? '정상' : '미로드' });
+  checks.push({ name: 'XLSX 로드', pass: typeof XLSX !== 'undefined', detail: typeof XLSX !== 'undefined' ? '정상' : '미로드' });
+  // SUPPLIER_INFO / BUYER_INFO
+  checks.push({ name: 'SUPPLIER_INFO 등록', pass: typeof SUPPLIER_INFO === 'object' && Object.keys(SUPPLIER_INFO).length > 0, detail: `${Object.keys(SUPPLIER_INFO || {}).length}개 공급사 양식 등록됨` });
+  checks.push({ name: 'BUYER_INFO 등록', pass: typeof BUYER_INFO === 'object' && BUYER_INFO.company, detail: `회사: ${(BUYER_INFO || {}).company || '미설정'}` });
+
+  const passed = checks.filter(c => c.pass).length;
+  const failed = checks.length - passed;
+  const container = document.getElementById('diagnostics-body');
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;">
+      <div><strong>진단 완료</strong> · 통과 <span style="color:var(--teal);font-weight:700;">${passed}</span> / 전체 ${checks.length}</div>
+      <div style="font-family:var(--mono);color:${failed > 0 ? 'var(--red)' : 'var(--teal)'};font-weight:700;">${failed > 0 ? `🔴 ${failed}건 실패` : '✅ 모두 정상'}</div>
+    </div>
+    <table class="order-table" style="width:100%;font-size:11px;">
+      <thead><tr><th style="width:36px;">결과</th><th>점검 항목</th><th>상세</th></tr></thead>
+      <tbody>
+        ${checks.map(c => `
+          <tr>
+            <td style="text-align:center;font-size:14px;">${c.pass ? '✅' : '🔴'}</td>
+            <td style="font-weight:600;">${sanitize(c.name)}</td>
+            <td style="font-size:10.5px;color:var(--t2);">${sanitize(c.detail)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:10px;font-size:10px;color:var(--t3);line-height:1.6;">
+      💡 진단은 함수 정의·state 무결성·저장 흐름·라이브러리 로드를 점검합니다. 실패 시 새로고침 또는 코드 수정 필요.
+    </div>`;
 }
 
 // 🔄 라이프사이클 현황
