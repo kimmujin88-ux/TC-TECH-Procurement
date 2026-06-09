@@ -2310,28 +2310,34 @@ function computeRow(master, inp) {
   const start = inp.starting_stock || 0;
   const months = ['may', 'jun', 'jul', 'aug'];
   const result = { start, months: {} };
+  // 두 가지 ending 추적:
+  //   ending = 그 모델 사용분만 차감 (화면 표시용 — 사용자 직관)
+  //   endingTotal = 같은 part_no 전체 합계 차감 (부족 판정·KPI·발주 권장량용)
   let prevEnding = start;
+  let prevEndingTotal = start;
   for (const m of months) {
     const qty = inp[`${m}_qty`] || 0;
     const incoming = inp[`${m}_incoming`] || 0;
-    const required = qty * qpu;                                  // 이 모델 사용분 (표시용)
-    const requiredTotal = computeAggregateRequired(master.part_no, m); // 같은 part_no 전체 합계
-    const ending = prevEnding + incoming - requiredTotal;        // 합계 기반 ending
-    result.months[m] = { qty, required, requiredTotal, incoming, ending };
+    const required = qty * qpu;                                      // 이 모델 사용분
+    const requiredTotal = computeAggregateRequired(master.part_no, m); // 전체 합계
+    const ending = prevEnding + incoming - required;                  // 모델별 시뮬레이션
+    const endingTotal = prevEndingTotal + incoming - requiredTotal;   // 합계 시뮬레이션
+    result.months[m] = { qty, required, requiredTotal, incoming, ending, endingTotal };
     prevEnding = ending;
+    prevEndingTotal = endingTotal;
   }
-  // 부족 판정: n월말 재고 < (n+1)월 필요수량(합계) × 안전계수
-  // 안전계수: 품목별 safety_factor 우선, 없으면 state.safetyStockMultiplier (기본 1.0)
+  // 부족 판정: 합계 기준 ending이 다음 달 합계 필요 × 안전계수보다 적으면 부족
+  // (공용 부품은 전체 재고로 판정해야 정확)
   const reqs = months.map(m => result.months[m].requiredTotal);
   const sf = (Number(master.safety_factor) > 0)
     ? Number(master.safety_factor)
     : (Number(state.safetyStockMultiplier) > 0 ? Number(state.safetyStockMultiplier) : 1.0);
   result.safetyFactor = sf;
   result.shortAt = {
-    may: result.months.may.ending < reqs[1] * sf,
-    jun: result.months.jun.ending < reqs[2] * sf,
-    jul: result.months.jul.ending < reqs[3] * sf,
-    aug: result.months.aug.ending < reqs[3] * sf
+    may: result.months.may.endingTotal < reqs[1] * sf,
+    jun: result.months.jun.endingTotal < reqs[2] * sf,
+    jul: result.months.jul.endingTotal < reqs[3] * sf,
+    aug: result.months.aug.endingTotal < reqs[3] * sf
   };
   result.anyShort = result.shortAt.may || result.shortAt.jun || result.shortAt.jul || result.shortAt.aug;
   // 최초 부족 시점
@@ -2440,7 +2446,7 @@ function computeFinancialKPIs() {
     const price = (m.unit_price || 0) * (isImport ? importMultiplier : 1);
     const r = getResult(m);
     const startV = r.start * price;
-    const endStock = Math.max(0, r.months.aug.ending);
+    const endStock = Math.max(0, r.months.aug.endingTotal); // 합계 기준 (부품 단위 KPI)
     const endV = endStock * price;
     let consumeV = 0;
     months.forEach(mo => { consumeV += r.months[mo].requiredTotal * price; });
@@ -2451,7 +2457,7 @@ function computeFinancialKPIs() {
       if (!r.shortAt[mo]) return;
       const nextReq = mo === 'aug' ? reqMap[3] : reqMap[idx + 1];
       if (nextReq <= 0) return;
-      const gap = nextReq - r.months[mo].ending;
+      const gap = nextReq - r.months[mo].endingTotal;
       if (gap > maxGap) maxGap = gap;
     });
     const gapV = maxGap * price;
@@ -4738,13 +4744,13 @@ function moqValue(master) {
 // 권장 발주량 계산
 function suggestedQty(master) {
   const r = getResult(master);
-  // 공용 부품: 부품 전체 필요량(requiredTotal) 기준 부족분 산정
+  // 공용 부품: 부품 전체 필요량(requiredTotal) 기준 + endingTotal(합계 ending) 기준 부족분
   const reqs = ['may','jun','jul','aug'].map(mo => r.months[mo].requiredTotal);
   const shortages = [
-    Math.max(0, reqs[1] - r.months.may.ending),
-    Math.max(0, reqs[2] - r.months.jun.ending),
-    Math.max(0, reqs[3] - r.months.jul.ending),
-    Math.max(0, reqs[3] - r.months.aug.ending)
+    Math.max(0, reqs[1] - r.months.may.endingTotal),
+    Math.max(0, reqs[2] - r.months.jun.endingTotal),
+    Math.max(0, reqs[3] - r.months.jul.endingTotal),
+    Math.max(0, reqs[3] - r.months.aug.endingTotal)
   ];
   const maxShort = Math.max(...shortages);
   // 수율(loss_rate) 반영: 100개 발주해도 5% 불량이면 95개만 가용 → 100/(1-0.05)=105.26개 발주 필요
