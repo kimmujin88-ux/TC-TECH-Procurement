@@ -1187,6 +1187,18 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="section-title__hint" id="dash-updated"></div>
   </div>
 
+  <!-- 🎯 오늘의 액션 (우선순위 큐) -->
+  <div class="card" id="card-action-queue" style="margin-bottom:14px;border-left:3px solid var(--teal);">
+    <div class="card__head">
+      <div>
+        <div class="card__title" style="color:var(--teal);">🎯 오늘의 액션 (우선순위 큐)</div>
+        <div class="card__hint">즉시 처리 필요한 작업 자동 집계 · 클릭 시 해당 탭으로 이동</div>
+      </div>
+      <div id="action-queue-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:10px 14px;" id="action-queue-body"></div>
+  </div>
+
   <div class="kpi-grid">
     <div class="kpi kpi--sky" onclick="showKpiDetail('total')" style="cursor:pointer;" title="클릭하면 전체 구매품 목록을 확인할 수 있습니다">
       <div class="kpi__corner">K01</div>
@@ -1251,6 +1263,21 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__body" style="padding:0;">
       <div id="shortage-calendar-body" style="display:grid; grid-template-columns:repeat(4, 1fr);"></div>
     </div>
+  </div>
+
+  <!-- 📐 ROP / EOQ 권장 (재고이론 기반) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">📐 ROP / EOQ 권장 (재고이론 기반)</div>
+        <div class="card__hint">ROP = LT×일평균사용 + 안전재고 / EOQ = √(2×연수요×발주비용 / 단위보유비용) · 현재 stock ≤ ROP 시 즉시 발주</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--t2);">
+        <span>발주비용(원/건):</span>
+        <input type="number" id="eoq-order-cost" value="50000" min="0" step="10000" style="width:90px;font-family:var(--mono);font-size:11px;padding:4px 6px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:3px;text-align:right;">
+      </div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:380px;overflow-y:auto;" id="rop-eoq-body"></div>
   </div>
 
   <!-- 🏗 모델별 잔여 생산 캐파 -->
@@ -1409,6 +1436,34 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__body" style="padding:0;max-height:380px;overflow-y:auto;" id="opploss-body"></div>
   </div>
 
+  <!-- 🎛 What-if 시뮬레이션 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🎛 What-if 시뮬레이션</div>
+        <div class="card__hint">생산량 ±% / LT 변경 → 부족 품번 수·재고가치·기회손실 즉시 재계산. 적용 안 함 (시뮬레이션만)</div>
+      </div>
+      <div id="whatif-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:14px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:6px;">생산량 변동 <span id="whatif-prod-display" style="float:right;font-family:var(--mono);color:var(--sky);">0%</span></label>
+          <input type="range" id="whatif-prod" min="-30" max="30" value="0" step="5" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:6px;">LT 변동 <span id="whatif-lt-display" style="float:right;font-family:var(--mono);color:var(--sky);">0%</span></label>
+          <input type="range" id="whatif-lt" min="-30" max="50" value="0" step="5" style="width:100%;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:6px;">단가 변동 <span id="whatif-price-display" style="float:right;font-family:var(--mono);color:var(--sky);">0%</span></label>
+          <input type="range" id="whatif-price" min="-20" max="30" value="0" step="2.5" style="width:100%;">
+        </div>
+      </div>
+      <div id="whatif-result" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
+    </div>
+  </div>
+
   <!-- 🪨 데드 스톡 분석 -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -1431,6 +1486,37 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <div id="supplier-score-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
     </div>
     <div class="card__body" style="padding:0;max-height:380px;overflow-y:auto;" id="supplier-score-body"></div>
+  </div>
+
+  <!-- 📊 통계적 안전재고 (LT 변동성 기반) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">📊 통계적 안전재고 (LT 변동성 기반)</div>
+        <div class="card__hint">SS = Z × σLT × 일평균사용량 · Z(서비스수준): 90%=1.28 / 95%=1.65 / 99%=2.33 · LT 실측 표준편차 자동 산출</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--t2);">
+        <span>서비스수준:</span>
+        <select id="service-level" style="font-size:11px;padding:4px 8px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:3px;">
+          <option value="1.28">90% (Z=1.28)</option>
+          <option value="1.65" selected>95% (Z=1.65)</option>
+          <option value="2.33">99% (Z=2.33)</option>
+        </select>
+      </div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="stat-safety-body"></div>
+  </div>
+
+  <!-- 🔢 XYZ 분석 (사용량 변동성) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🔢 XYZ 분석 (사용량 변동성)</div>
+        <div class="card__hint">월별 사용량의 변동계수(CV) 기준 X(CV&lt;0.25 안정) / Y(0.25~0.5 중간) / Z(&gt;0.5 변동큼) · ABC × XYZ 매트릭스</div>
+      </div>
+      <div id="xyz-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="xyz-body"></div>
   </div>
 
   <!-- 🤝 단가 재협상 알림 -->
@@ -1515,6 +1601,18 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <div id="variance-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
     </div>
     <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="variance-body"></div>
+  </div>
+
+  <!-- 🔄 라이프사이클 현황 -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🔄 라이프사이클 현황</div>
+        <div class="card__hint">NPI(신규) / Active / EOL(단종 예정) / Discontinued · EOL 6개월 이내 + 잔여 재고 보유 시 알람</div>
+      </div>
+      <div id="lifecycle-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="lifecycle-body"></div>
   </div>
 
   <!-- 🩺 마스터 데이터 정합성 점검 -->
@@ -3063,6 +3161,10 @@ function showMasterModal(idx) {
         ${field('안전계수 (배)', 'safety_factor', 'number', v(m.safety_factor || ''), 'min="0" step="0.1" placeholder="비우면 전역값"')}
         ${field('수율 손실 (%)', 'loss_rate_pct', 'number', v(m.loss_rate ? (m.loss_rate * 100) : ''), 'min="0" max="50" step="0.1" placeholder="0~50, 비우면 0"')}
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
+        ${sel('라이프사이클 상태', 'lifecycle', m.lifecycle || 'Active', ['NPI (신규 도입)', 'Active (정상)', 'EOL (단종 예정)', 'Discontinued (단종)'])}
+        ${field('EOL 예정일', 'eol_date', 'date', v(m.eol_date || ''), '')}
+      </div>
       <div style="border-top:0.5px solid var(--border2);padding-top:10px;margin-top:8px;">
         <label style="display:block;font-size:11px;color:var(--t2);margin-bottom:4px;">📝 메모 (선택 · 용도·특이사항·대체품 등)</label>
         <textarea name="memo" rows="2" class="filter-input" style="width:100%;font-size:11px;padding:6px 8px;resize:vertical;min-height:48px;">${v(m.memo || '')}</textarea>
@@ -3416,14 +3518,14 @@ function setActiveTab(t) {
   // 양식 탭일 때만 body 스크롤 잠금 (form-wrap 내부만 스크롤됨)
   document.body.classList.toggle('tab-form-active', t === 'form');
   if (t === 'ops' || t === 'finance' || t === 'data') renderDashboard();
-  if (t === 'ops') { if (typeof renderShortageGantt === 'function') renderShortageGantt(); if (typeof renderCapacityCard === 'function') renderCapacityCard(); }
+  if (t === 'ops') { if (typeof renderShortageGantt === 'function') renderShortageGantt(); if (typeof renderCapacityCard === 'function') renderCapacityCard(); if (typeof renderActionQueue === 'function') renderActionQueue(); if (typeof renderROPandEOQ === 'function') renderROPandEOQ(); }
   else if (t === 'orders') {
     renderOrders();
     setTimeout(() => document.querySelectorAll('.order-qty-input').forEach(validateMOQOnInput), 80);
   }
   else if (t === 'history') renderHistory();
-  if (t === 'data') { renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); if (typeof renderDataQualityCard === 'function') renderDataQualityCard(); if (typeof renderVarianceCard === 'function') renderVarianceCard(); }
-  if (t === 'finance') { if (typeof renderPriceTrendCard === 'function') renderPriceTrendCard(); if (typeof renderSupplierScoreCard === 'function') renderSupplierScoreCard(); if (typeof renderDeadStockCard === 'function') renderDeadStockCard(); if (typeof renderOpportunityLossCard === 'function') renderOpportunityLossCard(); if (typeof renderSeasonalityCard === 'function') renderSeasonalityCard(); if (typeof renderRenegotiationCard === 'function') renderRenegotiationCard(); }
+  if (t === 'data') { renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); if (typeof renderDataQualityCard === 'function') renderDataQualityCard(); if (typeof renderVarianceCard === 'function') renderVarianceCard(); if (typeof renderLifecycleCard === 'function') renderLifecycleCard(); }
+  if (t === 'finance') { if (typeof renderPriceTrendCard === 'function') renderPriceTrendCard(); if (typeof renderSupplierScoreCard === 'function') renderSupplierScoreCard(); if (typeof renderDeadStockCard === 'function') renderDeadStockCard(); if (typeof renderOpportunityLossCard === 'function') renderOpportunityLossCard(); if (typeof renderSeasonalityCard === 'function') renderSeasonalityCard(); if (typeof renderRenegotiationCard === 'function') renderRenegotiationCard(); if (typeof renderStatisticalSafety === 'function') renderStatisticalSafety(); if (typeof renderXYZAnalysis === 'function') renderXYZAnalysis(); if (typeof renderWhatIf === 'function') renderWhatIf(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.querySelectorAll('.tab').forEach(btn => {
@@ -6443,6 +6545,202 @@ function exportLTComparison() {
 document.getElementById('btn-export-lt')?.addEventListener('click', exportLTComparison);
 setTimeout(renderLTComparison, 900);
 
+// 📐 ROP / EOQ 권장 — 재고이론 기반
+function computeROPandEOQ() {
+  const orderCost = Number(document.getElementById('eoq-order-cost')?.value) || 50000;
+  const capPct = Number(document.getElementById('carrying-capital-pct')?.value) || 5;
+  const storPct = Number(document.getElementById('carrying-storage-pct')?.value) || 2;
+  const carryPct = (capPct + storPct) / 100;
+  return MASTERS.map(m => {
+    const r = getResult(m);
+    const lt = Number(m.lead_time_days) || 0;
+    const annualReq = ['may','jun','jul','aug'].reduce((s, mo) => s + r.months[mo].required, 0) * 3;
+    const dailyAvg = annualReq / 365;
+    const sf = (Number(m.safety_factor) > 0) ? Number(m.safety_factor) : (Number(state.safetyStockMultiplier) || 1.0);
+    const safety = Math.ceil(dailyAvg * 30 * (sf - 1));
+    const rop = Math.ceil(lt * dailyAvg + safety);
+    const unitCarry = (m.unit_price || 0) * carryPct;
+    const eoq = (annualReq > 0 && unitCarry > 0)
+      ? Math.ceil(Math.sqrt(2 * annualReq * orderCost / unitCarry))
+      : 0;
+    const inp = state.itemInputs[m.part_no] || {};
+    const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
+    const needOrder = lt > 0 && annualReq > 0 && stock <= rop;
+    return { m, lt, annualReq, dailyAvg, safety, rop, eoq, stock, needOrder };
+  }).filter(x => x.annualReq > 0 && x.lt > 0)
+    .sort((a, b) => (b.needOrder - a.needOrder) || (a.stock / Math.max(a.rop,1)) - (b.stock / Math.max(b.rop,1)));
+}
+
+function renderROPandEOQ() {
+  const container = document.getElementById('rop-eoq-body');
+  if (!container) return;
+  const rows = computeROPandEOQ();
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">계산 가능 품목 없음 (LT > 0 + 사용량 필요)</div>';
+    return;
+  }
+  const needOrderCnt = rows.filter(r => r.needOrder).length;
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>품번</th><th>품명</th>
+      <th class="col-num">일평균</th>
+      <th class="col-num">LT</th>
+      <th class="col-num">안전</th>
+      <th class="col-num">ROP</th>
+      <th class="col-num">현재 stock</th>
+      <th class="col-num">EOQ</th>
+      <th>상태</th>
+    </tr></thead>
+    <tbody>${rows.slice(0, 80).map(r => {
+      const ratio = r.rop > 0 ? r.stock / r.rop : 1;
+      const stockColor = r.stock <= r.rop ? 'var(--red)' : ratio < 1.3 ? 'var(--amb)' : 'var(--teal)';
+      const status = r.needOrder
+        ? '<span style="color:var(--red);font-weight:800;">🚨 즉시 발주</span>'
+        : ratio < 1.3
+          ? '<span style="color:var(--amb);font-weight:700;">⚠ 임박</span>'
+          : '<span style="color:var(--teal);">✓ 충분</span>';
+      return `<tr>
+        <td style="font-family:var(--mono);">${sanitize(r.m.part_no)}</td>
+        <td>${sanitize(r.m.part_name)}</td>
+        <td class="col-num" style="font-family:var(--mono);">${r.dailyAvg.toFixed(2)}</td>
+        <td class="col-num" style="font-family:var(--mono);">${r.lt}일</td>
+        <td class="col-num" style="font-family:var(--mono);color:var(--t3);">${fmt(r.safety)}</td>
+        <td class="col-num" style="font-family:var(--mono);font-weight:700;">${fmt(r.rop)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:${stockColor};font-weight:700;">${fmt(r.stock)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:var(--sky);font-weight:700;">${fmt(r.eoq)}</td>
+        <td>${status}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>
+  <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+    💡 <strong>ROP(Reorder Point)</strong> = LT일수 × 일평균사용량 + 안전재고(=일평균×30×(안전계수-1)).<br>
+    <strong>EOQ(Wilson)</strong> = √(2×연수요×발주비용 / 단위보유비용). 발주비용·자본/보관비용율 조정 시 즉시 재계산.
+    ${needOrderCnt > 0 ? `<br><span style="color:var(--red);font-weight:700;">🚨 ${needOrderCnt}건 즉시 발주 필요</span>` : ''}
+  </div>`;
+}
+
+document.getElementById('eoq-order-cost')?.addEventListener('change', renderROPandEOQ);
+
+// 🎯 오늘의 액션 (우선순위 큐) — 즉시 처리 필요한 작업 자동 집계
+function renderActionQueue() {
+  const container = document.getElementById('action-queue-body');
+  const summary = document.getElementById('action-queue-summary');
+  if (!container) return;
+  state.unmetReasons = state.unmetReasons || {};
+  const actions = [];
+
+  // 1) 발주 마감 OVERDUE/URGENT
+  const today = new Date();
+  let overdueCnt = 0, urgentCnt = 0;
+  MASTERS.forEach(m => {
+    const r = getResult(m);
+    if (!r.firstShort) return;
+    const dd = orderDeadline(m, r.firstShort);
+    if (!dd) return;
+    const days = Math.ceil((dd - today) / 86400000);
+    if (days < 0) overdueCnt++;
+    else if (days <= 7) urgentCnt++;
+  });
+  if (overdueCnt > 0) actions.push({
+    sev: 'critical', icon: '🚨', title: `발주 마감 초과 ${overdueCnt}건`,
+    detail: '발주 기한 이미 경과 — 즉시 확정 + 공급사 협상 필요',
+    tab: 'orders', actionText: '발주 확정 탭으로'
+  });
+  if (urgentCnt > 0) actions.push({
+    sev: 'warn', icon: '⏰', title: `발주 마감 임박 ${urgentCnt}건`,
+    detail: '7일 이내 발주 안 하면 결품 위험',
+    tab: 'orders', actionText: '발주 확정 탭으로'
+  });
+
+  // 2) 미확인 입고
+  const unreceived = (state.orderHistory || []).filter(o => !o.received && !o.partialReceived).length;
+  if (unreceived > 0) actions.push({
+    sev: 'warn', icon: '📦', title: `미확인 입고 ${unreceived}건`,
+    detail: '발주는 했으나 입고 확인 안 됨 — 재고 정확도 영향',
+    tab: 'history', actionText: '발주 이력 탭으로'
+  });
+
+  // 3) 부분 입고 잔량
+  const partial = (state.orderHistory || []).filter(o => o.partialReceived).length;
+  if (partial > 0) actions.push({
+    sev: 'warn', icon: '⚠', title: `부분 입고 잔량 ${partial}건`,
+    detail: '잔량 추가 입고 시 처리 필요',
+    tab: 'history', actionText: '발주 이력 탭으로'
+  });
+
+  // 4) 부족 미발주 사유 미입력
+  const unmetMissing = MASTERS.filter(m => {
+    const r = getResult(m);
+    return r.anyShort && getOrderQty(m) === 0 && !(state.unmetReasons[m.part_no] || '').trim();
+  }).length;
+  if (unmetMissing > 0) actions.push({
+    sev: 'critical', icon: '🟡', title: `부족 미발주 사유 미입력 ${unmetMissing}건`,
+    detail: '사후 감사 시 추적 불가 — 즉시 기재 필요',
+    tab: 'orders', actionText: '발주 확정 탭으로'
+  });
+
+  // 5) 단가 재협상 후보
+  const now = Date.now();
+  const renegot = MASTERS.filter(m => {
+    const ph = m.priceHistory || [];
+    if (ph.length === 0) return false;
+    const monthsSince = Math.floor((now - new Date(ph[ph.length - 1].ts).getTime()) / (1000 * 60 * 60 * 24 * 30));
+    return monthsSince >= 12;
+  }).length;
+  if (renegot > 0) actions.push({
+    sev: 'info', icon: '🤝', title: `단가 재협상 시점 도래 ${renegot}건`,
+    detail: '12개월+ 단가 무변경 — 재협상 적기',
+    tab: 'finance', actionText: '재무·분석 탭으로'
+  });
+
+  // 6) 정합성 critical
+  const dqCritical = MASTERS.filter(m => !(Number(m.unit_price) > 0) || !(Number(m.lead_time_days) > 0) || !(Number(m.qty_per_unit) > 0)).length;
+  if (dqCritical > 0) actions.push({
+    sev: 'warn', icon: '🩺', title: `마스터 데이터 결함 ${dqCritical}건`,
+    detail: '단가/LT/대당소요 0 또는 미입력 — 계산 정확도 영향',
+    tab: 'data', actionText: '데이터 점검 탭으로'
+  });
+
+  // 7) 모델 ASP 미입력 (기회손실 영향)
+  state.modelASP = state.modelASP || {};
+  const lossModels = (typeof computeOpportunityLoss === 'function') ? computeOpportunityLoss().filter(r => r.lostUnits > 0 && r.asp === 0).length : 0;
+  if (lossModels > 0) actions.push({
+    sev: 'info', icon: '💸', title: `모델 ASP 미입력 ${lossModels}건`,
+    detail: '기회손실 정밀화를 위해 영업 협조 후 ASP 입력 권장',
+    tab: 'finance', actionText: '재무·분석 탭으로'
+  });
+
+  // 8) 백업 7일 이상
+  // (백업은 async라 카드는 시점 정보 생략 — 다른 카드에서 표시)
+
+  const sevOrder = { critical: 0, warn: 1, info: 2 };
+  actions.sort((a, b) => sevOrder[a.sev] - sevOrder[b.sev]);
+  const criticalCnt = actions.filter(a => a.sev === 'critical').length;
+  if (summary) summary.innerHTML = actions.length === 0
+    ? '<span style="color:var(--teal);">✅ 처리할 액션 없음</span>'
+    : `<span style="color:${criticalCnt > 0 ? 'var(--red)' : 'var(--amb)'};font-weight:700;">${actions.length}건</span> 처리 대기${criticalCnt > 0 ? ` · 🚨 ${criticalCnt}건 즉시` : ''}`;
+  if (actions.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--teal);padding:14px;font-size:12px;">✅ 모든 액션 완료 — 즉시 처리할 항목 없음</div>';
+    return;
+  }
+  const sevColor = { critical: 'var(--red)', warn: 'var(--amb)', info: 'var(--sky)' };
+  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;">
+    ${actions.map(a => `
+      <div class="action-card" data-tab="${a.tab}" style="cursor:pointer;background:var(--bg-card);border:0.5px solid var(--border2);border-left:3px solid ${sevColor[a.sev]};border-radius:6px;padding:10px 12px;transition:transform 0.1s;" title="클릭 → ${sanitize(a.actionText)}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-size:14px;">${a.icon}</span>
+          <span style="font-size:11.5px;font-weight:700;color:${sevColor[a.sev]};">${sanitize(a.title)}</span>
+        </div>
+        <div style="font-size:10.5px;color:var(--t2);line-height:1.5;">${sanitize(a.detail)}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:6px;">→ ${sanitize(a.actionText)}</div>
+      </div>
+    `).join('')}
+  </div>`;
+  container.querySelectorAll('.action-card').forEach(el => {
+    el.addEventListener('click', () => setActiveTab(el.dataset.tab));
+  });
+}
+
 // 모델별 잔여 생산 캐파 — 시작재고와 ending 재고 기준 가능 대수 + bottleneck
 function computeModelCapacity() {
   const modelMap = {};
@@ -6568,6 +6866,68 @@ function renderShortageGantt() {
   container.querySelectorAll('.gantt-row').forEach(row => {
     row.addEventListener('click', () => goToFormRow(row.dataset.pn));
   });
+}
+
+// 🔄 라이프사이클 현황
+function renderLifecycleCard() {
+  const container = document.getElementById('lifecycle-body');
+  const summary = document.getElementById('lifecycle-summary');
+  if (!container) return;
+  const now = Date.now();
+  const buckets = { 'NPI (신규 도입)': [], 'Active (정상)': [], 'EOL (단종 예정)': [], 'Discontinued (단종)': [] };
+  MASTERS.forEach((m, idx) => {
+    const k = m.lifecycle || 'Active (정상)';
+    if (!buckets[k]) buckets[k] = [];
+    const inp = state.itemInputs[m.part_no] || {};
+    const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
+    let daysToEol = null;
+    if (m.eol_date) {
+      const eolTs = new Date(m.eol_date).getTime();
+      daysToEol = Math.floor((eolTs - now) / 86400000);
+    }
+    buckets[k].push({ m, idx, stock, daysToEol });
+  });
+  const order = ['EOL (단종 예정)', 'NPI (신규 도입)', 'Discontinued (단종)', 'Active (정상)'];
+  if (summary) {
+    summary.innerHTML = order.map(k => {
+      const c = buckets[k].length;
+      const color = k.startsWith('NPI') ? 'var(--sky)' : k.startsWith('Active') ? 'var(--teal)' : k.startsWith('EOL') ? 'var(--amb)' : 'var(--red)';
+      return `<span style="color:${color};">${k.split(' ')[0]} ${c}</span>`;
+    }).join(' · ');
+  }
+  const alerts = [];
+  buckets['EOL (단종 예정)'].forEach(x => {
+    if (x.stock > 0 && x.daysToEol !== null && x.daysToEol <= 180) {
+      alerts.push({ ...x, alertReason: x.daysToEol < 0 ? '⚠ EOL 경과 + 잔여 재고' : `${x.daysToEol}일 후 EOL + 잔여 재고 ${fmt(x.stock)}` });
+    }
+  });
+  container.innerHTML = `
+    ${alerts.length > 0 ? `
+      <div style="padding:10px 14px;background:rgba(245,158,11,0.08);border-left:3px solid var(--amb);">
+        <div style="font-size:11px;font-weight:700;color:var(--amb);margin-bottom:6px;">⚠ 단종 임박 + 잔여 재고 ${alerts.length}건 — 소진 가이드 검토</div>
+        ${alerts.map(x => `<div style="font-size:10.5px;color:var(--t2);padding:2px 0;">• ${sanitize(x.m.part_no)} · ${sanitize(x.m.part_name)} · ${sanitize(x.alertReason)}</div>`).join('')}
+      </div>` : ''}
+    <table class="order-table" style="width:100%;font-size:11px;">
+      <thead><tr style="position:sticky;top:${alerts.length > 0 ? '0' : '0'};background:var(--bg-card2);z-index:1;">
+        <th>상태</th><th>품번</th><th>품명</th>
+        <th class="col-num">시작재고</th>
+        <th class="col-num">EOL D-day</th>
+        <th style="text-align:right;">조치</th>
+      </tr></thead>
+      <tbody>${order.flatMap(k => buckets[k].map(x => {
+        const color = k.startsWith('NPI') ? 'var(--sky)' : k.startsWith('Active') ? 'var(--teal)' : k.startsWith('EOL') ? 'var(--amb)' : 'var(--red)';
+        const dd = x.daysToEol === null ? '-' : x.daysToEol < 0 ? `D+${Math.abs(x.daysToEol)} 경과` : `D-${x.daysToEol}`;
+        const ddColor = x.daysToEol === null ? 'var(--t3)' : x.daysToEol < 0 ? 'var(--red)' : x.daysToEol <= 180 ? 'var(--amb)' : 'var(--teal)';
+        return `<tr>
+          <td><span style="color:${color};font-weight:700;font-size:10.5px;">${sanitize(k.split(' ')[0])}</span></td>
+          <td style="font-family:var(--mono);">${sanitize(x.m.part_no)}</td>
+          <td>${sanitize(x.m.part_name)}</td>
+          <td class="col-num" style="font-family:var(--mono);">${fmt(x.stock)}</td>
+          <td class="col-num" style="font-family:var(--mono);color:${ddColor};">${dd}</td>
+          <td style="text-align:right;"><button class="btn btn--ghost btn--sm" onclick="showMasterModal(${x.idx})">수정</button></td>
+        </tr>`;
+      })).join('')}</tbody>
+    </table>`;
 }
 
 // 재고 실사 차이 (ERP/실사 vs 시스템 시작재고)
@@ -6696,6 +7056,115 @@ function renderDataQualityCard() {
         <td style="text-align:right;"><button class="btn btn--ghost btn--sm" onclick="showMasterModal(${iss.idx})">수정</button></td>
       </tr>`).join('')}</tbody>
   </table>`;
+}
+
+// 📊 통계적 안전재고 (LT 변동성 기반)
+function renderStatisticalSafety() {
+  const container = document.getElementById('stat-safety-body');
+  if (!container) return;
+  const z = Number(document.getElementById('service-level')?.value) || 1.65;
+  const ltMap = buildLTActuals();
+  const rows = MASTERS.map(m => {
+    const r = getResult(m);
+    const arr = ltMap[m.part_no] || [];
+    if (arr.length < 2) return null;
+    const mean = arr.reduce((s, x) => s + x, 0) / arr.length;
+    const variance = arr.reduce((s, x) => s + (x - mean) ** 2, 0) / arr.length;
+    const sd = Math.sqrt(variance);
+    const annualReq = ['may','jun','jul','aug'].reduce((s, mo) => s + r.months[mo].required, 0) * 3;
+    const dailyAvg = annualReq / 365;
+    const ssStat = Math.ceil(z * sd * dailyAvg);
+    const sfCur = (Number(m.safety_factor) > 0) ? Number(m.safety_factor) : (Number(state.safetyStockMultiplier) || 1.0);
+    const ssCurrent = Math.ceil(dailyAvg * 30 * (sfCur - 1));
+    return { m, samples: arr.length, mean, sd, ssStat, ssCurrent, dailyAvg };
+  }).filter(Boolean).sort((a, b) => b.ssStat - a.ssStat);
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">LT 실측 샘플 2개+ 필요 (현재 부족) — 발주 이력 입고 확인 누적 시 자동 활성화</div>';
+    return;
+  }
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>품번</th><th>품명</th>
+      <th class="col-num">LT 평균</th>
+      <th class="col-num">LT σ</th>
+      <th class="col-num">샘플</th>
+      <th class="col-num">통계적 SS</th>
+      <th class="col-num">현 SS</th>
+      <th class="col-num">갭</th>
+    </tr></thead>
+    <tbody>${rows.slice(0, 50).map(r => {
+      const gap = r.ssStat - r.ssCurrent;
+      const gapColor = gap > r.ssCurrent * 0.3 ? 'var(--red)' : gap > 0 ? 'var(--amb)' : 'var(--teal)';
+      return `<tr>
+        <td style="font-family:var(--mono);">${sanitize(r.m.part_no)}</td>
+        <td>${sanitize(r.m.part_name)}</td>
+        <td class="col-num" style="font-family:var(--mono);">${r.mean.toFixed(1)}일</td>
+        <td class="col-num" style="font-family:var(--mono);">${r.sd.toFixed(1)}일</td>
+        <td class="col-num">${r.samples}건</td>
+        <td class="col-num" style="font-family:var(--mono);font-weight:700;color:var(--sky);">${fmt(r.ssStat)}</td>
+        <td class="col-num" style="font-family:var(--mono);">${fmt(r.ssCurrent)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:${gapColor};font-weight:700;">${gap > 0 ? '+' : ''}${fmt(gap)}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>
+  <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+    💡 통계적 SS &gt; 현 SS 면 안전계수 상향 검토 / 통계적 SS &lt; 현 SS 면 과잉 재고 가능. LT 실측 누적 시 정확도 향상.
+  </div>`;
+}
+document.getElementById('service-level')?.addEventListener('change', renderStatisticalSafety);
+
+// 🔢 XYZ 분석 (월별 사용량 변동계수)
+function renderXYZAnalysis() {
+  const container = document.getElementById('xyz-body');
+  const summary = document.getElementById('xyz-summary');
+  if (!container) return;
+  const rows = MASTERS.map(m => {
+    const r = getResult(m);
+    const monthly = ['may','jun','jul','aug'].map(mo => r.months[mo].required);
+    if (monthly.every(v => v === 0)) return null;
+    const mean = monthly.reduce((s, x) => s + x, 0) / monthly.length;
+    if (mean === 0) return null;
+    const sd = Math.sqrt(monthly.reduce((s, x) => s + (x - mean) ** 2, 0) / monthly.length);
+    const cv = sd / mean;
+    let cls = cv < 0.25 ? 'X' : cv < 0.5 ? 'Y' : 'Z';
+    return { m, mean, sd, cv, cls };
+  }).filter(Boolean).sort((a, b) => b.cv - a.cv);
+  const xCnt = rows.filter(r => r.cls === 'X').length;
+  const yCnt = rows.filter(r => r.cls === 'Y').length;
+  const zCnt = rows.filter(r => r.cls === 'Z').length;
+  if (summary) summary.innerHTML = `<span style="color:var(--teal);">X ${xCnt}</span> / <span style="color:var(--amb);">Y ${yCnt}</span> / <span style="color:var(--red);">Z ${zCnt}</span>`;
+  if (rows.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">사용량 데이터 없음</div>';
+    return;
+  }
+  container.innerHTML = `<table class="order-table" style="width:100%;font-size:11px;">
+    <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+      <th>등급</th><th>품번</th><th>품명</th>
+      <th class="col-num">월평균</th>
+      <th class="col-num">σ</th>
+      <th class="col-num">변동계수 CV</th>
+      <th>정책 권장</th>
+    </tr></thead>
+    <tbody>${rows.slice(0, 60).map(r => {
+      const clsColor = r.cls === 'X' ? 'var(--teal)' : r.cls === 'Y' ? 'var(--amb)' : 'var(--red)';
+      const policy = r.cls === 'X' ? 'EOQ 기반 정기발주 OK'
+                   : r.cls === 'Y' ? '예측 보강 + 안전계수 1.5'
+                   : '높은 안전계수(2.0+) · 자주 검토';
+      return `<tr>
+        <td><span style="color:${clsColor};font-weight:800;font-size:13px;">${r.cls}</span></td>
+        <td style="font-family:var(--mono);">${sanitize(r.m.part_no)}</td>
+        <td>${sanitize(r.m.part_name)}</td>
+        <td class="col-num" style="font-family:var(--mono);">${fmt(r.mean.toFixed(1))}</td>
+        <td class="col-num" style="font-family:var(--mono);">${r.sd.toFixed(1)}</td>
+        <td class="col-num" style="font-family:var(--mono);color:${clsColor};font-weight:700;">${r.cv.toFixed(2)}</td>
+        <td style="font-size:10.5px;color:var(--t2);">${policy}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>
+  <div style="padding:8px 14px;font-size:10px;color:var(--t3);line-height:1.6;background:var(--bg-card);border-top:0.5px solid var(--border2);">
+    💡 X(안정): EOQ 기반 정기발주. Y(중간): 예측+안전계수 강화. Z(변동): 빈번한 검토와 보수적 안전계수.<br>
+    AX 품목(고가+안정) = 핵심 정기발주 / AZ 품목(고가+변동) = 최우선 모니터링 / CZ(저가+변동) = 일괄 비축.
+  </div>`;
 }
 
 // 단가 재협상 알림 — 6개월+ 인상 추세 또는 12개월+ 무변경
@@ -6943,6 +7412,116 @@ function renderOpportunityLossCard() {
     el.addEventListener('click', () => goToFormRow(el.dataset.pn));
   });
 }
+
+// 🎛 What-if 시뮬레이션 — 슬라이더로 가정값 변경 → 영향 즉시 표시 (state 변경 없음)
+function renderWhatIf() {
+  const prodSlider = document.getElementById('whatif-prod');
+  const ltSlider = document.getElementById('whatif-lt');
+  const priceSlider = document.getElementById('whatif-price');
+  if (!prodSlider) return;
+  const prodPct = Number(prodSlider.value) || 0;
+  const ltPct = Number(ltSlider.value) || 0;
+  const pricePct = Number(priceSlider.value) || 0;
+  document.getElementById('whatif-prod-display').textContent = (prodPct > 0 ? '+' : '') + prodPct + '%';
+  document.getElementById('whatif-lt-display').textContent = (ltPct > 0 ? '+' : '') + ltPct + '%';
+  document.getElementById('whatif-price-display').textContent = (pricePct > 0 ? '+' : '') + pricePct + '%';
+
+  // 기본 (현재) 지표
+  let baseShort = 0, baseStockValue = 0, baseDeadline = 0;
+  const todayMs = Date.now();
+  MASTERS.forEach(m => {
+    const r = getResult(m);
+    const inp = state.itemInputs[m.part_no] || {};
+    const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
+    baseStockValue += stock * (m.unit_price || 0);
+    if (r.anyShort) baseShort++;
+    if (r.firstShort) {
+      const dd = orderDeadline(m, r.firstShort);
+      if (dd && Math.ceil((dd - todayMs) / 86400000) < 0) baseDeadline++;
+    }
+  });
+
+  // 시뮬레이션 (state 직접 변경 없이 계산)
+  const prodMul = 1 + prodPct / 100;
+  const ltMul = 1 + ltPct / 100;
+  const priceMul = 1 + pricePct / 100;
+  let simShort = 0, simStockValue = 0, simDeadline = 0;
+  MASTERS.forEach(m => {
+    const qpu = Number(m.qty_per_unit) || 0;
+    if (qpu <= 0) return;
+    const inp = state.itemInputs[m.part_no] || {};
+    const start = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
+    simStockValue += start * (m.unit_price || 0) * priceMul;
+    const months = ['may','jun','jul','aug'];
+    let prevEnding = start;
+    const monthEnding = {};
+    months.forEach(mo => {
+      const mi = state.modelInputs[displayName(m)] || {};
+      const baseQty = Number(mi[mo + '_qty']) || 0;
+      const adjQty = baseQty * prodMul;
+      const required = adjQty * qpu;
+      const incoming = Number(inp[mo + '_incoming']) || 0;
+      const ending = prevEnding + incoming - required;
+      monthEnding[mo] = { ending, required };
+      prevEnding = ending;
+    });
+    const sf = (Number(m.safety_factor) > 0) ? Number(m.safety_factor) : (Number(state.safetyStockMultiplier) || 1.0);
+    const shortAt = {
+      may: monthEnding.may.ending < monthEnding.jun.required * sf,
+      jun: monthEnding.jun.ending < monthEnding.jul.required * sf,
+      jul: monthEnding.jul.ending < monthEnding.aug.required * sf,
+      aug: monthEnding.aug.ending < monthEnding.aug.required * sf
+    };
+    const anyShort = shortAt.may || shortAt.jun || shortAt.jul || shortAt.aug;
+    if (anyShort) simShort++;
+    // LT 변동 → 발주 마감일 변동
+    const firstShort = shortAt.may ? 'may' : shortAt.jun ? 'jun' : shortAt.jul ? 'jul' : shortAt.aug ? 'aug' : null;
+    if (firstShort) {
+      const newLT = (Number(m.lead_time_days) || 0) * ltMul;
+      const shortEndMs = { may: new Date(2026,4,31), jun: new Date(2026,5,30), jul: new Date(2026,6,31), aug: new Date(2026,7,31) }[firstShort];
+      if (shortEndMs) {
+        const dd = new Date(shortEndMs.getTime() - newLT * 86400000);
+        if (Math.ceil((dd - todayMs) / 86400000) < 0) simDeadline++;
+      }
+    }
+  });
+
+  const delta = (sim, base) => {
+    if (base === 0) return sim === 0 ? '·' : (sim > 0 ? '+' + sim : sim);
+    const d = ((sim - base) / Math.abs(base)) * 100;
+    return (d > 0 ? '+' : '') + d.toFixed(1) + '%';
+  };
+  const deltaColor = (sim, base, inv) => {
+    const d = sim - base;
+    if (d === 0) return 'var(--t3)';
+    return (inv ? d < 0 : d > 0) ? 'var(--red)' : 'var(--teal)';
+  };
+
+  document.getElementById('whatif-result').innerHTML = `
+    <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+      <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">부족 품번 수</div>
+      <div style="font-size:18px;font-weight:700;font-family:var(--mono);color:var(--t1);">${fmt(simShort)} 품번</div>
+      <div style="font-size:10px;margin-top:4px;color:var(--t3);">기준: ${fmt(baseShort)} · 변동: <span style="color:${deltaColor(simShort, baseShort)};font-weight:700;">${delta(simShort, baseShort)}</span></div>
+    </div>
+    <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+      <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">총 재고가치</div>
+      <div style="font-size:18px;font-weight:700;font-family:var(--mono);color:var(--t1);">₩${fmt(Math.round(simStockValue))}</div>
+      <div style="font-size:10px;margin-top:4px;color:var(--t3);">기준: ₩${fmt(Math.round(baseStockValue))} · 변동: <span style="color:${deltaColor(simStockValue, baseStockValue, true)};font-weight:700;">${delta(simStockValue, baseStockValue)}</span></div>
+    </div>
+    <div style="background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;padding:10px 12px;">
+      <div style="font-size:10.5px;color:var(--t3);margin-bottom:4px;">발주 마감 초과 (LT 변동 반영)</div>
+      <div style="font-size:18px;font-weight:700;font-family:var(--mono);color:${simDeadline > 0 ? 'var(--red)' : 'var(--teal)'};">${fmt(simDeadline)} 건</div>
+      <div style="font-size:10px;margin-top:4px;color:var(--t3);">기준: ${fmt(baseDeadline)} · 변동: <span style="color:${deltaColor(simDeadline, baseDeadline)};font-weight:700;">${delta(simDeadline, baseDeadline)}</span></div>
+    </div>`;
+  const sumEl = document.getElementById('whatif-summary');
+  if (sumEl) {
+    const tag = (prodPct === 0 && ltPct === 0 && pricePct === 0) ? '기준 시나리오' : `생산${prodPct >= 0 ? '+' : ''}${prodPct}% / LT${ltPct >= 0 ? '+' : ''}${ltPct}% / 단가${pricePct >= 0 ? '+' : ''}${pricePct}%`;
+    sumEl.textContent = tag;
+  }
+}
+['whatif-prod', 'whatif-lt', 'whatif-price'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', renderWhatIf);
+});
 
 // 데드 스톡 분석 — 윈도우 사용량 0 + 시작재고 보유
 function renderDeadStockCard() {
