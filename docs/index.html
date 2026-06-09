@@ -2869,6 +2869,15 @@ async function createBackup(label, isAuto) {
     itemInputs: state.itemInputs,
     orderOverrides: state.orderOverrides || {},
     erpStocks: state.erpStocks || {},
+    // 운영 윈도우·신규 state·발주 이력 모두 포함 (이전 사이클 보기·복원 정확도)
+    periodStartMonth: state.periodStartMonth,
+    periodYear: state.periodYear,
+    safetyStockMultiplier: state.safetyStockMultiplier,
+    modelASP: state.modelASP || {},
+    unmetReasons: state.unmetReasons || {},
+    exchangeRate: state.exchangeRate,
+    auditLog: (state.auditLog || []).slice(-200),
+    orderHistory: typeof orderHistory !== 'undefined' ? orderHistory : [],
     _label: label || (isAuto ? '일일 자동 백업' : '수동 백업'),
     _type: isAuto ? 'auto' : 'manual',
     _createdAt: now.toISOString(),
@@ -2906,7 +2915,21 @@ async function restoreBackup(id) {
     state.itemInputs = s.itemInputs || {};
     state.orderOverrides = s.orderOverrides || {};
     state.erpStocks = s.erpStocks || {};
+    // 신규 필드 복원 (백업이 신 버전일 때만)
+    if (s.periodStartMonth) state.periodStartMonth = s.periodStartMonth;
+    if (s.periodYear) state.periodYear = s.periodYear;
+    if (s.safetyStockMultiplier != null) state.safetyStockMultiplier = s.safetyStockMultiplier;
+    if (s.modelASP) state.modelASP = s.modelASP;
+    if (s.unmetReasons) state.unmetReasons = s.unmetReasons;
+    if (s.exchangeRate != null) state.exchangeRate = s.exchangeRate;
+    if (s.auditLog) state.auditLog = s.auditLog;
+    if (typeof orderHistory !== 'undefined' && Array.isArray(s.orderHistory)) {
+      orderHistory.length = 0;
+      s.orderHistory.forEach(o => orderHistory.push(o));
+      if (typeof saveHistory === 'function') saveHistory();
+    }
     saveInputs();
+    if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
     renderForm();
     renderDashboard();
     renderBackups();
@@ -6501,8 +6524,18 @@ async function togglePreviousCycle() {
     state.itemInputs = JSON.parse(JSON.stringify(data.itemInputs));
     state.orderOverrides = JSON.parse(JSON.stringify(data.orderOverrides || {}));
     state.erpStocks = JSON.parse(JSON.stringify(data.erpStocks || {}));
-    if (data.periodStartMonth) state.periodStartMonth = data.periodStartMonth;
-    if (data.periodYear) state.periodYear = data.periodYear;
+    // periodStartMonth/Year: 신 버전 백업은 직접 사용, 구 버전(누락)이면 이월 백업이므로 현재-1로 추정
+    if (data.periodStartMonth) {
+      state.periodStartMonth = data.periodStartMonth;
+      if (data.periodYear) state.periodYear = data.periodYear;
+    } else {
+      let pm = (state.periodStartMonth || 5) - 1;
+      let py = state.periodYear || (new Date()).getFullYear();
+      if (pm < 1) { pm = 12; py = py - 1; }
+      state.periodStartMonth = pm;
+      state.periodYear = py;
+      console.warn('[이전 사이클] 백업에 periodStartMonth 누락 → 현재-1로 추정:', pm, py);
+    }
     if (data.safetyStockMultiplier != null) state.safetyStockMultiplier = data.safetyStockMultiplier;
     state.modelASP = data.modelASP || {};
     state.unmetReasons = data.unmetReasons || {};
