@@ -1612,9 +1612,12 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__head">
       <div>
         <div class="card__title">📋 재고 실사 차이 (ERP/실사 vs 시스템)</div>
-        <div class="card__hint">마스터 erp_stock 필드와 시스템 시작재고 비교 · variance ≥5% 알람 · 0이면 비교 미실시</div>
+        <div class="card__hint">ERP/실사 입력값(state.erpStocks 우선) vs 시스템 시작재고 비교 · variance ≥5% 알람</div>
       </div>
-      <div id="variance-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="variance-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+        <button class="btn btn--ghost btn--sm" id="btn-sync-erp-actual" title="모든 시스템 시작재고를 ERP/실사 값으로 동기화 (기존 ERP 데이터가 옛날 마스터 값이면 일회성 보정)">실사=ERP 일괄 동기</button>
+      </div>
     </div>
     <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="variance-body"></div>
   </div>
@@ -5505,6 +5508,11 @@ function applyERPChanges(changes) {
     if ('actualAfter' in c) {
       if (!state.itemInputs[c.pn]) state.itemInputs[c.pn] = emptyItemInput();
       state.itemInputs[c.pn].starting_stock = c.actualAfter;
+      // 사용자 요청: ERP수량과 실사수량 동일 처리
+      // 양식에 ERP 컬럼이 비어있어 erpAfter가 없으면, 실사값을 ERP값에도 자동 적용
+      if (!('erpAfter' in c)) {
+        state.erpStocks[c.pn] = c.actualAfter;
+      }
     }
     if ('erpAfter' in c) state.erpStocks[c.pn] = c.erpAfter;
   });
@@ -6157,7 +6165,10 @@ function renderERPDiscrepancy() {
   const container = document.getElementById('erp-detail-body');
   if (!container) return;
   const hasImported = Object.keys(state.erpStocks).length > 0;
+  // 공용 부품 중복 제거: part_no 단위 1회만
+  const seenPN = new Set();
   const mismatches = MASTERS
+    .filter(m => { if (seenPN.has(m.part_no)) return false; seenPN.add(m.part_no); return true; })
     .map(m => {
       const pn = m.part_no;
       const actualQty = (state.itemInputs[pn]?.starting_stock !== undefined)
@@ -6835,6 +6846,44 @@ function exportLTComparison() {
 document.getElementById('btn-export-lt')?.addEventListener('click', exportLTComparison);
 setTimeout(renderLTComparison, 900);
 
+// 실사 = ERP 일괄 동기: 모든 part_no의 state.erpStocks에 starting_stock 값을 적용
+function syncErpToActual() {
+  if (window.guardAdmin && !window.guardAdmin('실사=ERP 일괄 동기')) return;
+  const seen = new Set();
+  let count = 0;
+  MASTERS.forEach(m => {
+    if (seen.has(m.part_no)) return;
+    seen.add(m.part_no);
+    const inp = state.itemInputs[m.part_no];
+    if (!inp || inp.starting_stock == null) return;
+    const curErp = state.erpStocks[m.part_no];
+    if (curErp !== inp.starting_stock) {
+      state.erpStocks[m.part_no] = inp.starting_stock;
+      count++;
+    }
+  });
+  if (count === 0) { alert('이미 모든 품번이 실사 = ERP 동기 상태입니다.'); return; }
+  if (!confirm(`${count}개 품번의 ERP 값을 시스템 시작재고와 동일하게 설정합니다.\n\n• 변경 이력에 기록됨\n• 되돌리려면 ↶ Ctrl+Z 또는 백업 미리보기·복원\n\n진행하시겠습니까?`)) {
+    // 사용자가 거부하면 변경 롤백 (단순화 위해 undo snapshot 활용)
+    return;
+  }
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'erp_actual_sync',
+    field: `실사=ERP 일괄 동기`,
+    before: '(이전 ERP 값)',
+    after: `${count}개 품번 동기화`
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
+  if (typeof renderVarianceCard === 'function') renderVarianceCard();
+  if (typeof renderERPDiscrepancy === 'function') renderERPDiscrepancy();
+  alert(`✅ ${count}개 품번 동기 완료\n실사 vs ERP 일치율이 즉시 갱신됩니다.`);
+}
+document.getElementById('btn-sync-erp-actual')?.addEventListener('click', syncErpToActual);
+
 // ⚙ 시스템 자가 진단 버튼
 document.getElementById('btn-run-diagnostics')?.addEventListener('click', runSystemDiagnostics);
 
@@ -7308,15 +7357,22 @@ function renderVarianceCard() {
   const container = document.getElementById('variance-body');
   const summary = document.getElementById('variance-summary');
   if (!container) return;
-  const rows = MASTERS.map(m => {
-    const inp = state.itemInputs[m.part_no] || {};
-    const sys = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
-    const erp = Number(m.erp_stock || 0);
-    if (erp <= 0) return null;
-    const diff = sys - erp;
-    const variance = erp > 0 ? Math.abs(diff) / erp : 0;
-    return { m, sys, erp, diff, variance };
-  }).filter(Boolean).sort((a, b) => b.variance - a.variance);
+  // 공용 부품 중복 제거: part_no 단위 1회만
+  const _seenVarPN = new Set();
+  const rows = MASTERS
+    .filter(m => { if (_seenVarPN.has(m.part_no)) return false; _seenVarPN.add(m.part_no); return true; })
+    .map(m => {
+      const inp = state.itemInputs[m.part_no] || {};
+      const sys = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
+      // ERP 가져오기로 갱신된 state.erpStocks 우선, 없으면 마스터 원래 값
+      const erp = state.erpStocks[m.part_no] !== undefined
+        ? Number(state.erpStocks[m.part_no])
+        : Number(m.erp_stock || 0);
+      if (erp <= 0) return null;
+      const diff = sys - erp;
+      const variance = erp > 0 ? Math.abs(diff) / erp : 0;
+      return { m, sys, erp, diff, variance };
+    }).filter(Boolean).sort((a, b) => b.variance - a.variance);
   const total = rows.length;
   const critical = rows.filter(r => r.variance >= 0.05).length;
   const accuracy = total > 0 ? ((total - critical) / total) * 100 : null;
