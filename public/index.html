@@ -5962,6 +5962,15 @@ async function showMonthCloseChecklist() {
       &nbsp;&nbsp;3. 월별 계획·입고 한 칸씩 앞으로 이동<br>
       &nbsp;&nbsp;4. 운영 윈도우 +1 (${beforeRange} → ${afterLabel}~)
     </div>
+    <div style="margin-top:12px;padding:10px 14px;background:rgba(96,170,220,0.06);border:0.5px solid var(--sky-b);border-radius:6px;font-size:10.5px;color:var(--t2);line-height:1.7;">
+      <div style="font-weight:700;color:var(--sky);margin-bottom:6px;">⚙ 처리 옵션 (선택)</div>
+      <label style="display:block;cursor:pointer;margin-bottom:4px;">
+        <input type="checkbox" id="rollover-preserve-stock"> <strong style="color:var(--t1);">시작재고 보존</strong> — 자동 계산된 ending으로 덮어쓰지 않고, <strong>사용자가 입력한 시작재고 값을 그대로 유지</strong>. 실사·ERP 가져오기로 정확한 값을 이미 입력한 경우 선택.
+      </label>
+      <label style="display:block;cursor:pointer;">
+        <input type="checkbox" id="rollover-clear-prod"> <strong style="color:var(--t1);">제작대수 초기화</strong> — 시프트 대신 모두 0으로 비움. 새 윈도우 제작대수를 처음부터 새로 입력할 경우 선택.
+      </label>
+    </div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px;gap:8px;">
       <button class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
       <button class="btn" id="btn-checklist-proceed" style="background:var(--amb);color:#1a1a1a;font-weight:700;">점검 완료 · 이월 진행</button>
@@ -5971,22 +5980,41 @@ async function showMonthCloseChecklist() {
 
   document.getElementById('btn-checklist-proceed').addEventListener('click', async () => {
     const btn = document.getElementById('btn-checklist-proceed');
+    const preserveStock = !!document.getElementById('rollover-preserve-stock')?.checked;
+    const clearProd = !!document.getElementById('rollover-clear-prod')?.checked;
     btn.disabled = true; btn.textContent = '백업 생성 중...';
     try { await createBackup('월 이월 처리 자동 백업', false); } catch (e) { console.warn('이월 전 백업 실패', e); }
     document.getElementById('modal').classList.remove('modal-backdrop--open');
-    rolloverMonth();
+    rolloverMonth({ preserveStock, clearProd });
   });
 }
 
-function rolloverMonth() {
+function rolloverMonth(opts) {
+  opts = opts || {};
+  const preserveStock = !!opts.preserveStock;
+  const clearProd = !!opts.clearProd;
   const beforeMay = monthLabel('may');
   const beforeJun = monthLabel('jun');
-  if (!confirm(`⚠️ 월 이월 처리를 진행합니다.\n\n• ${beforeMay} 기말재고 → 새 사이클의 시작재고\n• 월별 계획이 한 달씩 앞으로 이동\n• 시작 월: ${beforeMay} → ${beforeJun}\n\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+  const lines = [
+    `⚠️ 월 이월 처리를 진행합니다.`,
+    ``,
+    preserveStock
+      ? `• 시작재고 보존 (사용자가 입력한 값 유지)`
+      : `• ${beforeMay} 기말재고 → 새 사이클의 시작재고 (자동 계산)`,
+    `• 월별 입고계획이 한 달씩 앞으로 이동`,
+    clearProd
+      ? `• 제작대수(may/jun/jul/aug_qty) 모두 0으로 초기화`
+      : `• 제작대수도 한 달씩 시프트`,
+    `• 시작 월: ${beforeMay} → ${beforeJun}`,
+    ``,
+    `이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`
+  ];
+  if (!confirm(lines.join('\n'))) return;
   MASTERS.forEach(m => {
     const r = getResult(m);
     const ii = state.itemInputs[m.part_no] || emptyItemInput();
     state.itemInputs[m.part_no] = {
-      starting_stock: r.months.may.ending,
+      starting_stock: preserveStock ? (ii.starting_stock || 0) : r.months.may.ending,
       may_incoming: ii.jun_incoming || 0,
       jun_incoming: ii.jul_incoming || 0,
       jul_incoming: ii.aug_incoming || 0,
@@ -5995,7 +6023,9 @@ function rolloverMonth() {
   });
   Object.keys(state.modelInputs).forEach(dn => {
     const mi = state.modelInputs[dn];
-    state.modelInputs[dn] = { may_qty: mi.jun_qty||0, jun_qty: mi.jul_qty||0, jul_qty: mi.aug_qty||0, aug_qty: 0 };
+    state.modelInputs[dn] = clearProd
+      ? { may_qty: 0, jun_qty: 0, jul_qty: 0, aug_qty: 0 }
+      : { may_qty: mi.jun_qty||0, jun_qty: mi.jul_qty||0, jul_qty: mi.aug_qty||0, aug_qty: 0 };
   });
   // 시작 월 +1 (12 초과 시 1월로 wrap + 연도 +1)
   state.periodStartMonth = (state.periodStartMonth || 5) + 1;
@@ -6007,7 +6037,7 @@ function rolloverMonth() {
   updateStaticMonthLabels();
   renderForm();
   updateOrderCount();
-  alert(`월 이월 처리 완료.\n새 운영 윈도우: ${rangeLabel()} (${yearOfMonth('may')}년 기준)`);
+  alert(`월 이월 처리 완료.\n새 운영 윈도우: ${rangeLabel()} (${yearOfMonth('may')}년 기준)\n\n${preserveStock ? '✅ 시작재고는 사용자 입력값 보존됨' : 'ℹ 시작재고는 자동 계산된 ending으로 갱신됨'}`);
 }
 
 // ── ABC 분석 데이터 ──
