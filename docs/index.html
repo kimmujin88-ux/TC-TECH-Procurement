@@ -3715,6 +3715,12 @@ function renderForm() {
     customerGroups[cust].get(dn).push(m);
   });
   
+  // 공용 부품: 같은 part_no의 첫 등장 row 추적 (시작재고·입고 입력 단일화)
+  window._firstRowOfPart = new Map();
+  filtered.forEach(m => {
+    if (!window._firstRowOfPart.has(m.part_no)) window._firstRowOfPart.set(m.part_no, m);
+  });
+
   const rows = [];
   let grandTotalItems = [];
   // 2. 고객사 순서대로 렌더링 (TEREX GENIE -> HD건설기계)
@@ -3861,24 +3867,39 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
         </div>
       </td>
       <td class="cell-num cell-meta" style="text-align:center">${m.qty_per_unit}</td>
-      <td class="has-input" style="width:60px;">
-        <input type="number" class="form-input cell-num--start" data-pn="${sanitize(m.part_no)}" data-field="starting_stock" value="${r.start}" min="0" step="1">
-      </td>
+      ${(() => {
+        const isShared = isSharedPart(m.part_no);
+        const isPartFirst = !window._firstRowOfPart || window._firstRowOfPart.get(m.part_no) === m;
+        const showInput = !isShared || isPartFirst;
+        if (showInput) {
+          return `<td class="has-input" style="width:60px;">
+            <input type="number" class="form-input cell-num--start" data-pn="${sanitize(m.part_no)}" data-field="starting_stock" value="${r.start}" min="0" step="1">
+          </td>`;
+        } else {
+          return `<td class="cell-num cell-num--readonly" style="width:60px;color:var(--t3);font-size:10px;opacity:0.6;" title="공용 부품 · 첫 row(${sanitize(displayName(window._firstRowOfPart.get(m.part_no)))})에서 입력">${fmt(r.start)}<br><span style="font-size:8px;">↑ 공유</span></td>`;
+        }
+      })()}
       ${months.map(mo => {
         const d = r.months[mo];
         const isShort = r.shortAt[mo];
+        const isShared = isSharedPart(m.part_no);
+        const isPartFirst = !window._firstRowOfPart || window._firstRowOfPart.get(m.part_no) === m;
+        const showIncoming = !isShared || isPartFirst;
         // Point 2: 제작대수 셀을 텍스트에서 입력 필드로 변경
         const qtyCell = isFirst
           ? `<td class="has-input cell-num--qty-merged month-start ${monthClass[mo]}" rowspan="${groupSize}">
                <input type="number" class="form-input model-header-input" style="text-align:center; font-size:13px; font-weight:700;" data-group="${dnAttr}" data-month="${mo}" value="${d.qty}" min="0" step="1">
              </td>`
           : '';
+        const incomingCell = showIncoming
+          ? `<td class="has-input ${monthClass[mo]}">
+              <input type="number" class="form-input" data-pn="${sanitize(m.part_no)}" data-field="${mo}_incoming" value="${d.incoming}" min="0" step="1">
+            </td>`
+          : `<td class="cell-num cell-num--readonly ${monthClass[mo]}" style="color:var(--t3);font-size:10px;opacity:0.6;" title="공용 부품 · 첫 row에서 입력">${fmt(d.incoming)}<br><span style="font-size:8px;">↑ 공유</span></td>`;
         return `
           ${qtyCell}
           <td class="cell-num cell-num--readonly ${monthClass[mo]}" data-cell="${mo}_required">${fmt(d.required)}</td>
-          <td class="has-input ${monthClass[mo]}">
-            <input type="number" class="form-input" data-pn="${sanitize(m.part_no)}" data-field="${mo}_incoming" value="${d.incoming}" min="0" step="1">
-          </td>
+          ${incomingCell}
           <td class="cell-num ${isShort ? 'cell-num--alert' : ''} ${monthClass[mo]}" data-cell="${mo}_ending">${fmt(d.ending)}</td>
         `;
       }).join('')}
