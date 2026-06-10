@@ -2305,6 +2305,24 @@ function computeAggregateRequired(partNo, monthKey) {
   return total;
 }
 
+// 공용 부품 식별: part_no가 2개 이상 모델에 사용되면 true (결과 캐시)
+let _sharedPartCache = null;
+function isSharedPart(partNo) {
+  if (!_sharedPartCache) {
+    _sharedPartCache = {};
+    const counts = {};
+    MASTERS.forEach(m => { counts[m.part_no] = (counts[m.part_no] || 0) + 1; });
+    Object.keys(counts).forEach(pn => { _sharedPartCache[pn] = counts[pn] > 1; });
+  }
+  return !!_sharedPartCache[partNo];
+}
+function invalidateSharedPartCache() { _sharedPartCache = null; }
+
+// 공용 부품이 사용되는 모델 목록 (배지 tooltip 용)
+function getSharedPartModels(partNo) {
+  return MASTERS.filter(m => m.part_no === partNo).map(m => displayName(m));
+}
+
 function computeRow(master, inp) {
   const qpu = master.qty_per_unit || 1;
   const start = inp.starting_stock || 0;
@@ -3167,7 +3185,9 @@ async function loadMastersFromServer() {
   } catch (e) { console.warn('Masters load failed', e); return false; }
 }
 
+// MASTERS 변경 시 공용 부품 캐시 무효화
 async function saveMastersToServer() {
+  if (typeof invalidateSharedPartCache === 'function') invalidateSharedPartCache();
   try {
     const { error } = await _supa.from('app_state').upsert({
       id: 'masters_v1',
@@ -3821,7 +3841,7 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
     <tr class="item-row" data-pn="${sanitize(m.part_no)}" data-first="${isFirst ? '1' : '0'}">
       ${customerCell}
       ${modelCell}
-      <td class="sticky-col sticky-col-2 cell-pn">${sanitize(m.part_no)}</td>
+      <td class="sticky-col sticky-col-2 cell-pn">${sanitize(m.part_no)}${isSharedPart(m.part_no) ? ` <span class="badge-shared" title="공용 부품 — 사용 모델: ${sanitize(getSharedPartModels(m.part_no).join(', '))}&#10;• 시작재고·입고·재고 = 모든 모델 공유&#10;• 화면 재고 = 그 모델 사용분만 차감 (직관)&#10;• 부족 알람 = 합계 기준 (정확)" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px;cursor:help;">🔁 공용</span>` : ''}</td>
       <td class="sticky-col sticky-col-3">
         <div class="cell-name" title="${sanitize(m.part_name)}${m.memo ? '\n\n📝 메모: ' + sanitize(m.memo) : ''}">${sanitize(m.part_name)}${m.memo ? ` <span style="color:var(--amb);font-size:11px;" title="${sanitize(m.memo)}">📝</span>` : ''}</div>
         <div class="cell-detail">
@@ -7265,6 +7285,15 @@ function runSystemDiagnostics() {
   // MASTERS 데이터 무결성
   const masterInvalid = MASTERS.filter(m => !m.part_no || !m.part_name).length;
   checks.push({ name: 'MASTERS 필수 필드', pass: masterInvalid === 0, detail: `${MASTERS.length}건 중 ${masterInvalid}건 결함 (part_no/part_name 누락)` });
+  // 공용 부품 자동 감지 결과
+  const partCount = {};
+  MASTERS.forEach(m => { partCount[m.part_no] = (partCount[m.part_no] || 0) + 1; });
+  const sharedParts = Object.entries(partCount).filter(([, c]) => c > 1);
+  checks.push({
+    name: '공용 부품 자동 감지',
+    pass: true,
+    detail: `${sharedParts.length}개 공용 부품 (${sharedParts.map(([pn, c]) => pn + '×' + c).join(', ')})`
+  });
   // 라이브러리 확인
   checks.push({ name: 'Chart.js 로드', pass: typeof Chart !== 'undefined', detail: typeof Chart !== 'undefined' ? '정상' : '미로드' });
   checks.push({ name: 'XLSX 로드', pass: typeof XLSX !== 'undefined', detail: typeof XLSX !== 'undefined' ? '정상' : '미로드' });
