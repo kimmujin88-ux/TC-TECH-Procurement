@@ -1961,6 +1961,46 @@ function emptyItemInput() {
   return { starting_stock: 0, may_incoming: 0, jun_incoming: 0, jul_incoming: 0, aug_incoming: 0 };
 }
 
+// 모델별 분리 데이터 — masterKey = part_no + '|' + displayName(master)
+// 공용 부품은 모델 row마다 독립 itemInputs (시작재고·입고 모델별 보관)
+function masterInputKey(master) {
+  return master.part_no + '|' + displayName(master);
+}
+function getItemInput(master) {
+  if (!master) return null;
+  const newKey = masterInputKey(master);
+  if (state.itemInputs && state.itemInputs[newKey]) return state.itemInputs[newKey];
+  // 구버전 호환: part_no 단일 키 fallback
+  if (state.itemInputs && state.itemInputs[master.part_no]) return state.itemInputs[master.part_no];
+  return null;
+}
+function ensureItemInput(master) {
+  const newKey = masterInputKey(master);
+  if (!state.itemInputs) state.itemInputs = {};
+  if (!state.itemInputs[newKey]) state.itemInputs[newKey] = emptyItemInput();
+  return state.itemInputs[newKey];
+}
+// 구→신 마이그레이션: itemInputs[part_no] 단일 값을 같은 part_no의 모든 master row에 복사
+function migrateItemInputsToMasterKey() {
+  if (!state.itemInputs) return 0;
+  let migrated = 0;
+  const oldKeys = Object.keys(state.itemInputs).filter(k => !k.includes('|'));
+  oldKeys.forEach(pn => {
+    const oldVal = state.itemInputs[pn];
+    const masters = MASTERS.filter(m => m.part_no === pn);
+    if (masters.length === 0) return;
+    masters.forEach(m => {
+      const newKey = masterInputKey(m);
+      if (!state.itemInputs[newKey]) {
+        state.itemInputs[newKey] = JSON.parse(JSON.stringify(oldVal));
+        migrated++;
+      }
+    });
+    delete state.itemInputs[pn];
+  });
+  return migrated;
+}
+
 // 모델 표시명 — 새 엑셀은 이미 영문 표기 (kind: "Drive Chassis", "Lower Frame" 등)
 function displayName(master) {
   const m = (master.model || '').trim();
@@ -2003,18 +2043,26 @@ function initialModelInputs() {
   return result;
 }
 
-// INITIAL_INPUTS에서 품목별 입고계획 추출
+// INITIAL_INPUTS에서 품목별 입고계획 추출 — 모델별 분리(masterKey 단위)
+// 같은 part_no가 여러 모델 row에 있으면 첫 row에만 INITIAL 값 할당, 나머지는 0
 function initialItemInputs() {
   const result = {};
+  const seen = new Set();
   MASTERS.forEach(m => {
-    const src = INITIAL_INPUTS[m.part_no] || {};
-    result[m.part_no] = {
-      starting_stock: m.starting_stock || 0,
-      may_incoming: src.may_incoming || 0,
-      jun_incoming: src.jun_incoming || 0,
-      jul_incoming: src.jul_incoming || 0,
-      aug_incoming: src.aug_incoming || 0
-    };
+    const key = masterInputKey(m);
+    if (seen.has(m.part_no)) {
+      result[key] = emptyItemInput();
+    } else {
+      seen.add(m.part_no);
+      const src = INITIAL_INPUTS[m.part_no] || {};
+      result[key] = {
+        starting_stock: m.starting_stock || 0,
+        may_incoming: src.may_incoming || 0,
+        jun_incoming: src.jun_incoming || 0,
+        jul_incoming: src.jul_incoming || 0,
+        aug_incoming: src.aug_incoming || 0
+      };
+    }
   });
   return result;
 }
@@ -2103,13 +2151,31 @@ if (_loaded.exchangeRate != null) state.exchangeRate = _loaded.exchangeRate;
 if (_loaded.auditLog) state.auditLog = _loaded.auditLog;
 if (_loaded.periodStartMonth) state.periodStartMonth = _loaded.periodStartMonth;
 if (_loaded.periodYear) state.periodYear = _loaded.periodYear;
+// 구→신 키 마이그레이션 (part_no → part_no|displayName)
+{
+  const n = migrateItemInputsToMasterKey();
+  if (n > 0) console.log('[마이그레이션] itemInputs 구→신 키 ' + n + '건 변환');
+}
 
 // 서버 데이터 비동기 로드 (서버 데이터가 있으면 우선 적용)
 (async () => {
   const mastersLoaded = await loadMastersFromServer();
   const serverLoaded = await loadFromServer();
   if (serverLoaded || mastersLoaded) {
-    updateStaticMonthLabels(); // 서버에 저장된 periodStartMonth로 라벨 동기화
+    const n = migrateItemInputsToMasterKey();
+    if (n > 0) {
+      console.log('[마이그레이션] 서버 itemInputs 구→신 키 ' + n + '건 변환');
+      state.auditLog = state.auditLog || [];
+      state.auditLog.push({
+        ts: new Date().toISOString(),
+        user: sessionStorage.getItem('tctech_auth_user') || 'system',
+        action: 'migrate_item_inputs',
+        field: 'itemInputs',
+        before: '단일 키(part_no)',
+        after: `모델별 키(masterKey) ${n}건 변환`
+      });
+    }
+    updateStaticMonthLabels();
     if (mastersLoaded) populateFilters();
     renderForm();
     updateOrderCount();
@@ -2305,6 +2371,26 @@ function computeAggregateRequired(partNo, monthKey) {
   });
   return total;
 }
+// 모델별 분리 시작재고 — 같은 part_no의 모든 row 시작재고 합계
+function computePartTotalStart(partNo) {
+  let total = 0;
+  MASTERS.forEach(m => {
+    if (m.part_no !== partNo) return;
+    const ii = getItemInput(m) || {};
+    total += Number(ii.starting_stock || 0);
+  });
+  return total;
+}
+// 모델별 분리 입고 — 같은 part_no의 모든 row 입고 합계
+function computePartTotalIncoming(partNo, monthKey) {
+  let total = 0;
+  MASTERS.forEach(m => {
+    if (m.part_no !== partNo) return;
+    const ii = getItemInput(m) || {};
+    total += Number(ii[`${monthKey}_incoming`] || 0);
+  });
+  return total;
+}
 
 // 공용 부품 식별: part_no가 2개 이상 모델에 사용되면 true (결과 캐시)
 let _sharedPartCache = null;
@@ -2330,18 +2416,20 @@ function computeRow(master, inp) {
   const months = ['may', 'jun', 'jul', 'aug'];
   const result = { start, months: {} };
   // 두 가지 ending 추적:
-  //   ending = 그 모델 사용분만 차감 (화면 표시용 — 사용자 직관)
-  //   endingTotal = 같은 part_no 전체 합계 차감 (부족 판정·KPI·발주 권장량용)
+  //   ending = 그 row(모델별)의 독립 시뮬레이션 (모델별 시작재고·입고·사용)
+  //   endingTotal = 같은 part_no 모든 row 합계 (부족 판정·KPI·발주 권장량용)
   let prevEnding = start;
-  let prevEndingTotal = start;
+  // 합계 시뮬레이션은 그 부품의 모든 row 시작재고 합산부터 시작
+  let prevEndingTotal = computePartTotalStart(master.part_no);
   for (const m of months) {
     const qty = inp[`${m}_qty`] || 0;
-    const incoming = inp[`${m}_incoming`] || 0;
-    const required = qty * qpu;                                      // 이 모델 사용분
-    const requiredTotal = computeAggregateRequired(master.part_no, m); // 전체 합계
-    const ending = prevEnding + incoming - required;                  // 모델별 시뮬레이션
-    const endingTotal = prevEndingTotal + incoming - requiredTotal;   // 합계 시뮬레이션
-    result.months[m] = { qty, required, requiredTotal, incoming, ending, endingTotal };
+    const incoming = inp[`${m}_incoming`] || 0;                          // 이 row의 입고
+    const incomingTotal = computePartTotalIncoming(master.part_no, m);   // 같은 part_no 전체 입고
+    const required = qty * qpu;                                          // 이 모델 사용분
+    const requiredTotal = computeAggregateRequired(master.part_no, m);    // 전체 합계
+    const ending = prevEnding + incoming - required;                      // 이 row 독립 시뮬레이션
+    const endingTotal = prevEndingTotal + incomingTotal - requiredTotal;  // 합계 시뮬레이션
+    result.months[m] = { qty, required, requiredTotal, incoming, incomingTotal, ending, endingTotal };
     prevEnding = ending;
     prevEndingTotal = endingTotal;
   }
@@ -2436,7 +2524,8 @@ function updateStaticMonthLabels() {
 function getResult(master) {
   const dn = displayName(master);
   const mi = state.modelInputs[dn] || emptyModelInput();
-  const ii = state.itemInputs[master.part_no] || emptyItemInput();
+  // 모델별 분리 itemInput 조회 (masterKey 우선, fallback part_no)
+  const ii = getItemInput(master) || emptyItemInput();
   const merged = {
     starting_stock: (ii.starting_stock !== undefined) ? ii.starting_stock : (master.starting_stock || 0),
     may_qty: mi.may_qty, jun_qty: mi.jun_qty, jul_qty: mi.jul_qty, aug_qty: mi.aug_qty,
@@ -2464,7 +2553,9 @@ function computeFinancialKPIs() {
     const isImport = m.category === '수입';
     const price = (m.unit_price || 0) * (isImport ? importMultiplier : 1);
     const r = getResult(m);
-    const startV = r.start * price;
+    // 부품 단위 시작재고 = 같은 part_no 모든 row 합산
+    const partTotalStart = computePartTotalStart(m.part_no);
+    const startV = partTotalStart * price;
     const endStock = Math.max(0, r.months.aug.endingTotal); // 합계 기준 (부품 단위 KPI)
     const endV = endStock * price;
     let consumeV = 0;
@@ -3862,12 +3953,11 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
       </td>
       <td class="cell-num cell-meta" style="text-align:center">${m.qty_per_unit}</td>
       <td class="has-input" style="width:60px;">
-        <input type="number" class="form-input cell-num--start" data-pn="${sanitize(m.part_no)}" data-field="starting_stock" value="${r.start}" min="0" step="1">
+        <input type="number" class="form-input cell-num--start" data-mkey="${sanitize(masterInputKey(m))}" data-pn="${sanitize(m.part_no)}" data-field="starting_stock" value="${r.start}" min="0" step="1">
       </td>
       ${months.map(mo => {
         const d = r.months[mo];
         const isShort = r.shortAt[mo];
-        // Point 2: 제작대수 셀을 텍스트에서 입력 필드로 변경
         const qtyCell = isFirst
           ? `<td class="has-input cell-num--qty-merged month-start ${monthClass[mo]}" rowspan="${groupSize}">
                <input type="number" class="form-input model-header-input" style="text-align:center; font-size:13px; font-weight:700;" data-group="${dnAttr}" data-month="${mo}" value="${d.qty}" min="0" step="1">
@@ -3877,7 +3967,7 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
           ${qtyCell}
           <td class="cell-num cell-num--readonly ${monthClass[mo]}" data-cell="${mo}_required">${fmt(d.required)}</td>
           <td class="has-input ${monthClass[mo]}">
-            <input type="number" class="form-input" data-pn="${sanitize(m.part_no)}" data-field="${mo}_incoming" value="${d.incoming}" min="0" step="1">
+            <input type="number" class="form-input" data-mkey="${sanitize(masterInputKey(m))}" data-pn="${sanitize(m.part_no)}" data-field="${mo}_incoming" value="${d.incoming}" min="0" step="1">
           </td>
           <td class="cell-num ${isShort ? 'cell-num--alert' : ''} ${monthClass[mo]}" data-cell="${mo}_ending">${fmt(d.ending)}</td>
         `;
@@ -3907,14 +3997,24 @@ function onModelInputChange(e) {
 
 // 품목의 입고계획 변경 → 해당 행만 재계산
 function onItemInputChange(e) {
+  const mkey = e.target.dataset.mkey;
   const pn = e.target.dataset.pn;
   const field = e.target.dataset.field;
   const val = parseInt(e.target.value, 10) || 0;
-  
-  if (!state.itemInputs[pn]) state.itemInputs[pn] = emptyItemInput();
-  state.itemInputs[pn][field] = val;
-  
-  updateItemRow(pn);
+  // 모델별 분리: masterKey 우선, fallback part_no
+  if (mkey) {
+    if (!state.itemInputs[mkey]) state.itemInputs[mkey] = emptyItemInput();
+    state.itemInputs[mkey][field] = val;
+  } else {
+    if (!state.itemInputs[pn]) state.itemInputs[pn] = emptyItemInput();
+    state.itemInputs[pn][field] = val;
+  }
+  // 공용 부품은 같은 part_no의 다른 row도 영향(합계 ending 변경) → 전체 재계산
+  if (typeof isSharedPart === 'function' && isSharedPart(pn)) {
+    renderForm();
+  } else {
+    updateItemRow(pn);
+  }
   saveInputs();
   updateOrderCount();
 }
@@ -5354,13 +5454,15 @@ document.getElementById('modal-confirm-order').addEventListener('click', () => {
     : `[${poEditState.supplier}] 발주 확정 (이력만 저장)\n\n⚠ 납기일자(${delivDate || '미설정'})가 현재 운영 윈도우(${rangeLabel()}) 범위 밖이라 입고계획 자동 반영은 건너뜁니다.\n\n진행하시겠습니까?`;
   if (!confirm(msg)) return;
   logOrderConfirm(poEditState.supplier, poEditState.items);
-  // 입고계획 자동 반영 (범위 내일 때만)
+  // 입고계획 자동 반영 (범위 내일 때만) — 모델별 분리 itemInputs: 같은 part_no의 첫 row에 반영
   if (monthKey) {
     const field = monthKey + '_incoming';
     poEditState.items.forEach(it => {
-      const pn = it.master.part_no;
-      state.itemInputs[pn] = state.itemInputs[pn] || emptyItemInput();
-      state.itemInputs[pn][field] = (state.itemInputs[pn][field] || 0) + (it.qty || 0);
+      const firstMaster = MASTERS.find(mm => mm.part_no === it.master.part_no);
+      if (!firstMaster) return;
+      const key = masterInputKey(firstMaster);
+      state.itemInputs[key] = state.itemInputs[key] || emptyItemInput();
+      state.itemInputs[key][field] = (state.itemInputs[key][field] || 0) + (it.qty || 0);
     });
     saveInputs();
     renderForm();
@@ -5538,10 +5640,14 @@ function applyERPChanges(changes) {
   if (window.guardAdmin && !window.guardAdmin('ERP 가져오기 적용')) return;
   changes.forEach(c => {
     if ('actualAfter' in c) {
-      if (!state.itemInputs[c.pn]) state.itemInputs[c.pn] = emptyItemInput();
-      state.itemInputs[c.pn].starting_stock = c.actualAfter;
+      // 모델별 분리: 같은 part_no의 첫 row에 시작재고 적용 (사용자가 모델별 분배 가능)
+      const firstMaster = MASTERS.find(mm => mm.part_no === c.pn);
+      if (firstMaster) {
+        const key = masterInputKey(firstMaster);
+        if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
+        state.itemInputs[key].starting_stock = c.actualAfter;
+      }
       // 사용자 요청: ERP수량과 실사수량 동일 처리
-      // 양식에 ERP 컬럼이 비어있어 erpAfter가 없으면, 실사값을 ERP값에도 자동 적용
       if (!('erpAfter' in c)) {
         state.erpStocks[c.pn] = c.actualAfter;
       }
@@ -5595,8 +5701,8 @@ function downloadERPTemplate() {
   const rows = [
     header,
     ...uniqueMasters.map(m => {
-      const actualQty = (state.itemInputs[m.part_no]?.starting_stock !== undefined)
-        ? state.itemInputs[m.part_no].starting_stock : (m.starting_stock || 0);
+      // 모델별 분리 시 부품 단위 합산
+      const actualQty = computePartTotalStart(m.part_no);
       const erpQty = (state.erpStocks[m.part_no] !== undefined)
         ? state.erpStocks[m.part_no] : (m.erp_stock || 0);
       return [m.part_no, m.part_name, m.supplier || '', actualQty, erpQty, ''];
@@ -6107,10 +6213,12 @@ function rolloverMonth(opts) {
     `이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`
   ];
   if (!confirm(lines.join('\n'))) return;
+  // 모델별 분리 itemInputs (masterKey 단위)로 시프트
   MASTERS.forEach(m => {
     const r = getResult(m);
-    const ii = state.itemInputs[m.part_no] || emptyItemInput();
-    state.itemInputs[m.part_no] = {
+    const key = masterInputKey(m);
+    const ii = state.itemInputs[key] || emptyItemInput();
+    state.itemInputs[key] = {
       starting_stock: preserveStock ? (ii.starting_stock || 0) : r.months.may.ending,
       may_incoming: ii.jun_incoming || 0,
       jun_incoming: ii.jul_incoming || 0,
@@ -6203,8 +6311,8 @@ function renderERPDiscrepancy() {
     .filter(m => { if (seenPN.has(m.part_no)) return false; seenPN.add(m.part_no); return true; })
     .map(m => {
       const pn = m.part_no;
-      const actualQty = (state.itemInputs[pn]?.starting_stock !== undefined)
-        ? state.itemInputs[pn].starting_stock : (m.starting_stock || 0);
+      // 모델별 분리 시 부품 단위 합산 = 같은 part_no 모든 row 시작재고 합계
+      const actualQty = computePartTotalStart(pn);
       const erpQty = (state.erpStocks[pn] !== undefined)
         ? state.erpStocks[pn] : (m.erp_stock || 0);
       const diff = actualQty - erpQty;
@@ -6758,7 +6866,7 @@ function updateCarryingCost() {
   const sf = Number(state.safetyStockMultiplier) > 0 ? Number(state.safetyStockMultiplier) : 1.0;
   let stockValue = 0;
   MASTERS.forEach(m => {
-    const inp = state.itemInputs[m.part_no] || {};
+    const inp = (getItemInput(m) || {});
     const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
     stockValue += stock * (m.unit_price || 0);
   });
@@ -6886,11 +6994,11 @@ function syncErpToActual() {
   MASTERS.forEach(m => {
     if (seen.has(m.part_no)) return;
     seen.add(m.part_no);
-    const inp = state.itemInputs[m.part_no];
-    if (!inp || inp.starting_stock == null) return;
+    // 모델별 분리 — 부품 단위 시작재고 합계로 ERP 동기
+    const totalStart = computePartTotalStart(m.part_no);
     const curErp = state.erpStocks[m.part_no];
-    if (curErp !== inp.starting_stock) {
-      state.erpStocks[m.part_no] = inp.starting_stock;
+    if (curErp !== totalStart) {
+      state.erpStocks[m.part_no] = totalStart;
       count++;
     }
   });
@@ -6937,7 +7045,7 @@ function computeROPandEOQ() {
     const eoq = (annualReq > 0 && unitCarry > 0)
       ? Math.ceil(Math.sqrt(2 * annualReq * orderCost / unitCarry))
       : 0;
-    const inp = state.itemInputs[m.part_no] || {};
+    const inp = (getItemInput(m) || {});
     const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
     const needOrder = lt > 0 && annualReq > 0 && stock <= rop;
     return { m, lt, annualReq, dailyAvg, safety, rop, eoq, stock, needOrder };
@@ -7128,7 +7236,7 @@ function computeModelCapacity() {
     let nowBottleneck = null, endBottleneck = null;
     let minNow = Infinity, minEnd = Infinity;
     parts.forEach(m => {
-      const inp = state.itemInputs[m.part_no] || {};
+      const inp = (getItemInput(m) || {});
       const qpu = Number(m.qty_per_unit) || 0;
       if (qpu <= 0) return;
       const start = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
@@ -7341,7 +7449,7 @@ function renderLifecycleCard() {
   MASTERS.forEach((m, idx) => {
     const k = m.lifecycle || 'Active (정상)';
     if (!buckets[k]) buckets[k] = [];
-    const inp = state.itemInputs[m.part_no] || {};
+    const inp = (getItemInput(m) || {});
     const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
     let daysToEol = null;
     if (m.eol_date) {
@@ -7403,8 +7511,8 @@ function renderVarianceCard() {
   const rows = MASTERS
     .filter(m => { if (_seenVarPN.has(m.part_no)) return false; _seenVarPN.add(m.part_no); return true; })
     .map(m => {
-      const inp = state.itemInputs[m.part_no] || {};
-      const sys = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
+      // 모델별 분리 시 부품 단위 합산 = 같은 part_no 모든 row 시작재고 합계
+      const sys = computePartTotalStart(m.part_no);
       // ERP 가져오기로 갱신된 state.erpStocks 우선, 없으면 마스터 원래 값
       const erp = state.erpStocks[m.part_no] !== undefined
         ? Number(state.erpStocks[m.part_no])
@@ -7732,7 +7840,7 @@ async function renderSeasonalityCard() {
     });
     let curStockValue = 0, curShort = 0;
     MASTERS.forEach(m => {
-      const inp = state.itemInputs[m.part_no] || {};
+      const inp = (getItemInput(m) || {});
       const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
       curStockValue += stock * (m.unit_price || 0);
       if (getResult(m).anyShort) curShort++;
@@ -7901,7 +8009,7 @@ function renderWhatIf() {
   const todayMs = Date.now();
   MASTERS.forEach(m => {
     const r = getResult(m);
-    const inp = state.itemInputs[m.part_no] || {};
+    const inp = (getItemInput(m) || {});
     const stock = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
     baseStockValue += stock * (m.unit_price || 0);
     if (r.anyShort) baseShort++;
@@ -7919,7 +8027,7 @@ function renderWhatIf() {
   MASTERS.forEach(m => {
     const qpu = Number(m.qty_per_unit) || 0;
     if (qpu <= 0) return;
-    const inp = state.itemInputs[m.part_no] || {};
+    const inp = (getItemInput(m) || {});
     const start = Number(inp.starting_stock != null ? inp.starting_stock : m.starting_stock || 0);
     simStockValue += start * (m.unit_price || 0) * priceMul;
     const months = ['may','jun','jul','aug'];
@@ -8000,7 +8108,7 @@ function renderDeadStockCard() {
   if (!container) return;
   const rows = MASTERS.map(m => {
     const r = getResult(m);
-    const inp = state.itemInputs[m.part_no] || {};
+    const inp = (getItemInput(m) || {});
     const stock = Number(inp.starting_stock != null ? inp.starting_stock : (m.starting_stock || 0));
     const totalReq = ['may', 'jun', 'jul', 'aug'].reduce((s, mo) => s + r.months[mo].required, 0);
     if (totalReq > 0 || stock <= 0) return null;
@@ -8367,10 +8475,17 @@ document.getElementById('btn-erp-template').addEventListener('click', downloadER
 document.getElementById('btn-erp-reset').addEventListener('click', () => {
   if (!confirm('가져온 ERP/실사 데이터를 초기화하고 원본 데이터로 되돌리겠습니까?')) return;
   state.erpStocks = {};
-  // 실사수량도 원본(MASTERS)으로 복원
+  // 실사수량도 원본(MASTERS)으로 복원 — 모델별 분리: 각 row의 masterKey에 starting_stock 적용
+  // 같은 part_no는 첫 row에만 원본 값, 나머지 row는 0
+  const seen = new Set();
   MASTERS.forEach(m => {
-    if (state.itemInputs[m.part_no]) {
-      state.itemInputs[m.part_no].starting_stock = m.starting_stock || 0;
+    const key = masterInputKey(m);
+    if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
+    if (seen.has(m.part_no)) {
+      state.itemInputs[key].starting_stock = 0;
+    } else {
+      seen.add(m.part_no);
+      state.itemInputs[key].starting_stock = m.starting_stock || 0;
     }
   });
   saveInputs();
