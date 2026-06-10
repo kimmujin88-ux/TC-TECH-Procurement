@@ -1590,7 +1590,24 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="section-title__hint">정합성 점검 · 변경 추적</div>
   </div>
 
+  <!-- ⚙ 시스템 자가 진단 (최상단) -->
+  <div class="card" style="border-left:3px solid var(--teal);">
+    <div class="card__head">
+      <div>
+        <div class="card__title">⚙ 시스템 자가 진단</div>
+        <div class="card__hint">함수·state·저장 흐름·라이브러리 자동 점검 + 공용 부품 감지 결과 · 매주 1회 실행 권장</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn--sm" id="btn-run-diagnostics" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">진단 실행</button>
+      </div>
+    </div>
+    <div class="card__body" style="padding:14px;" id="diagnostics-body">
+      <div style="text-align:center;color:var(--t3);padding:14px;font-size:11px;">우측 상단 "진단 실행" 클릭</div>
+    </div>
+  </div>
+
   <!-- ERP vs 실사재고 불일치 -->
+  <div style="margin-top:14px;"></div>
   <div class="card">
     <div class="card__head">
       <div>
@@ -1632,22 +1649,6 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <div id="lifecycle-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
     </div>
     <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="lifecycle-body"></div>
-  </div>
-
-  <!-- ⚙ 시스템 자가 진단 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">⚙ 시스템 자가 진단</div>
-        <div class="card__hint">함수/state/저장 흐름 자동 점검 · 모든 항목 ✅면 시스템 정상</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn btn--sm" id="btn-run-diagnostics">진단 실행</button>
-      </div>
-    </div>
-    <div class="card__body" style="padding:14px;" id="diagnostics-body">
-      <div style="text-align:center;color:var(--t3);padding:14px;font-size:11px;">"진단 실행" 클릭</div>
-    </div>
   </div>
 
   <!-- 🩺 마스터 데이터 정합성 점검 -->
@@ -3841,7 +3842,12 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
     <tr class="item-row" data-pn="${sanitize(m.part_no)}" data-first="${isFirst ? '1' : '0'}">
       ${customerCell}
       ${modelCell}
-      <td class="sticky-col sticky-col-2 cell-pn">${sanitize(m.part_no)}${isSharedPart(m.part_no) ? ` <span class="badge-shared" title="공용 부품 — 사용 모델: ${sanitize(getSharedPartModels(m.part_no).join(', '))}&#10;• 시작재고·입고·재고 = 모든 모델 공유&#10;• 화면 재고 = 그 모델 사용분만 차감 (직관)&#10;• 부족 알람 = 합계 기준 (정확)" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px;cursor:help;">🔁 공용</span>` : ''}</td>
+      <td class="sticky-col sticky-col-2 cell-pn" style="white-space:nowrap;">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span>${sanitize(m.part_no)}</span>
+          ${isSharedPart(m.part_no) ? `<span class="badge-shared" title="공용 부품 — 사용 모델: ${sanitize(getSharedPartModels(m.part_no).join(', '))}&#10;• 시작재고·입고·재고 = 모든 모델 공유&#10;• 화면 재고 = 그 모델 사용분만 차감 (직관)&#10;• 부족 알람 = 합계 기준 (정확)" style="background:rgba(96,170,220,0.18);color:var(--sky);border:0.5px solid var(--sky-b);border-radius:3px;padding:0 4px;font-size:9px;font-weight:700;flex-shrink:0;">🔁</span>` : ''}
+        </div>
+      </td>
       <td class="sticky-col sticky-col-3">
         <div class="cell-name" title="${sanitize(m.part_name)}${m.memo ? '\n\n📝 메모: ' + sanitize(m.memo) : ''}">${sanitize(m.part_name)}${m.memo ? ` <span style="color:var(--amb);font-size:11px;" title="${sanitize(m.memo)}">📝</span>` : ''}</div>
         <div class="cell-detail">
