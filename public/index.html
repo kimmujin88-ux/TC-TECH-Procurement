@@ -1598,6 +1598,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
         <div class="card__hint">함수·state·저장 흐름·라이브러리 자동 점검 + 공용 부품 감지 결과 · 매주 1회 실행 권장</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn--sm" id="btn-force-apply-may" style="background:rgba(245,158,11,0.2);color:var(--amb);border:0.5px solid var(--amb-b);font-weight:700;" title="2026-06-10 사용자 명시 모델별 5월말 현물재고 27건 강제 입력 (일회성)">🔧 5월말 재고 일괄 입력</button>
         <button class="btn btn--sm" id="btn-run-diagnostics" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">진단 실행</button>
       </div>
     </div>
@@ -7026,6 +7027,69 @@ document.getElementById('btn-sync-erp-actual')?.addEventListener('click', syncEr
 
 // ⚙ 시스템 자가 진단 버튼
 document.getElementById('btn-run-diagnostics')?.addEventListener('click', runSystemDiagnostics);
+
+// 🔧 일회성: 사용자 명시 5월말 현물재고 강제 입력 (2026-06-10)
+const _MAY_STOCK_FORCE = {
+  '39340|GS1930E Drive Chassis': 3644,
+  '1311042|GS1930E Drive Chassis': 1511,
+  '96133|GS1930E Drive Chassis': 413,
+  '94151|Z40 DC Drive Chassis': 44,
+  '94151|Z45 DC Drive Chassis': 800,
+  '1270839|S60J Swing Chassis': 199,
+  '1281676|S60J Swing Chassis': 171,
+  '1270839|S80J Swing Chassis': 3,
+  '1281676|S80J Swing Chassis': 3,
+  '1311042|GS4655 Drive Chassis': 16,
+  '96133|GS4655 Drive Chassis': 108,
+  '39340|GS4655 Main Deck': 280,
+  '39340|GS4655 Extension Deck': 280,
+  '81554|Z80 Steer Axle': 114,
+  '27698|Z80 Steer Axle': 212,
+  '81554|Z80 Rear Axle': 0,
+  '27698|Z80 Rear Axle': 320,
+  '1059-3200|Z80 Drive Chassis': 32,
+  '1059-2100|Z80 Drive Chassis': 30,
+  '49092|Z80 Drive Chassis': 58,
+  '1059-3200|S85XC Drive Chassis': 106,
+  '1059-2100|S85XC Drive Chassis': 104,
+  '49092|S85XC Drive Chassis': 502,
+  '61M8-54030|R55C Lower Frame': 20,
+  '61M9-54040|R55C Lower Frame': 40,
+  'S344-402020|R55C Lower Frame': 190,
+  '61M8-54030|HX55ACR Lower Frame': 45,
+  '61M9-54040|HX55ACR Lower Frame': 123,
+  'S344-402020|HX63AH Lower Frame': 134
+};
+async function forceApplyMayStock() {
+  if (window.guardAdmin && !window.guardAdmin('5월말 재고 일괄 입력')) return;
+  const entries = Object.entries(_MAY_STOCK_FORCE);
+  const preview = entries.slice(0, 5).map(([k, v]) => `  · ${k}: ${v} EA`).join('\n');
+  if (!confirm(`사용자 명시 5월말 현물재고 ${entries.length}건을 모델별로 강제 입력합니다.\n\n예시:\n${preview}\n  ... 외 ${entries.length - 5}건\n\n• 기존 시작재고 값이 덮어쓰여짐\n• 변경 이력 자동 기록\n• 되돌리려면 ↶ Ctrl+Z 또는 백업 미리보기·복원\n\n진행하시겠습니까?`)) return;
+  // 자동 백업 (안전망)
+  try { await createBackup('5월말 재고 일괄 입력 직전 백업', false); } catch (e) { console.warn('백업 실패', e); }
+  const changes = [];
+  entries.forEach(([key, value]) => {
+    if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
+    const before = Number(state.itemInputs[key].starting_stock || 0);
+    state.itemInputs[key].starting_stock = value;
+    changes.push({ key, before, after: value });
+  });
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'force_apply_may_stock',
+    field: '5월말 현물재고 일괄 강제 입력',
+    before: '(이전 값 다양)',
+    after: `${changes.length}건 모델별 강제 입력`
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
+  renderForm();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  alert(`✅ ${changes.length}건 모델별 5월말 재고 강제 입력 완료\n\n변경 사항:\n• 자동 백업 생성됨\n• 변경 이력 기록됨\n\n수급 운영 계획에서 확인하세요.`);
+}
+document.getElementById('btn-force-apply-may')?.addEventListener('click', forceApplyMayStock);
 
 // 📐 ROP / EOQ 권장 — 재고이론 기반
 function computeROPandEOQ() {
