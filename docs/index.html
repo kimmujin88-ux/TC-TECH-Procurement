@@ -3931,7 +3931,7 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
     : '';
   
   return `
-    <tr class="item-row" data-pn="${sanitize(m.part_no)}" data-first="${isFirst ? '1' : '0'}">
+    <tr class="item-row" data-pn="${sanitize(m.part_no)}" data-mkey="${sanitize(masterInputKey(m))}" data-first="${isFirst ? '1' : '0'}">
       ${customerCell}
       ${modelCell}
       <td class="sticky-col sticky-col-2 cell-pn" style="white-space:nowrap;">
@@ -4010,14 +4010,33 @@ function onItemInputChange(e) {
     if (!state.itemInputs[pn]) state.itemInputs[pn] = emptyItemInput();
     state.itemInputs[pn][field] = val;
   }
-  // 공용 부품은 같은 part_no의 다른 row도 영향(합계 ending 변경) → 전체 재계산
+  // 공용 부품도 부분 업데이트로 처리 (input 포커스 유지) — renderForm 호출 X
   if (typeof isSharedPart === 'function' && isSharedPart(pn)) {
-    renderForm();
+    updateSharedPartRows(pn);
   } else {
     updateItemRow(pn);
   }
   saveInputs();
   updateOrderCount();
+}
+
+// 공용 부품 부분 업데이트: 같은 part_no의 모든 row ending/부족 표시만 갱신 (포커스 유지)
+function updateSharedPartRows(pn) {
+  const masters = MASTERS.filter(m => m.part_no === pn);
+  masters.forEach(m => {
+    const key = masterInputKey(m);
+    const r = getResult(m);
+    const tr = document.querySelector(`tr.item-row[data-mkey="${CSS.escape(key)}"]`);
+    if (!tr) return;
+    ['may', 'jun', 'jul', 'aug'].forEach(mo => {
+      const d = r.months[mo];
+      const endCell = tr.querySelector(`[data-cell="${mo}_ending"]`);
+      if (endCell) {
+        endCell.textContent = fmt(d.ending);
+        endCell.classList.toggle('cell-num--alert', !!r.shortAt[mo]);
+      }
+    });
+  });
 }
 
 function updateItemRow(pn) {
