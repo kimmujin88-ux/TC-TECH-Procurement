@@ -1947,11 +1947,15 @@ const STORAGE_KEY_V1 = 'tctech_inputs_v1';
 // ──────────────────────────────  STATE  ──────────────────────────────
 const state = {
   modelInputs: {},   // { displayName: {may_qty, jun_qty, jul_qty, aug_qty} } — may/jun/jul/aug는 상대 위치
-  itemInputs: {},    // { part_no: {may_incoming, jun_incoming, jul_incoming, aug_incoming} }
+  itemInputs: {},    // { masterKey: {starting_stock, may_incoming, ...} }
+  orderOverrides: {}, // { part_no: overrideQty } — 사용자 수동 수량 조정
   erpStocks: {},     // { part_no: erpQty } — ERP 가져오기로 덮어쓰는 값
+  modelASP: {},      // { displayName: ASP } — 모델 평균 판매가
+  unmetReasons: {},  // { part_no: 사유 텍스트 }
   filters: { search: '', brand: '', model: '', supplier: '', status: '' },
   dashMonth: 'may',
   saveTimer: null,
+  safetyStockMultiplier: 1.0,  // 전역 안전계수 기본값
   periodStartMonth: 5,  // 현재 4개월 윈도우의 시작 월 (may=이 값, jun=+1, ...). 이월 처리 시 +1
   periodYear: 2026      // 시작 월의 연도 (12월 넘어가면 +1)
 };
