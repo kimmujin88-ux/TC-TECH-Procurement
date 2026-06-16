@@ -1402,33 +1402,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
-  <!-- 공급사 분석 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">공급사 분석</div>
-        <div class="card__hint">금액 비중 30%↑ = 핵심 의존 · 단일소싱 70%↑ = 위주 · 멀티소싱 = 안전</div>
-      </div>
-      <div id="supplier-summary" style="font-size:11px;font-family:var(--mono);"></div>
-    </div>
-    <div class="card__body" style="padding:0; max-height:380px; overflow-y:auto;">
-      <table class="order-table" style="width:100%; font-size:11px;">
-        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
-          <th>공급사</th>
-          <th>구분</th>
-          <th class="col-num">부품 수</th>
-          <th class="col-num">4개월 사용액</th>
-          <th class="col-num">비중</th>
-          <th class="col-num">평균 LT</th>
-          <th class="col-num">단일소싱</th>
-          <th>리스크 등급</th>
-        </tr></thead>
-        <tbody id="supplier-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- 💸 기회손실 정밀화 (모델 ASP 기반) -->
+  <!-- 💸 기회손실 정밀화 (★★★ 주 1~2회) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
       <div>
@@ -1440,7 +1414,19 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__body" style="padding:0;max-height:380px;overflow-y:auto;" id="opploss-body"></div>
   </div>
 
-  <!-- 🎛 What-if 시뮬레이션 -->
+  <!-- 🪨 데드 스톡 분석 (★★★ 주 1회) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🪨 데드 스톡 분석</div>
+        <div class="card__hint">윈도우 4개월 동안 사용량 0 + 시작재고 보유 = 죽은 자본 · 단종/대체품 검토 권장</div>
+      </div>
+      <div id="deadstock-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+    </div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="deadstock-body"></div>
+  </div>
+
+  <!-- 🎛 What-if 시뮬레이션 (★★ 의사결정 시) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
       <div>
@@ -1468,19 +1454,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
-  <!-- 🪨 데드 스톡 분석 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">🪨 데드 스톡 분석</div>
-        <div class="card__hint">윈도우 4개월 동안 사용량 0 + 시작재고 보유 = 죽은 자본 · 단종/대체품 검토 권장</div>
-      </div>
-      <div id="deadstock-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="deadstock-body"></div>
-  </div>
-
-  <!-- 🎯 공급사 종합 평가 -->
+  <!-- 🎯 공급사 종합 평가 (★★ 분기 1회) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
       <div>
@@ -1492,38 +1466,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__body" style="padding:0;max-height:380px;overflow-y:auto;" id="supplier-score-body"></div>
   </div>
 
-  <!-- 📊 통계적 안전재고 (LT 변동성 기반) -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">📊 통계적 안전재고 (LT 변동성 기반)</div>
-        <div class="card__hint">SS = Z × σLT × 일평균사용량 · Z(서비스수준): 90%=1.28 / 95%=1.65 / 99%=2.33 · LT 실측 표준편차 자동 산출</div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--t2);">
-        <span>서비스수준:</span>
-        <select id="service-level" style="font-size:11px;padding:4px 8px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:3px;">
-          <option value="1.28">90% (Z=1.28)</option>
-          <option value="1.65" selected>95% (Z=1.65)</option>
-          <option value="2.33">99% (Z=2.33)</option>
-        </select>
-      </div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="stat-safety-body"></div>
-  </div>
-
-  <!-- 🔢 XYZ 분석 (사용량 변동성) -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">🔢 XYZ 분석 (사용량 변동성)</div>
-        <div class="card__hint">월별 사용량의 변동계수(CV) 기준 X(CV&lt;0.25 안정) / Y(0.25~0.5 중간) / Z(&gt;0.5 변동큼) · ABC × XYZ 매트릭스</div>
-      </div>
-      <div id="xyz-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="xyz-body"></div>
-  </div>
-
-  <!-- 🤝 단가 재협상 알림 -->
+  <!-- 🤝 단가 재협상 알림 (★★ 분기 1회) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
       <div>
@@ -1535,31 +1478,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__body" style="padding:0;max-height:280px;overflow-y:auto;" id="renegot-body"></div>
   </div>
 
-  <!-- 🗓 시즈널리티 (전년 동기 비교) -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">🗓 시즈널리티 (전년 동기 비교)</div>
-        <div class="card__hint">백업 스냅샷 중 같은 월(또는 ±15일)에 가장 가까운 시점과 KPI 비교 · 12개월+ 백업 누적 시 정확도 향상</div>
-      </div>
-      <div id="season-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:260px;overflow-y:auto;" id="season-body"></div>
-  </div>
-
-  <!-- 📈 단가 변동 추이 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">📈 단가 변동 추이</div>
-        <div class="card__hint">priceHistory 기반 · 2회 이상 변경된 품목만 표시 · 누적 변동률 ±20% red / ±10% amber</div>
-      </div>
-      <div id="price-trend-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="price-trend-body"></div>
-  </div>
-
-  <!-- ABC 분석 (연간 금액 기준) -->
+  <!-- ABC 분석 (★ 분기 1회) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
       <div>
@@ -1569,6 +1488,70 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
     <div class="card__body--flush" style="max-height:380px; overflow-y:auto;" id="abc-body"></div>
   </div>
+
+  <!-- ▶ 데이터 누적 후 활성 (접힘) -->
+  <details style="margin-top:18px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:8px;">
+    <summary style="cursor:pointer;padding:12px 16px;font-size:12px;font-weight:700;color:var(--t2);user-select:none;">▶ 데이터 누적 후 활성 (4개) · 매일 안 봐도 됨</summary>
+    <div style="padding:8px 14px 14px;">
+
+      <!-- 📈 단가 변동 추이 -->
+      <div class="card" style="margin-top:8px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">📈 단가 변동 추이</div>
+            <div class="card__hint">priceHistory 기반 · 2회 이상 변경된 품목만 표시 · 누적 변동률 ±20% red / ±10% amber · <strong>변경 이력 누적 후 의미</strong></div>
+          </div>
+          <div id="price-trend-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+        </div>
+        <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="price-trend-body"></div>
+      </div>
+
+      <!-- 🔢 XYZ 분석 -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">🔢 XYZ 분석 (사용량 변동성)</div>
+            <div class="card__hint">월별 사용량의 변동계수(CV) 기준 X(CV&lt;0.25 안정) / Y(0.25~0.5 중간) / Z(&gt;0.5 변동큼) · <strong>6~12개월+ 데이터 누적 후 정확</strong></div>
+          </div>
+          <div id="xyz-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+        </div>
+        <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="xyz-body"></div>
+      </div>
+
+      <!-- 📊 통계적 안전재고 -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">📊 통계적 안전재고 (LT 변동성 기반)</div>
+            <div class="card__hint">SS = Z × σLT × 일평균사용량 · Z(서비스수준): 90%=1.28 / 95%=1.65 / 99%=2.33 · <strong>입고 LT 실측 2건+ 필요</strong></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--t2);">
+            <span>서비스수준:</span>
+            <select id="service-level" style="font-size:11px;padding:4px 8px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:3px;">
+              <option value="1.28">90% (Z=1.28)</option>
+              <option value="1.65" selected>95% (Z=1.65)</option>
+              <option value="2.33">99% (Z=2.33)</option>
+            </select>
+          </div>
+        </div>
+        <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="stat-safety-body"></div>
+      </div>
+
+      <!-- 🗓 시즈널리티 -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">🗓 시즈널리티 (전년 동기 비교)</div>
+            <div class="card__hint">백업 스냅샷 중 같은 월(또는 ±15일)에 가장 가까운 시점과 KPI 비교 · <strong>12개월+ 백업 누적 시 정확도 향상</strong></div>
+          </div>
+          <div id="season-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+        </div>
+        <div class="card__body" style="padding:0;max-height:260px;overflow-y:auto;" id="season-body"></div>
+      </div>
+
+    </div>
+  </details>
+
 </section>
 
 <!-- PANEL: DATA (데이터 점검) -->
