@@ -1561,8 +1561,52 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="section-title__hint">정합성 점검 · 변경 추적</div>
   </div>
 
-  <!-- ⚙ 시스템 자가 진단 (최상단) -->
+  <!-- 1. 🔧 부품 마스터 관리 (★★★ 매주) -->
   <div class="card">
+    <div class="card__head">
+      <div>
+        <div class="card__title">🔧 부품 마스터 관리</div>
+        <div class="card__hint">품번·LT·MOQ·단가 등 기준 정보 · Supabase 영구 저장 · 추가/수정/삭제 시 변경 이력에도 자동 기록</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="masters-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+        <input type="text" id="master-filter" placeholder="품번/품명 필터" autocomplete="off" style="font-size:11px;padding:5px 8px;width:140px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;">
+        <button class="btn btn--sm" id="btn-add-master">+ 부품 추가</button>
+      </div>
+    </div>
+    <div class="card__body" style="padding:0; max-height:400px; overflow-y:auto;">
+      <table class="order-table" style="width:100%; font-size:11px;">
+        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+          <th>모델 · 구분</th><th>품번</th><th>품명</th><th>구매업체</th>
+          <th class="col-num">LT</th><th class="col-num">단가</th><th>MOQ</th><th class="col-num">시작재고</th>
+          <th style="text-align:right;">작업</th>
+        </tr></thead>
+        <tbody id="masters-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 2. 💾 데이터 백업·복원 (★★★ 월~분기) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">💾 데이터 백업·복원</div>
+        <div class="card__hint">자동 일일 백업(30일 보관) + 수동 백업(영구) · 복원 시 현재 데이터 자동 보호</div>
+      </div>
+      <button class="btn btn--sm" id="btn-create-backup">지금 백업 만들기</button>
+    </div>
+    <div class="card__body" style="padding:0; max-height:340px; overflow-y:auto;">
+      <table class="order-table" style="width:100%; font-size:11px;">
+        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+          <th>생성 시각</th><th>유형</th><th>레이블</th><th>작성자</th><th style="text-align:right;">작업</th>
+        </tr></thead>
+        <tbody id="backup-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 3. ⚙ 시스템 자가 진단 (★★ 주 1회) -->
+  <div class="card" style="margin-top:14px;" id="card-diagnostics">
     <div class="card__head">
       <div>
         <div class="card__title">⚙ 시스템 자가 진단</div>
@@ -1579,25 +1623,19 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
-  <!-- ERP vs 실사재고 불일치 -->
-  <div style="margin-top:14px;"></div>
-  <div class="card">
+  <!-- 4. 🩺 마스터 데이터 정합성 점검 -->
+  <div class="card" style="margin-top:14px;">
     <div class="card__head">
       <div>
-        <div class="card__title">ERP vs 실사재고 불일치 상세</div>
-        <div class="card__hint" id="erp-import-status">차이 &gt; 0.5% 품목 · 엑셀 가져오기로 월말 데이터 반영</div>
+        <div class="card__title">🩺 마스터 데이터 정합성 점검</div>
+        <div class="card__hint">자동 룰 7종 · 단가/LT/MOQ/대당소요/메모/모델별 LT 일관성 · 의심 품목 클릭 → 마스터 모달 직행</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <button class="btn btn--ghost btn--sm" id="btn-erp-template">양식 다운로드</button>
-        <button class="btn btn--sm" id="btn-erp-import">엑셀 가져오기</button>
-        <button class="btn btn--ghost btn--sm" id="btn-erp-reset" style="color:var(--red);border-color:var(--red-b);display:none;">가져온 데이터 초기화</button>
-      </div>
+      <div id="dq-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
     </div>
-    <div class="card__body--flush" style="max-height:380px; overflow-y:auto;" id="erp-detail-body"></div>
+    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="dq-body"></div>
   </div>
-  <input type="file" id="erp-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
 
-  <!-- 📋 재고 실사 차이 (ERP vs 시스템) -->
+  <!-- 5. 📋 재고 실사 차이 (ERP/실사 vs 시스템) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
       <div>
@@ -1612,29 +1650,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="variance-body"></div>
   </div>
 
-  <!-- 🔄 라이프사이클 현황 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">🔄 라이프사이클 현황</div>
-        <div class="card__hint">NPI(신규) / Active / EOL(단종 예정) / Discontinued · EOL 6개월 이내 + 잔여 재고 보유 시 알람</div>
-      </div>
-      <div id="lifecycle-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="lifecycle-body"></div>
-  </div>
-
-  <!-- 🩺 마스터 데이터 정합성 점검 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">🩺 마스터 데이터 정합성 점검</div>
-        <div class="card__hint">자동 룰 7종 · 단가/LT/MOQ/대당소요/메모/모델별 LT 일관성 · 의심 품목 클릭 → 마스터 모달 직행</div>
-      </div>
-      <div id="dq-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="dq-body"></div>
-  </div>
+  <input type="file" id="erp-file-input" accept=".xlsx,.xls,.csv" style="display:none;">
 
   <!-- 🛡 안전재고 설정 -->
   <div class="card" style="margin-top:14px;">
@@ -1703,110 +1719,89 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
   </div>
 
-  <!-- 🔧 부품 마스터 관리 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">🔧 부품 마스터 관리</div>
-        <div class="card__hint">품번·LT·MOQ·단가 등 기준 정보 · Supabase 영구 저장 · 추가/수정/삭제 시 변경 이력에도 자동 기록</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <div id="masters-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-        <input type="text" id="master-filter" placeholder="품번/품명 필터" autocomplete="off" style="font-size:11px;padding:5px 8px;width:140px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;">
-        <button class="btn btn--sm" id="btn-add-master">+ 부품 추가</button>
-      </div>
-    </div>
-    <div class="card__body" style="padding:0; max-height:400px; overflow-y:auto;">
-      <table class="order-table" style="width:100%; font-size:11px;">
-        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
-          <th>모델 · 구분</th>
-          <th>품번</th>
-          <th>품명</th>
-          <th>구매업체</th>
-          <th class="col-num">LT</th>
-          <th class="col-num">단가</th>
-          <th>MOQ</th>
-          <th class="col-num">시작재고</th>
-          <th style="text-align:right;">작업</th>
-        </tr></thead>
-        <tbody id="masters-tbody"></tbody>
-      </table>
-    </div>
-  </div>
+  <!-- ▶ 가끔 보는 (4개) - 기본 접힘 -->
+  <details style="margin-top:18px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:8px;">
+    <summary style="cursor:pointer;padding:12px 16px;font-size:12px;font-weight:700;color:var(--t2);user-select:none;">▶ 가끔 보는 (4개) · 조건부 또는 분기 1회</summary>
+    <div style="padding:8px 14px 14px;">
 
-  <!-- ⏱ LT 실측 vs 마스터 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">⏱ LT 실측 vs 마스터</div>
-        <div class="card__hint">발주이력의 발주일·입고확인일 차이로 자동 산출 · 갭 ±30% 이상이면 마스터 LT 재검토 권장 · 입고 확인 데이터 누적 시 정확도 향상</div>
+      <!-- 🔄 라이프사이클 현황 (분기 1회) -->
+      <div class="card" style="margin-top:8px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">🔄 라이프사이클 현황</div>
+            <div class="card__hint">NPI(신규) / Active / EOL(단종 예정) / Discontinued · EOL 6개월 이내 + 잔여 재고 보유 시 알람</div>
+          </div>
+          <div id="lifecycle-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+        </div>
+        <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;" id="lifecycle-body"></div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <div id="lt-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
-        <button class="btn btn--ghost btn--sm" id="btn-export-lt">실측 LT Excel</button>
-      </div>
-    </div>
-    <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;">
-      <div id="lt-comparison-body"></div>
-    </div>
-  </div>
 
-  <!-- 💾 데이터 백업·복원 -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">💾 데이터 백업·복원</div>
-        <div class="card__hint">자동 일일 백업(30일 보관) + 수동 백업(영구) · 복원 시 현재 데이터 자동 보호</div>
+      <!-- 📋 변경 이력 (문제 발생 시) -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">📋 변경 이력 (감사 로그)</div>
+            <div class="card__hint">데이터 변경 시 사용자·시각·이전값·이후값 자동 기록 · 최대 200건 보관 · <strong>문제 발생 시 추적용</strong></div>
+          </div>
+          <div id="audit-summary" style="font-size:11px;font-family:var(--mono);"></div>
+        </div>
+        <div style="padding:10px 14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; border-bottom:0.5px solid var(--border2); background:var(--bg-card2);">
+          <input type="date" id="audit-filter-from" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="시작 날짜">
+          <span style="color:var(--t3);font-size:11px;">~</span>
+          <input type="date" id="audit-filter-to" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="종료 날짜">
+          <select id="audit-filter-user" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;">
+            <option value="">전체 사용자</option>
+          </select>
+          <input type="text" id="audit-filter-target" class="filter-input" placeholder="대상 검색 (품번·필드)" style="font-size:11px;padding:5px 8px;flex:1;min-width:180px;">
+          <button class="btn btn--ghost btn--sm" id="audit-filter-reset">초기화</button>
+          <button class="btn btn--sm" id="audit-export">Excel 내보내기</button>
+        </div>
+        <div class="card__body" style="padding:0; max-height:420px; overflow-y:auto;">
+          <table class="order-table" style="width:100%; font-size:11px;">
+            <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+              <th>시각</th><th>사용자</th><th>대상</th><th class="col-num">이전</th><th class="col-num">이후</th>
+            </tr></thead>
+            <tbody id="audit-tbody"></tbody>
+          </table>
+        </div>
       </div>
-      <button class="btn btn--sm" id="btn-create-backup">지금 백업 만들기</button>
-    </div>
-    <div class="card__body" style="padding:0; max-height:340px; overflow-y:auto;">
-      <table class="order-table" style="width:100%; font-size:11px;">
-        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
-          <th>생성 시각</th>
-          <th>유형</th>
-          <th>레이블</th>
-          <th>작성자</th>
-          <th style="text-align:right;">작업</th>
-        </tr></thead>
-        <tbody id="backup-tbody"></tbody>
-      </table>
-    </div>
-  </div>
 
-  <!-- 변경 이력 (감사 로그) -->
-  <div class="card" style="margin-top:14px;">
-    <div class="card__head">
-      <div>
-        <div class="card__title">📋 변경 이력 (감사 로그)</div>
-        <div class="card__hint">데이터 변경 시 사용자·시각·이전값·이후값 자동 기록 · 최대 200건 보관</div>
+      <!-- ⏱ LT 실측 vs 마스터 (데이터 누적 후) -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">⏱ LT 실측 vs 마스터</div>
+            <div class="card__hint">발주이력의 발주일·입고확인일 차이로 자동 산출 · 갭 ±30% 이상이면 마스터 LT 재검토 권장 · <strong>입고 확인 누적 후 의미</strong></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div id="lt-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+            <button class="btn btn--ghost btn--sm" id="btn-export-lt">실측 LT Excel</button>
+          </div>
+        </div>
+        <div class="card__body" style="padding:0;max-height:340px;overflow-y:auto;">
+          <div id="lt-comparison-body"></div>
+        </div>
       </div>
-      <div id="audit-summary" style="font-size:11px;font-family:var(--mono);"></div>
+
+      <!-- ERP vs 실사재고 불일치 상세 (ERP 가져오기 후) -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card__head">
+          <div>
+            <div class="card__title">ERP vs 실사재고 불일치 상세</div>
+            <div class="card__hint" id="erp-import-status">차이 &gt; 0.5% 품목 · 엑셀 가져오기로 월말 데이터 반영 · <strong>실사=ERP 동기 후 비어있음</strong></div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn--ghost btn--sm" id="btn-erp-template">양식 다운로드</button>
+            <button class="btn btn--sm" id="btn-erp-import">엑셀 가져오기</button>
+            <button class="btn btn--ghost btn--sm" id="btn-erp-reset" style="color:var(--red);border-color:var(--red-b);display:none;">가져온 데이터 초기화</button>
+          </div>
+        </div>
+        <div class="card__body--flush" style="max-height:380px; overflow-y:auto;" id="erp-detail-body"></div>
+      </div>
+
     </div>
-    <div style="padding:10px 14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; border-bottom:0.5px solid var(--border2); background:var(--bg-card2);">
-      <input type="date" id="audit-filter-from" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="시작 날짜">
-      <span style="color:var(--t3);font-size:11px;">~</span>
-      <input type="date" id="audit-filter-to" class="filter-input" style="font-size:11px;padding:5px 8px;width:auto;" title="종료 날짜">
-      <select id="audit-filter-user" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;">
-        <option value="">전체 사용자</option>
-      </select>
-      <input type="text" id="audit-filter-target" class="filter-input" placeholder="대상 검색 (품번·필드)" style="font-size:11px;padding:5px 8px;flex:1;min-width:180px;">
-      <button class="btn btn--ghost btn--sm" id="audit-filter-reset">초기화</button>
-      <button class="btn btn--sm" id="audit-export">Excel 내보내기</button>
-    </div>
-    <div class="card__body" style="padding:0; max-height:420px; overflow-y:auto;">
-      <table class="order-table" style="width:100%; font-size:11px;">
-        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
-          <th>시각</th>
-          <th>사용자</th>
-          <th>대상</th>
-          <th class="col-num">이전</th>
-          <th class="col-num">이후</th>
-        </tr></thead>
-        <tbody id="audit-tbody"></tbody>
-      </table>
-    </div>
-  </div>
+  </details>
+
 </section>
 
 <!-- PANEL: ORDERS -->
