@@ -740,6 +740,9 @@ body.viewer-mode #whatif-price {
   z-index: 200; padding: 24px;
 }
 .modal-backdrop--open { display: flex; }
+/* 발주 확정 버튼은 발주서 모달(.modal--po)에서만 노출 */
+#modal-confirm-order { display: none; }
+.modal--po #modal-confirm-order { display: inline-block; }
 .modal {
   background: var(--bg-card);
   border: 0.5px solid var(--border2);
@@ -4322,6 +4325,7 @@ function showKpiDetail(type) {
   const modal = document.getElementById('modal');
   const modalBody = document.getElementById('modal-body');
   const modalTitle = document.querySelector('.modal__title');
+  modal.classList.remove('modal--po'); // KPI 모달은 발주 확정 버튼 숨김
 
   const thStyle = 'style="position:sticky;top:0;z-index:1;"';
   const tblStyle = 'class="order-table" style="width:100%;font-size:11px;"';
@@ -5239,6 +5243,8 @@ function openPOModal(supplier) {
   }));
   
   renderPOModal(supplier, info, orderDate, delivDate, monthLabel);
+  // 발주서 모달 - 발주 확정 버튼 노출
+  document.getElementById('modal').classList.add('modal--po');
   document.getElementById('modal').classList.add('modal-backdrop--open');
 }
 
