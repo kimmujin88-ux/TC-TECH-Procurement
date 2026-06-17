@@ -4106,7 +4106,8 @@ document.getElementById('btn-reset-all').addEventListener('click', () => {
 // ──────────────────────────────  DASHBOARD  ──────────────────────────────
 function renderDashboard() {
   const selectedMo = state.dashMonth || 'may';
-  const moKr = { may: '5월', jun: '6월', jul: '7월', aug: '8월' }[selectedMo];
+  // 동적 월 라벨 (윈도우 이월 시 자동 갱신)
+  const moKr = (typeof monthLabel === 'function') ? monthLabel(selectedMo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[selectedMo];
   
   // 셀렉트 박스 상태 동기화
   const monthSelect = document.getElementById('dash-month-select');
@@ -4681,7 +4682,9 @@ function showTrendModal(modelName) {
     return g;
   };
 
-  const monthsLabels = ['5월', '6월', '7월', '8월'];
+  // 동적 월 라벨 (윈도우 이월 시 자동 갱신)
+  const _mLt = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
+  const monthsLabels = [_mLt('may'), _mLt('jun'), _mLt('jul'), _mLt('aug')];
   const chartData = {
     labels: monthsLabels,
     datasets: [
