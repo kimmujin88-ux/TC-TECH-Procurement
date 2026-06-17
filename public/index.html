@@ -4430,23 +4430,42 @@ function showKpiDetail(type) {
     </table></div>`;
 
   } else if (type === 'loss') {
-    const lossItems = MASTERS.filter(m => m.loss_rate != null && Math.abs(m.loss_rate) > 0.005);
-    modalTitle.textContent = 'ERP vs 실사재고 손실 항목 (' + lossItems.length + '건)';
-    const sorted = [...lossItems].sort((a,b) => Math.abs(b.loss_rate) - Math.abs(a.loss_rate));
-    const rows = sorted.map(m => {
-      const diff = (m.starting_stock||0) - (m.erp_stock||0);
-      const pct = (m.loss_rate * 100).toFixed(1);
-      const isOver = diff > 0;
-      const diffColor = isOver ? 'color:var(--teal);' : 'color:var(--red);';
+    // 사용자 갱신값(state) 기준 비교 - 부품 단위 1회만
+    const _seenLossDetail = new Set();
+    const lossItems = [];
+    MASTERS.forEach(m => {
+      if (_seenLossDetail.has(m.part_no)) return;
+      _seenLossDetail.add(m.part_no);
+      const actual = (typeof computePartTotalStart === 'function')
+        ? computePartTotalStart(m.part_no)
+        : (m.starting_stock || 0);
+      const erp = (state.erpStocks && state.erpStocks[m.part_no] !== undefined)
+        ? Number(state.erpStocks[m.part_no])
+        : Number(m.erp_stock || 0);
+      if (erp <= 0) return;
+      const diff = actual - erp;
+      if (diff === 0) return;
+      const pct = erp > 0 ? (diff / erp) * 100 : 0;
+      lossItems.push({ m, actual, erp, diff, pct });
+    });
+    lossItems.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+    modalTitle.textContent = '현물 vs ERP 차이 (' + lossItems.length + '건)';
+    if (lossItems.length === 0) {
+      modalBody.innerHTML = '<div style="text-align:center;padding:60px 24px;color:var(--teal);font-size:14px;">✅ 모든 부품이 현물 = ERP 일치 상태입니다.<br><span style="font-size:11px;color:var(--t3);margin-top:8px;display:inline-block;">데이터 점검 → 실사=ERP 동기 후 자동으로 비어집니다.</span></div>';
+      modal.classList.add('modal-backdrop--open');
+      return;
+    }
+    const rows = lossItems.map(({m, actual, erp, diff, pct}) => {
+      const diffColor = diff > 0 ? 'color:var(--teal);' : 'color:var(--red);';
       return `<tr>
         <td>${sanitize(displayName(m))}</td>
         <td style="font-family:var(--mono);font-size:10px;">${sanitize(m.part_no)}</td>
         <td>${sanitize(m.part_name)}</td>
         <td>${sanitize(m.supplier||'-')}</td>
-        <td class="col-num">${fmt(m.erp_stock)}</td>
-        <td class="col-num">${fmt(m.starting_stock)}</td>
+        <td class="col-num">${fmt(erp)}</td>
+        <td class="col-num">${fmt(actual)}</td>
         <td class="col-num" style="${diffColor}">${diff > 0 ? '+' : ''}${fmt(diff)}</td>
-        <td class="col-num" style="${diffColor}font-weight:700;">${diff > 0 ? '+' : ''}${pct}%</td>
+        <td class="col-num" style="${diffColor}font-weight:700;">${diff > 0 ? '+' : ''}${pct.toFixed(1)}%</td>
         <td class="col-num">₩${fmt(Math.abs(diff) * (m.unit_price||0))}</td>
       </tr>`;
     }).join('');
