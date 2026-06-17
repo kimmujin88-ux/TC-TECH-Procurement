@@ -5780,6 +5780,8 @@ function populateHistorySupplierSelect() {
 function renderHistory() {
   const container = document.getElementById('history-list');
   if (!container) return;
+  // 6/9 발주 dueDate 누락 자동 보정 (idempotent — 이미 보정됐으면 0건 처리)
+  if (typeof migrateJulDueDate === 'function') migrateJulDueDate();
   populateHistorySupplierSelect();
   const filtered = applyHistoryFilters(orderHistory);
   const summary = document.getElementById('history-summary');
@@ -7238,13 +7240,14 @@ async function forceApplyJulIncoming() {
 document.getElementById('btn-force-apply-jul')?.addEventListener('click', forceApplyJulIncoming);
 
 // 일회성 마이그레이션: 이미 반영된 2026-06-09 발주 4건에 dueDate 누락 시 7-10 자동 부여
-(function migrateJulDueDate() {
-  if (typeof orderHistory === 'undefined') return;
+// idempotent — orderHistory가 로드될 때마다 호출돼도 안전
+function migrateJulDueDate() {
+  if (typeof orderHistory === 'undefined' || !Array.isArray(orderHistory)) return 0;
   let patched = 0;
   orderHistory.forEach(e => {
-    if (e.type !== 'order') return;
-    if (!e.date || !e.date.startsWith('2026-06-09')) return;
-    if (e.dueDate) return; // 이미 있음
+    if (!e || e.type !== 'order') return;
+    if (!e.date || String(e.date).indexOf('2026-06-09') !== 0) return;
+    if (e.dueDate) return;
     if (!['YSP 윤성', '가람기계', '윈텍', '태상테크'].includes(e.supplier)) return;
     e.dueDate = '2026-07-10';
     patched++;
@@ -7253,7 +7256,10 @@ document.getElementById('btn-force-apply-jul')?.addEventListener('click', forceA
     console.log('[마이그] 6/9 발주 ' + patched + '건 입고예정일(7/10) 자동 부여');
     if (typeof saveHistory === 'function') saveHistory();
   }
-})();
+  return patched;
+}
+// Supabase 비동기 로드 후 한 번 더 실행 보장
+setTimeout(() => { if (typeof migrateJulDueDate === 'function') migrateJulDueDate(); if (typeof renderHistory === 'function') renderHistory(); }, 2500);
 
 // 📐 ROP / EOQ 권장 — 재고이론 기반
 function computeROPandEOQ() {
