@@ -5804,11 +5804,15 @@ function renderHistory() {
           ? `<span class="badge" style="background:rgba(245,158,11,0.12);color:var(--amb);border:0.5px solid var(--amb-b);">⚠ 부분 ${fmt(cumRecv)}/${fmt(entry.totalQty)}</span>
              <button class="btn btn--sm" onclick="confirmReceipt('${entry.date}')" style="background:rgba(245,158,11,0.10);color:var(--amb);border:0.5px solid var(--amb-b);">잔량 입고</button>`
           : `<button class="btn btn--sm" onclick="confirmReceipt('${entry.date}')" style="background:rgba(56,201,160,0.10);color:var(--teal);border:0.5px solid var(--teal-b);">✅ 입고 확인</button>`;
+      // 입고 예정일(납기) 표시 - dueDate 또는 ETA 필드
+      const dueDateLabel = entry.dueDate
+        ? `<span style="color:var(--sky);font-weight:700;"> · 입고예정 ${new Date(entry.dueDate).toLocaleDateString('ko-KR')}</span>`
+        : '';
       return `
         <div class="card history-entry" style="${entry.received ? 'opacity:0.72;' : ''}">
           <div class="card__head">
             <div>
-              <div class="card__title">${sanitize(entry.supplier)} — ${date}</div>
+              <div class="card__title">${sanitize(entry.supplier)} — 발주 ${date}${dueDateLabel}</div>
               <div style="font-size:10px;color:var(--t3);margin-top:2px;">${entry.items.length}품목 · 총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
@@ -7124,11 +7128,12 @@ document.getElementById('btn-force-apply-may')?.addEventListener('click', forceA
 // 📦 일회성: 2026-06-09 발주된 7월 입고 PDF 4건 일괄 반영
 async function forceApplyJulIncoming() {
   if (window.guardAdmin && !window.guardAdmin('7월 입고 PDF 일괄 반영')) return;
+  const DUE = '2026-07-10';
   const orders = [
-    { supplier: 'YSP 윤성', date: '2026-06-09T09:00:00.000Z', items: [
+    { supplier: 'YSP 윤성', date: '2026-06-09T09:00:00.000Z', dueDate: DUE, items: [
       { pn: '51MT-03335', qty: 100, model: 'HX55ACR Lower Frame' }
     ]},
-    { supplier: '가람기계', date: '2026-06-09T09:00:01.000Z', items: [
+    { supplier: '가람기계', date: '2026-06-09T09:00:01.000Z', dueDate: DUE, items: [
       { pn: '132044',  qty: 400,  model: 'GS1930E Drive Chassis' },
       { pn: '132050',  qty: 600,  model: 'GS1930E Drive Chassis' },
       { pn: '1311042', qty: 1400, model: 'GS1930E Drive Chassis' },
@@ -7139,11 +7144,11 @@ async function forceApplyJulIncoming() {
       { pn: '1289399', qty: 47,   model: 'GS4655 Main Deck' },
       { pn: '1289399', qty: 56,   model: 'GS4655 Extension Deck' }
     ]},
-    { supplier: '윈텍', date: '2026-06-09T09:00:02.000Z', items: [
+    { supplier: '윈텍', date: '2026-06-09T09:00:02.000Z', dueDate: DUE, items: [
       { pn: '51MH-02140', qty: 100,  model: 'HX55ACR Lower Frame' },
       { pn: '5DMN-01590', qty: 1000, model: 'HX63AH Lower Frame' }
     ]},
-    { supplier: '태상테크', date: '2026-06-09T09:00:03.000Z', items: [
+    { supplier: '태상테크', date: '2026-06-09T09:00:03.000Z', dueDate: DUE, items: [
       { pn: '1305526',         qty: 800, model: 'GS1930E Drive Chassis' },
       { pn: '1291093',         qty: 201, model: 'S45XC Drive Chassis' },
       { pn: '1291094',         qty: 399, model: 'S45XC Drive Chassis' },
@@ -7191,6 +7196,7 @@ async function forceApplyJulIncoming() {
     if (entryItems.length === 0) return;
     const entry = {
       date: order.date,
+      dueDate: order.dueDate || null, // 입고 예정일 (납기일)
       type: 'order',
       supplier: order.supplier,
       items: entryItems.map(it => ({
@@ -7230,6 +7236,24 @@ async function forceApplyJulIncoming() {
   alert(`✅ 7월 입고 발주 일괄 반영 완료\n\n• 발주 이력 ${totalEntries}건 추가\n• 7월 입고계획 ${totalItemRows} 품목 누적 반영\n• 자동 백업 생성\n${notFound.length > 0 ? `\n⚠ 매핑 실패 ${notFound.length}건:\n  ${notFound.join('\n  ')}` : ''}\n\n발주 이력 / 수급 운영 계획 탭에서 확인하세요.`);
 }
 document.getElementById('btn-force-apply-jul')?.addEventListener('click', forceApplyJulIncoming);
+
+// 일회성 마이그레이션: 이미 반영된 2026-06-09 발주 4건에 dueDate 누락 시 7-10 자동 부여
+(function migrateJulDueDate() {
+  if (typeof orderHistory === 'undefined') return;
+  let patched = 0;
+  orderHistory.forEach(e => {
+    if (e.type !== 'order') return;
+    if (!e.date || !e.date.startsWith('2026-06-09')) return;
+    if (e.dueDate) return; // 이미 있음
+    if (!['YSP 윤성', '가람기계', '윈텍', '태상테크'].includes(e.supplier)) return;
+    e.dueDate = '2026-07-10';
+    patched++;
+  });
+  if (patched > 0) {
+    console.log('[마이그] 6/9 발주 ' + patched + '건 입고예정일(7/10) 자동 부여');
+    if (typeof saveHistory === 'function') saveHistory();
+  }
+})();
 
 // 📐 ROP / EOQ 권장 — 재고이론 기반
 function computeROPandEOQ() {
