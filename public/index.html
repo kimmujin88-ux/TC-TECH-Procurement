@@ -4308,6 +4308,9 @@ function showKpiDetail(type) {
   const thStyle = 'style="position:sticky;top:0;z-index:1;"';
   const tblStyle = 'class="order-table" style="width:100%;font-size:11px;"';
   const scrollBox = 'style="max-height:520px;overflow-y:auto;"';
+  // 동적 월 라벨 (윈도우 이월 시 자동 갱신)
+  const mL = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
+  const wL = `${mL('may')}~${mL('aug')}`;
 
   if (type === 'total') {
     modalTitle.textContent = '전체 구매품 목록 (총 ' + MASTERS.length + '건)';
@@ -4336,7 +4339,7 @@ function showKpiDetail(type) {
     </table></div>`;
 
   } else if (type === 'incoming') {
-    modalTitle.textContent = '5~8월 입고계획 상세';
+    modalTitle.textContent = `${wL} 입고계획 상세`;
     const items = MASTERS.map(m => {
       const r = getResult(m);
       const inc = ['may','jun','jul','aug'].map(mo => r.months[mo].incoming);
@@ -4361,8 +4364,8 @@ function showKpiDetail(type) {
       <thead><tr ${thStyle}>
         <th>모델</th><th>품번</th><th>품명</th><th>구매업체</th>
         <th class="col-num">현재고</th>
-        <th class="col-num">5월</th><th class="col-num">6월</th>
-        <th class="col-num">7월</th><th class="col-num">8월</th>
+        <th class="col-num">${mL('may')}</th><th class="col-num">${mL('jun')}</th>
+        <th class="col-num">${mL('jul')}</th><th class="col-num">${mL('aug')}</th>
         <th class="col-num">합계</th><th class="col-num">금액(추정)</th>
       </tr></thead><tbody>${rows}
       <tr style="border-top:2px solid var(--teal);font-weight:700;background:rgba(56,201,160,0.06);">
@@ -4403,8 +4406,8 @@ function showKpiDetail(type) {
       <thead><tr ${thStyle}>
         <th>모델</th><th>품번</th><th>품명</th><th>구매업체</th>
         <th class="col-num">LT</th><th>부족 시점</th>
-        <th class="col-num">5월말재고</th><th class="col-num">6월말재고</th>
-        <th class="col-num">7월말재고</th><th class="col-num">8월말재고</th>
+        <th class="col-num">${mL('may')}말재고</th><th class="col-num">${mL('jun')}말재고</th>
+        <th class="col-num">${mL('jul')}말재고</th><th class="col-num">${mL('aug')}말재고</th>
       </tr></thead><tbody>${rows}</tbody>
     </table></div>`;
 
@@ -4465,7 +4468,7 @@ function showKpiDetail(type) {
         <th>모델</th><th>품번</th><th>품명</th>
         <th class="col-num">단가</th>
         <th class="col-num">시작재고</th><th class="col-num">시작가치</th>
-        <th class="col-num">8월말재고</th><th class="col-num">8월말가치</th>
+        <th class="col-num">${mL('aug')}말재고</th><th class="col-num">${mL('aug')}말가치</th>
         <th class="col-num">증감</th>
       </tr></thead><tbody>${rows}
       <tr style="border-top:2px solid var(--sky);font-weight:700;background:rgba(74,168,255,0.06);">
@@ -4478,7 +4481,7 @@ function showKpiDetail(type) {
 
   } else if (type === 'consumption') {
     const fin = computeFinancialKPIs();
-    modalTitle.textContent = `5~8월 사용금액 상세 (총 ₩${fmt(fin.consumptionValue)})`;
+    modalTitle.textContent = `${wL} 사용금액 상세 (총 ₩${fmt(fin.consumptionValue)})`;
     const sorted = [...fin.perPart].filter(p => p.consumeV > 0).sort((a, b) => b.consumeV - a.consumeV);
     const rows = sorted.map(({ m, r, consumeV }) => {
       const monthsV = ['may', 'jun', 'jul', 'aug'].map(mo => r.months[mo].required * (m.unit_price || 0));
@@ -4495,8 +4498,8 @@ function showKpiDetail(type) {
       <thead><tr ${thStyle}>
         <th>모델</th><th>품번</th><th>품명</th>
         <th class="col-num">단가</th>
-        <th class="col-num">5월</th><th class="col-num">6월</th>
-        <th class="col-num">7월</th><th class="col-num">8월</th>
+        <th class="col-num">${mL('may')}</th><th class="col-num">${mL('jun')}</th>
+        <th class="col-num">${mL('jul')}</th><th class="col-num">${mL('aug')}</th>
         <th class="col-num">4개월 합계</th>
       </tr></thead><tbody>${rows}
       <tr style="border-top:2px solid var(--teal);font-weight:700;background:rgba(56,201,160,0.06);">
