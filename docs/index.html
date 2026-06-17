@@ -1124,7 +1124,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 <section id="panel-form" class="panel">
 
   <div class="section-title">
-    <div class="section-title__label" id="period-section-title">▎ 2026년 4월말 실사재고 기준 · 5~8월 운영 양식</div>
+    <div class="section-title__label" id="period-section-title">▎ 2026년 4월말 현물재고 기준 · 5~8월 운영 양식</div>
     <div class="section-title__hint">제작대수·입고계획만 입력 → 필요수량·기말재고 자동 계산</div>
   </div>
 
@@ -2508,7 +2508,7 @@ function updateStaticMonthLabels() {
     if (opt) opt.textContent = monthLabel(mo);
   });
   const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-  setText('period-section-title', `▎ ${yearOfMonth('may')}년 ${priorMonthLabel()}말 실사재고 기준 · ${rangeLabel()} 운영 양식`);
+  setText('period-section-title', `▎ ${yearOfMonth('may')}년 ${priorMonthLabel()}말 현물재고 기준 · ${rangeLabel()} 운영 양식`);
   setText('kpi-incoming-label', `${rangeLabel()} 총 입고계획`);
   setText('kpi-consumption-label', `4개월 사용금액 (${rangeLabel()})`);
   setText('finance-hint-label', `${rangeLabel()} 시뮬레이션 기준 추정치 · 카드 클릭 시 상세`);
