@@ -4134,10 +4134,12 @@ function renderDashboard() {
     });
   });
   document.getElementById('kpi-incoming').innerHTML = fmt(totalInc) + '<span class="kpi__unit">EA</span>';
-  document.getElementById('kpi-incoming-amt').innerHTML = 
-    `5월 ${fmt(monthlyInc.may)} · 6월 ${fmt(monthlyInc.jun)} · 7월 ${fmt(monthlyInc.jul)} · 8월 ${fmt(monthlyInc.aug)}<br>` +
+  // 동적 월 라벨 (윈도우 이월 시 자동 갱신)
+  const _mLd = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
+  document.getElementById('kpi-incoming-amt').innerHTML =
+    `${_mLd('may')} ${fmt(monthlyInc.may)} · ${_mLd('jun')} ${fmt(monthlyInc.jun)} · ${_mLd('jul')} ${fmt(monthlyInc.jul)} · ${_mLd('aug')} ${fmt(monthlyInc.aug)}<br>` +
     `<span style="color:var(--teal); font-weight:600; font-size:9.5px; margin-top:4px; display:inline-block;">총 발주액 ₩${fmt(totalAmt)}</span>`;
-  
+
   // 부족 항목
   const shorts = MASTERS.filter(m => getResult(m).anyShort);
   document.getElementById('kpi-shortage').innerHTML = fmt(shorts.length) + '<span class="kpi__unit">EA</span>';
@@ -4147,7 +4149,7 @@ function renderDashboard() {
     if (r.firstShort) breakdown[r.firstShort]++;
   });
   document.getElementById('kpi-shortage-detail').textContent =
-    `5월말 ${breakdown.may} · 6월말 ${breakdown.jun} · 7월말 ${breakdown.jul} · 8월말 ${breakdown.aug}`;
+    `${_mLd('may')}말 ${breakdown.may} · ${_mLd('jun')}말 ${breakdown.jun} · ${_mLd('jul')}말 ${breakdown.jul} · ${_mLd('aug')}말 ${breakdown.aug}`;
   
   // 손실
   const loss = MASTERS.filter(m => m.loss_rate != null && Math.abs(m.loss_rate) > 0.01);
