@@ -3538,7 +3538,16 @@ function showExecutiveSummary() {
     const r = getResult(m);
     ['may','jun','jul','aug'].forEach(mo => { totalInc += r.months[mo].incoming; });
   });
-  const lossCount = MASTERS.filter(m => m.loss_rate != null && Math.abs(m.loss_rate) > 0.005).length;
+  // 손실 발생 항목 - 사용자 갱신값(state) 기준 (부품 단위 1회만 카운트)
+  let lossCount = 0;
+  const _seenExecLoss = new Set();
+  MASTERS.forEach(m => {
+    if (_seenExecLoss.has(m.part_no)) return;
+    _seenExecLoss.add(m.part_no);
+    const actual = (typeof computePartTotalStart === 'function') ? computePartTotalStart(m.part_no) : (m.starting_stock || 0);
+    const erp = (state.erpStocks && state.erpStocks[m.part_no] !== undefined) ? Number(state.erpStocks[m.part_no]) : Number(m.erp_stock || 0);
+    if (erp > 0 && Math.abs(actual - erp) > 0) lossCount++;
+  });
   // 결품 캘린더 카운트
   const calCounts = { may: 0, jun: 0, jul: 0, aug: 0 };
   MASTERS.forEach(m => {
@@ -3569,13 +3578,13 @@ function showExecutiveSummary() {
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
         <tr>
           <td ${cellTD}><div style="font-size:9px;color:#666;">총 관리 구매품</div><div style="font-size:16px;font-weight:700;">${fmt(MASTERS.length)} EA</div></td>
-          <td ${cellTD}><div style="font-size:9px;color:#666;">5~8월 총 입고계획</div><div style="font-size:16px;font-weight:700;">${fmt(totalInc)} EA</div></td>
+          <td ${cellTD}><div style="font-size:9px;color:#666;">${rangeLabel()} 총 입고계획</div><div style="font-size:16px;font-weight:700;">${fmt(totalInc)} EA</div></td>
           <td ${cellTD}><div style="font-size:9px;color:#666;">부족 발생 항목</div><div style="font-size:16px;font-weight:700;color:#c00;">${shorts.length} 건</div></td>
-          <td ${cellTD}><div style="font-size:9px;color:#666;">손실 발생 항목 (실사차이)</div><div style="font-size:16px;font-weight:700;color:#c80;">${lossCount} 건</div></td>
+          <td ${cellTD}><div style="font-size:9px;color:#666;">손실 발생 항목 (현물 vs ERP)</div><div style="font-size:16px;font-weight:700;color:${lossCount === 0 ? '#080' : '#c80'};">${lossCount === 0 ? '✓ 일치' : lossCount + ' 건'}</div></td>
         </tr>
       </table>
 
-      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin:10px 0 4px;border-bottom:2px solid #1a1a1a;padding-bottom:2px;">2. 재무 KPI (금액 기준 · 5~8월 시뮬레이션)</div>
+      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin:10px 0 4px;border-bottom:2px solid #1a1a1a;padding-bottom:2px;">2. 재무 KPI (금액 기준 · ${rangeLabel()} 시뮬레이션)</div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
         <tr>
           <td ${cellTD}><div style="font-size:9px;color:#666;">재고가치 (${priorMonthLabel()}말)</div><div style="font-size:14px;font-weight:700;">₩${fmt(fin.invValueStart)}</div></td>
