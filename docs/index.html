@@ -1260,7 +1260,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     </div>
     <div class="kpi kpi--amb" onclick="showKpiDetail('loss')" style="cursor:pointer;" title="클릭하면 손실 발생 품목 상세를 확인할 수 있습니다">
       <div class="kpi__corner">K04</div>
-      <div class="kpi__label">손실 발생 항목 (4월 실사 차이)</div>
+      <div class="kpi__label">손실 발생 항목 (현물 vs ERP 차이)</div>
       <div class="kpi__value" id="kpi-loss">—</div>
       <div class="kpi__delta kpi__delta--alert" id="kpi-loss-detail"></div>
     </div>
@@ -4151,11 +4151,27 @@ function renderDashboard() {
   document.getElementById('kpi-shortage-detail').textContent =
     `${_mLd('may')}말 ${breakdown.may} · ${_mLd('jun')}말 ${breakdown.jun} · ${_mLd('jul')}말 ${breakdown.jul} · ${_mLd('aug')}말 ${breakdown.aug}`;
   
-  // 손실
-  const loss = MASTERS.filter(m => m.loss_rate != null && Math.abs(m.loss_rate) > 0.01);
-  document.getElementById('kpi-loss').innerHTML = fmt(loss.length) + '<span class="kpi__unit">EA</span>';
-  const lossSum = loss.reduce((acc, m) => acc + Math.abs((m.starting_stock || 0) - (m.erp_stock || 0)), 0);
-  document.getElementById('kpi-loss-detail').textContent = `차이 합계 ${fmt(lossSum)} EA`;
+  // 손실 발생 항목 - 사용자 갱신값(state.itemInputs 합, state.erpStocks) 우선 사용
+  // 부품 단위 1회만 카운트 (공용 부품 중복 방지)
+  const _seenLoss = new Set();
+  let lossCnt = 0, lossSum = 0;
+  MASTERS.forEach(m => {
+    if (_seenLoss.has(m.part_no)) return;
+    _seenLoss.add(m.part_no);
+    const actual = (typeof computePartTotalStart === 'function')
+      ? computePartTotalStart(m.part_no)
+      : (m.starting_stock || 0);
+    const erp = (state.erpStocks && state.erpStocks[m.part_no] !== undefined)
+      ? Number(state.erpStocks[m.part_no])
+      : Number(m.erp_stock || 0);
+    if (erp <= 0) return; // ERP 미입력 부품 제외
+    const diff = Math.abs(actual - erp);
+    if (diff > 0) { lossCnt++; lossSum += diff; }
+  });
+  document.getElementById('kpi-loss').innerHTML = fmt(lossCnt) + '<span class="kpi__unit">EA</span>';
+  document.getElementById('kpi-loss-detail').textContent = lossCnt === 0
+    ? '✅ 현물 = ERP 일치'
+    : `차이 합계 ${fmt(lossSum)} EA`;
   
   // 모델별 도넛 차트
   const byModel = {};
