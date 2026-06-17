@@ -1339,7 +1339,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="card">
       <div class="card__head">
         <div>
-          <div class="card__title" id="chart-title">모델별 5월 필요수량 분포</div>
+          <div class="card__title" id="chart-title">모델별 필요수량 분포</div>
           <div class="card__hint" style="margin-top:2px;">항목 클릭 시 4개월 재고 추이 확인</div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -2697,11 +2697,15 @@ function renderShortageCalendar() {
   });
   const el = document.getElementById('shortage-calendar-body');
   if (!el) return;
+  // 동적 월 라벨 (윈도우 이월 시 자동 갱신)
+  const _mLcal = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
+  // aug 다음 추정월(9월 or +1) 라벨
+  const _nextMo = (typeof state !== 'undefined' && state.periodStartMonth) ? ((state.periodStartMonth + 3) % 12 || 12) + '월' : '9월';
   const months = [
-    { key: 'may', label: '5월말' },
-    { key: 'jun', label: '6월말' },
-    { key: 'jul', label: '7월말' },
-    { key: 'aug', label: '8월말 (9월 추정)' }
+    { key: 'may', label: _mLcal('may') + '말' },
+    { key: 'jun', label: _mLcal('jun') + '말' },
+    { key: 'jul', label: _mLcal('jul') + '말' },
+    { key: 'aug', label: _mLcal('aug') + '말 (' + _nextMo + ' 추정)' }
   ];
   el.innerHTML = months.map((m, idx) => {
     const n = counts[m.key];
@@ -3587,7 +3591,10 @@ function showExecutiveSummary() {
         <tr>
           ${['may','jun','jul','aug'].map((mo, i) => {
             const n = calCounts[mo];
-            const label = ['5월말','6월말','7월말','8월말 (9월 추정)'][i];
+            const _mLes = (k) => (typeof monthLabel === 'function') ? monthLabel(k) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[k];
+            const _next = (typeof state !== 'undefined' && state.periodStartMonth) ? ((state.periodStartMonth + 3) % 12 || 12) + '월' : '9월';
+            const labels = [_mLes('may')+'말', _mLes('jun')+'말', _mLes('jul')+'말', _mLes('aug')+'말 ('+_next+' 추정)'];
+            const label = labels[i];
             const color = n >= 20 ? '#c00' : n >= 10 ? '#c80' : '#080';
             return `<td ${cellTD} style="border:1px solid #ccc;padding:8px;text-align:center;font-size:10.5px;color:#1a1a1a;"><div style="font-size:9px;color:#666;">${label}</div><div style="font-size:18px;font-weight:700;color:${color};">${n}</div><div style="font-size:9px;color:#666;">건 부족</div></td>`;
           }).join('')}
