@@ -480,6 +480,18 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
   font-weight: 600; vertical-align: middle;
 }
 .btn-moq-fix:hover { background: rgba(247, 199, 64, 0.25); }
+/* 헤더 그룹 구분선 (4그룹: 검색 | 저장·이동 | 정보·보고 | 권한) */
+.header-divider {
+  display: inline-block;
+  width: 0.5px;
+  height: 20px;
+  background: var(--border2);
+  margin: 0 6px;
+  opacity: 0.6;
+}
+/* 더보기 드롭다운 아이템 호버 */
+#more-dropdown button:hover { background: var(--bg-card2); }
+
 /* 권한 분리: 조회 전용 모드 (viewer-mode) */
 .viewer-banner { display: none; }
 body.viewer-mode .viewer-banner {
@@ -1063,34 +1075,46 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       </div>
     </div>
     <div class="header-actions">
+      <!-- 그룹 1: 검색 -->
       <div class="global-search-wrap" style="position:relative;">
         <input type="text" id="global-search-input" class="filter-input" placeholder="🔍 빠른 검색 ( / )" autocomplete="off" style="width:180px; padding:5px 10px; font-size:11px;" title="단축키: / 로 포커스 · 1~6 탭 전환 · Esc 닫기">
         <div id="global-search-dropdown" class="global-search-dropdown"></div>
       </div>
+      <span class="header-divider" aria-hidden="true"></span>
+      <!-- 그룹 2: 저장 상태 + 이동 -->
       <span class="save-indicator" id="save-indicator"><span class="save-indicator__dot"></span>자동 저장</span>
       <button class="btn btn--ghost btn--sm" id="btn-undo" title="마지막 변경 되돌리기 (Ctrl+Z)" style="opacity:0.4;">↶ 되돌리기</button>
       <button class="btn btn--ghost btn--sm" id="btn-prev-cycle" title="이전 사이클 데이터로 임시 전환 (월 이월 처리 자동 백업 활용)" style="color:var(--sky);border-color:var(--sky-b);">↶ 이전 사이클</button>
+      <span class="header-divider" aria-hidden="true"></span>
+      <!-- 그룹 3: 정보·보고 + 더보기 -->
       <button class="btn btn--ghost btn--sm" id="btn-help" title="도움말 / 첫 사용 안내">❓ 도움말</button>
       <button class="btn btn--ghost btn--sm" id="btn-exec-summary">📋 임원 요약</button>
-      <button class="btn btn--ghost btn--sm" id="btn-export-excel">엑셀 내보내기</button>
-      <button class="btn btn--ghost btn--sm" id="btn-export-json">JSON 내보내기</button>
-      <button class="btn btn--ghost btn--sm" id="btn-rollover" style="color:var(--amb);border-color:var(--amb-b);">월 이월 처리</button>
-      <button class="btn btn--ghost btn--sm" id="btn-reset-all">초기값 복원</button>
+      <div class="more-menu" style="position:relative;">
+        <button class="btn btn--ghost btn--sm" id="btn-more" title="가끔 쓰는 기능 (월 이월·내보내기·초기값 복원)">⚙ 더보기 ▾</button>
+        <div id="more-dropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.5);min-width:180px;z-index:100;overflow:hidden;">
+          <button class="btn btn--ghost btn--sm" id="btn-rollover" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;color:var(--amb);">📅 월 이월 처리</button>
+          <button class="btn btn--ghost btn--sm" id="btn-export-excel" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);">📊 엑셀 내보내기</button>
+          <button class="btn btn--ghost btn--sm" id="btn-export-json" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);">💾 JSON 내보내기</button>
+          <button class="btn btn--ghost btn--sm" id="btn-reset-all" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);color:var(--red);">⚠ 초기값 복원</button>
+        </div>
+      </div>
+      <span class="header-divider" aria-hidden="true"></span>
+      <!-- 그룹 4: 권한 -->
       <span class="user-badge" id="user-badge"></span>
       <button class="btn btn--ghost btn--sm" id="btn-logout">로그아웃</button>
     </div>
   </div>
 </header>
 
-<!-- TABS -->
+<!-- TABS (실제 일상 워크플로우 순서) -->
 <nav class="tabs">
   <div class="tabs__inner">
     <button class="tab tab--active" data-tab="ops">운영 현황 <span class="tab__count tab__count--alert" id="count-alarms">0</span></button>
-    <button class="tab" data-tab="finance">재무·분석</button>
-    <button class="tab" data-tab="data">데이터 점검</button>
     <button class="tab" data-tab="form">수급 운영 계획</button>
     <button class="tab" data-tab="orders">발주 확정/관리 <span class="tab__count tab__count--alert" id="count-orders">0</span></button>
     <button class="tab" data-tab="history">발주 이력 <span class="tab__count" id="count-history">0</span></button>
+    <button class="tab" data-tab="finance">재무·분석</button>
+    <button class="tab" data-tab="data">데이터 점검</button>
   </div>
 </nav>
 
@@ -6445,12 +6469,12 @@ function showTutorialModal() {
     <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card);">
       <div style="font-weight:700;color:var(--teal);margin-bottom:6px;">🗺️ 탭 구조</div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;color:var(--t2);font-size:11.5px;">
-        <div><strong style="color:var(--t1);">1. 📊 운영 현황</strong></div><div>🎯 오늘의 액션 · KPI · 알람 · 결품캘린더/간트 · 모델별 캐파 · ROP/EOQ</div>
-        <div><strong style="color:var(--t1);">2. 💰 재무·분석</strong></div><div>임원 보고용 · 재고가치 · ABC · 공급사 평가 · 기회손실 · 데드스톡 · 단가추이 · 재협상 · 통계 SS · XYZ · What-if 등</div>
-        <div><strong style="color:var(--t1);">3. 🔍 데이터 점검</strong></div><div>부품마스터 · 정합성 7룰 · LT 실측 · 재고 실사 · 라이프사이클 · 백업 · 변경이력 · 자가 진단</div>
-        <div><strong style="color:var(--t1);">4. ✏️ 수급 운영 계획</strong></div><div>제작대수·입고계획 입력 (메인 작업)</div>
-        <div><strong style="color:var(--t1);">5. 📦 발주 확정/관리</strong></div><div>부족 품목 발주서 생성·확정 · 미발주 사유 입력 · 발주서 일괄 인쇄</div>
-        <div><strong style="color:var(--t1);">6. 📋 발주 이력</strong></div><div>과거 발주 조회·복제·부분 입고 확인</div>
+        <div><strong style="color:var(--t1);">1. 📊 운영 현황</strong></div><div>🎯 오늘의 액션 · KPI · 알람 · 결품캘린더 · 모델별 캐파 · ROP/EOQ</div>
+        <div><strong style="color:var(--t1);">2. ✏️ 수급 운영 계획</strong></div><div>제작대수·입고계획 입력 (메인 작업)</div>
+        <div><strong style="color:var(--t1);">3. 📦 발주 확정/관리</strong></div><div>부족 품목 발주서 생성·확정 · 미발주 사유 입력 · 발주서 일괄 인쇄</div>
+        <div><strong style="color:var(--t1);">4. 📋 발주 이력</strong></div><div>과거 발주 조회·복제·부분 입고 확인</div>
+        <div><strong style="color:var(--t1);">5. 💰 재무·분석</strong></div><div>임원 보고용 · 재고가치 · ABC · 공급사 평가 · 기회손실 · 데드스톡 · What-if</div>
+        <div><strong style="color:var(--t1);">6. 🔍 데이터 점검</strong></div><div>부품마스터 · 백업 · 자가 진단 · 정합성 · 재고 실사 · 안전재고</div>
       </div>
     </div>
     <div style="border:0.5px solid var(--border2);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card);">
@@ -6619,13 +6643,29 @@ document.addEventListener('keydown', (e) => {
     if (search) { search.focus(); search.select(); e.preventDefault(); }
     return;
   }
-  // 1~6 : 탭 전환 (운영현황/재무분석/데이터점검/수급운영/발주확정/발주이력)
+  // 1~6 : 탭 전환 (운영현황/수급운영/발주확정/발주이력/재무분석/데이터점검 — 일상 워크플로우 순서)
   if (/^[1-6]$/.test(e.key)) {
-    const tabs = ['ops', 'finance', 'data', 'form', 'orders', 'history'];
+    const tabs = ['ops', 'form', 'orders', 'history', 'finance', 'data'];
     const t = tabs[parseInt(e.key, 10) - 1];
     if (t) { setActiveTab(t); e.preventDefault(); }
   }
 });
+
+// ⚙ 더보기 드롭다운 토글
+(function() {
+  const btn = document.getElementById('btn-more');
+  const dd = document.getElementById('more-dropdown');
+  if (!btn || !dd) return;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+  });
+  document.addEventListener('click', (e) => {
+    if (!btn.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
+  });
+  // 드롭다운 아이템 클릭 후 자동 닫기
+  dd.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { dd.style.display = 'none'; }));
+})();
 
 // 브라우저 알림 권한 요청 (관리자 모드 + 처음 한 번)
 setTimeout(() => {
