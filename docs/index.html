@@ -491,6 +491,14 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
 }
 /* 더보기 드롭다운 아이템 호버 */
 #more-dropdown button:hover { background: var(--bg-card2); }
+/* 사이클 드롭다운 */
+#cycle-dropdown .cycle-item { display:block; width:100%; text-align:left; padding:10px 14px; border:0; background:transparent; color:var(--t1); font-size:11.5px; cursor:pointer; border-bottom:0.5px solid var(--border2); }
+#cycle-dropdown .cycle-item:last-child { border-bottom:0; }
+#cycle-dropdown .cycle-item:hover { background: var(--bg-card2); }
+#cycle-dropdown .cycle-item--active { background:rgba(56,201,160,0.10); border-left:3px solid var(--teal); }
+#cycle-dropdown .cycle-item__head { font-weight:700; color:var(--t1); margin-bottom:3px; }
+#cycle-dropdown .cycle-item__meta { font-size:10px; color:var(--t3); }
+#cycle-dropdown .cycle-section { font-size:10px; color:var(--t3); font-weight:700; padding:6px 14px; background:var(--bg-card2); letter-spacing:0.5px; }
 
 /* 권한 분리: 조회 전용 모드 (viewer-mode) */
 .viewer-banner { display: none; }
@@ -1087,7 +1095,10 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <!-- 그룹 2: 저장 상태 + 이동 -->
       <span class="save-indicator" id="save-indicator"><span class="save-indicator__dot"></span>자동 저장</span>
       <button class="btn btn--ghost btn--sm" id="btn-undo" title="마지막 변경 되돌리기 (Ctrl+Z)" style="opacity:0.4;">↶ 되돌리기</button>
-      <button class="btn btn--ghost btn--sm" id="btn-prev-cycle" title="이전 사이클 데이터로 임시 전환 (월 이월 처리 자동 백업 활용)" style="color:var(--sky);border-color:var(--sky-b);">↶ 이전 사이클</button>
+      <div class="cycle-menu" style="position:relative;">
+        <button class="btn btn--ghost btn--sm" id="btn-prev-cycle" title="이전 사이클 데이터로 임시 전환 (월 이월 처리 자동 백업 + 초기 사이클)" style="color:var(--sky);border-color:var(--sky-b);">↶ 이전 사이클 ▾</button>
+        <div id="cycle-dropdown" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.5);min-width:280px;z-index:100;overflow:hidden;max-height:380px;overflow-y:auto;"></div>
+      </div>
       <span class="header-divider" aria-hidden="true"></span>
       <!-- 그룹 3: 정보·보고 + 더보기 -->
       <button class="btn btn--ghost btn--sm" id="btn-help" title="도움말 / 첫 사용 안내">❓ 도움말</button>
@@ -6771,82 +6782,226 @@ setTimeout(() => { document.querySelectorAll('.form-input').forEach(validateNume
 document.getElementById('btn-exec-summary')?.addEventListener('click', showExecutiveSummary);
 
 // ↶ 이전 사이클 보기 모드 — 가장 최근 "월 이월" 백업으로 시스템 임시 전환
+// 사이클 라벨 헬퍼: priorMonthLabel + range
+function _cycleLabelByMonth(pm, py) {
+  if (!pm) return '-';
+  const prior = pm === 1 ? 12 : pm - 1;
+  const priorYear = pm === 1 ? py - 1 : py;
+  const end = ((pm - 1 + 3) % 12) + 1;
+  return `${priorYear}년 ${prior}월말 → ${pm}~${end}월`;
+}
+
+// 사이클 데이터 진입 핵심 로직 (백업 / INITIAL 공용)
+function enterCycleByData(data, label, ts) {
+  if (_prevCycleMode.active) {
+    // 이미 활성이면 일단 복귀 후 새로 진입
+    exitPreviousCycleMode();
+  }
+  if (!data.itemInputs || !data.modelInputs) {
+    alert('사이클 데이터가 손상되었거나 호환되지 않습니다.');
+    return false;
+  }
+  // 현재 메모리 상태 백업
+  _prevCycleMode.savedState = JSON.parse(JSON.stringify({
+    modelInputs: state.modelInputs,
+    itemInputs: state.itemInputs,
+    orderOverrides: state.orderOverrides,
+    erpStocks: state.erpStocks,
+    periodStartMonth: state.periodStartMonth,
+    periodYear: state.periodYear,
+    safetyStockMultiplier: state.safetyStockMultiplier,
+    modelASP: state.modelASP,
+    unmetReasons: state.unmetReasons,
+    auditLog: state.auditLog
+  }));
+  _prevCycleMode.savedOrderHistory = JSON.parse(JSON.stringify(typeof orderHistory !== 'undefined' ? orderHistory : []));
+  // 데이터 교체
+  state.modelInputs = JSON.parse(JSON.stringify(data.modelInputs));
+  state.itemInputs = JSON.parse(JSON.stringify(data.itemInputs));
+  state.orderOverrides = JSON.parse(JSON.stringify(data.orderOverrides || {}));
+  state.erpStocks = JSON.parse(JSON.stringify(data.erpStocks || {}));
+  if (data.periodStartMonth) {
+    state.periodStartMonth = data.periodStartMonth;
+    if (data.periodYear) state.periodYear = data.periodYear;
+  } else {
+    let pm = (state.periodStartMonth || 5) - 1;
+    let py = state.periodYear || (new Date()).getFullYear();
+    if (pm < 1) { pm = 12; py = py - 1; }
+    state.periodStartMonth = pm;
+    state.periodYear = py;
+  }
+  if (data.safetyStockMultiplier != null) state.safetyStockMultiplier = data.safetyStockMultiplier;
+  state.modelASP = data.modelASP || {};
+  state.unmetReasons = data.unmetReasons || {};
+  state.auditLog = data.auditLog || [];
+  if (typeof orderHistory !== 'undefined' && Array.isArray(data.orderHistory)) {
+    orderHistory.length = 0;
+    data.orderHistory.forEach(o => orderHistory.push(o));
+  }
+  _prevCycleMode.active = true;
+  _prevCycleMode.backupLabel = label || data._label || '이전 사이클';
+  _prevCycleMode.backupTs = ts || data._createdAt || new Date().toISOString();
+  // UI
+  document.body.classList.add('viewer-mode');
+  document.body.classList.add('prev-cycle-active');
+  showPrevCycleBanner();
+  const btn = document.getElementById('btn-prev-cycle');
+  if (btn) { btn.textContent = '🔙 현재 사이클'; btn.style.background = 'var(--sky)'; btn.style.color = '#1a1a1a'; btn.style.fontWeight = '700'; }
+  if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
+  if (typeof renderForm === 'function') renderForm();
+  if (typeof renderOrders === 'function') renderOrders();
+  if (typeof renderHistory === 'function') renderHistory();
+  if (typeof updateOrderCount === 'function') updateOrderCount();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  setActiveTab('form');
+  return true;
+}
+
+// 초기 사이클 진입 (INITIAL_MASTERS 기준 4월말 → 5~8월)
+function enterInitialCycle() {
+  if (!confirm('↶ 초기 사이클 보기 모드 진입\n\n• 4월말 현물재고 기준 · 5~8월 윈도우\n• INITIAL_MASTERS 코드 값 (영구 보존)\n• 모든 화면이 초기 데이터로 표시 (조회 전용)\n• 헤더 "🔙 현재 사이클" 클릭 시 복귀\n\n진행하시겠습니까?')) return;
+  // INITIAL 데이터로 메모리 채우기
+  const initialItemInputs = {};
+  const seen = new Set();
+  INITIAL_MASTERS.forEach(m => {
+    const key = m.part_no + '|' + (() => {
+      // displayName 재구성 (INITIAL_MASTERS는 디스플레이 정규화 필요)
+      const modelNorm = (m.model || '').replace(/\s*\(중단\)\s*/g, '').replace(/HX55\s+ACR/i, 'HX55ACR').replace(/HX63\s+AH/i, 'HX63AH');
+      if (modelNorm === 'Z40' && /Drive Chassis/i.test(m.kind || '')) return 'Z40 DC Drive Chassis';
+      return m.kind ? modelNorm + ' ' + m.kind : modelNorm;
+    })();
+    if (seen.has(m.part_no)) {
+      initialItemInputs[key] = { starting_stock: 0, may_incoming: 0, jun_incoming: 0, jul_incoming: 0, aug_incoming: 0 };
+    } else {
+      seen.add(m.part_no);
+      const src = INITIAL_INPUTS[m.part_no] || {};
+      initialItemInputs[key] = {
+        starting_stock: m.starting_stock || 0,
+        may_incoming: src.may_incoming || 0,
+        jun_incoming: src.jun_incoming || 0,
+        jul_incoming: src.jul_incoming || 0,
+        aug_incoming: src.aug_incoming || 0
+      };
+    }
+  });
+  const initialModelInputs_ = {};
+  INITIAL_MASTERS.forEach(m => {
+    const modelNorm = (m.model || '').replace(/\s*\(중단\)\s*/g, '').replace(/HX55\s+ACR/i, 'HX55ACR').replace(/HX63\s+AH/i, 'HX63AH');
+    const dn = (modelNorm === 'Z40' && /Drive Chassis/i.test(m.kind || ''))
+      ? 'Z40 DC Drive Chassis'
+      : (m.kind ? modelNorm + ' ' + m.kind : modelNorm);
+    if (!initialModelInputs_[dn]) {
+      initialModelInputs_[dn] = { may_qty: 0, jun_qty: 0, jul_qty: 0, aug_qty: 0 };
+    }
+    const src = INITIAL_INPUTS[m.part_no] || {};
+    ['may','jun','jul','aug'].forEach(mo => {
+      const v = Number(src[mo + '_qty']) || 0;
+      if (v > initialModelInputs_[dn][mo + '_qty']) initialModelInputs_[dn][mo + '_qty'] = v;
+    });
+  });
+  const initialData = {
+    modelInputs: initialModelInputs_,
+    itemInputs: initialItemInputs,
+    orderOverrides: {},
+    erpStocks: {},
+    periodStartMonth: 5,
+    periodYear: 2026,
+    orderHistory: [],
+    auditLog: []
+  };
+  enterCycleByData(initialData, '초기 사이클 (4월말 → 5~8월)', '2026-04-30T00:00:00.000Z');
+}
+
+// 사이클 드롭다운 빌더 + 토글
 async function togglePreviousCycle() {
-  if (_prevCycleMode.active) { exitPreviousCycleMode(); return; }
+  const dd = document.getElementById('cycle-dropdown');
+  if (!dd) { exitPreviousCycleMode(); return; }
+  // 활성 모드면 복귀 동작 (드롭다운 열지 않음)
+  if (_prevCycleMode.active) {
+    exitPreviousCycleMode();
+    return;
+  }
+  // 드롭다운 토글
+  if (dd.style.display === 'block') { dd.style.display = 'none'; return; }
+  dd.innerHTML = '<div style="padding:16px;text-align:center;color:var(--t3);font-size:11px;">불러오는 중...</div>';
+  dd.style.display = 'block';
   try {
     const backups = await listBackups();
-    const rollover = backups.find(b => {
-      const lbl = b.state_json?._label || '';
-      return lbl.includes('월 이월') || lbl.includes('이월');
+    // 사이클 목록 구성
+    const currentLabel = _cycleLabelByMonth(state.periodStartMonth, state.periodYear);
+    let html = `
+      <div class="cycle-section">▶ 현재 사이클</div>
+      <button class="cycle-item cycle-item--active" data-cycle-type="current">
+        <div class="cycle-item__head">🟢 ${sanitize(currentLabel)}</div>
+        <div class="cycle-item__meta">활성 · 수정 가능</div>
+      </button>
+    `;
+    // 자동 백업 사이클들 (월 이월 또는 일일 백업 중 일부)
+    const cycleBackups = backups.filter(b => {
+      const d = b.state_json || {};
+      return d.periodStartMonth && d.itemInputs && d.modelInputs;
+    }).slice(0, 12); // 최대 12개
+    if (cycleBackups.length > 0) {
+      html += `<div class="cycle-section">▶ 자동 백업 사이클 (최근 12건)</div>`;
+      cycleBackups.forEach(b => {
+        const d = b.state_json || {};
+        const cl = _cycleLabelByMonth(d.periodStartMonth, d.periodYear || 2026);
+        const lbl = d._label || '자동 백업';
+        const ts = new Date(d._createdAt || b.updated_at).toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        html += `
+          <button class="cycle-item" data-cycle-type="backup" data-backup-id="${sanitize(b.id)}">
+            <div class="cycle-item__head">↶ ${sanitize(cl)}</div>
+            <div class="cycle-item__meta">${sanitize(lbl)} · ${sanitize(ts)}</div>
+          </button>
+        `;
+      });
+    }
+    // 초기 사이클 (영구)
+    html += `
+      <div class="cycle-section">▶ 초기 사이클 (영구)</div>
+      <button class="cycle-item" data-cycle-type="initial">
+        <div class="cycle-item__head">↶ 2026년 4월말 → 5~8월</div>
+        <div class="cycle-item__meta">INITIAL_MASTERS 코드 기준 · 데이터 누적 시작점</div>
+      </button>
+    `;
+    dd.innerHTML = html;
+    // 클릭 핸들러
+    dd.querySelectorAll('.cycle-item').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const t = btn.dataset.cycleType;
+        dd.style.display = 'none';
+        if (t === 'current') {
+          // 현재 사이클 — 활성 모드면 복귀, 아니면 아무것도 안 함
+          if (_prevCycleMode.active) exitPreviousCycleMode();
+          return;
+        }
+        if (t === 'initial') {
+          enterInitialCycle();
+          return;
+        }
+        if (t === 'backup') {
+          const id = btn.dataset.backupId;
+          const bk = cycleBackups.find(b => b.id === id);
+          if (!bk) { alert('백업을 찾을 수 없습니다.'); return; }
+          const d = bk.state_json || {};
+          if (!confirm(`↶ 백업 사이클 보기 모드 진입\n\n• 시점: ${new Date(d._createdAt || bk.updated_at).toLocaleString('ko-KR')}\n• ${_cycleLabelByMonth(d.periodStartMonth, d.periodYear)}\n• 모든 입력 차단 (조회 전용)\n\n진행하시겠습니까?`)) return;
+          enterCycleByData(d, d._label || '백업 사이클', d._createdAt || bk.updated_at);
+        }
+      });
     });
-    if (!rollover) {
-      alert('이전 사이클 백업이 없습니다.\n\n월 이월 처리를 실행하면 "월 이월 처리 자동 백업"이 자동 생성되며,\n그 백업을 이용해 이전 사이클 데이터를 조회할 수 있습니다.');
-      return;
-    }
-    const data = rollover.state_json || {};
-    if (!data.itemInputs || !data.modelInputs) {
-      alert('백업 데이터가 손상되었거나 호환되지 않습니다.');
-      return;
-    }
-    if (!confirm(`↶ 이전 사이클 보기 모드 진입\n\n• 시점: ${new Date(data._createdAt || rollover.updated_at).toLocaleString('ko-KR')}\n• 모든 화면이 이전 사이클 데이터로 표시됨\n• 모든 수정·저장 차단 (조회 전용)\n• 헤더 "🔙 현재 사이클" 클릭 시 복귀\n\n진행하시겠습니까?`)) return;
-    // 현재 메모리 상태 백업
-    _prevCycleMode.savedState = JSON.parse(JSON.stringify({
-      modelInputs: state.modelInputs,
-      itemInputs: state.itemInputs,
-      orderOverrides: state.orderOverrides,
-      erpStocks: state.erpStocks,
-      periodStartMonth: state.periodStartMonth,
-      periodYear: state.periodYear,
-      safetyStockMultiplier: state.safetyStockMultiplier,
-      modelASP: state.modelASP,
-      unmetReasons: state.unmetReasons,
-      auditLog: state.auditLog
-    }));
-    _prevCycleMode.savedOrderHistory = JSON.parse(JSON.stringify(typeof orderHistory !== 'undefined' ? orderHistory : []));
-    // 백업 데이터로 교체
-    state.modelInputs = JSON.parse(JSON.stringify(data.modelInputs));
-    state.itemInputs = JSON.parse(JSON.stringify(data.itemInputs));
-    state.orderOverrides = JSON.parse(JSON.stringify(data.orderOverrides || {}));
-    state.erpStocks = JSON.parse(JSON.stringify(data.erpStocks || {}));
-    // periodStartMonth/Year: 신 버전 백업은 직접 사용, 구 버전(누락)이면 이월 백업이므로 현재-1로 추정
-    if (data.periodStartMonth) {
-      state.periodStartMonth = data.periodStartMonth;
-      if (data.periodYear) state.periodYear = data.periodYear;
-    } else {
-      let pm = (state.periodStartMonth || 5) - 1;
-      let py = state.periodYear || (new Date()).getFullYear();
-      if (pm < 1) { pm = 12; py = py - 1; }
-      state.periodStartMonth = pm;
-      state.periodYear = py;
-      console.warn('[이전 사이클] 백업에 periodStartMonth 누락 → 현재-1로 추정:', pm, py);
-    }
-    if (data.safetyStockMultiplier != null) state.safetyStockMultiplier = data.safetyStockMultiplier;
-    state.modelASP = data.modelASP || {};
-    state.unmetReasons = data.unmetReasons || {};
-    state.auditLog = data.auditLog || [];
-    if (typeof orderHistory !== 'undefined' && Array.isArray(data.orderHistory)) {
-      orderHistory.length = 0;
-      data.orderHistory.forEach(o => orderHistory.push(o));
-    }
-    _prevCycleMode.active = true;
-    _prevCycleMode.backupLabel = data._label || '월 이월 자동 백업';
-    _prevCycleMode.backupTs = data._createdAt || rollover.updated_at;
-    // UI: viewer-mode + prev-cycle-banner
-    document.body.classList.add('viewer-mode');
-    document.body.classList.add('prev-cycle-active');
-    showPrevCycleBanner();
-    const btn = document.getElementById('btn-prev-cycle');
-    if (btn) { btn.textContent = '🔙 현재 사이클'; btn.style.background = 'var(--sky)'; btn.style.color = '#1a1a1a'; btn.style.fontWeight = '700'; }
-    // 화면 재렌더
-    if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
-    if (typeof renderForm === 'function') renderForm();
-    if (typeof renderOrders === 'function') renderOrders();
-    if (typeof renderHistory === 'function') renderHistory();
-    if (typeof updateOrderCount === 'function') updateOrderCount();
-    if (typeof renderDashboard === 'function') renderDashboard();
-    setActiveTab('form');
-  } catch (e) { alert('이전 사이클 모드 진입 실패: ' + (e.message || e)); }
+  } catch (e) {
+    dd.innerHTML = `<div style="padding:16px;color:var(--red);font-size:11px;">백업 조회 실패: ${sanitize(e.message || String(e))}</div>`;
+  }
 }
+
+// 외부 클릭 시 드롭다운 닫기
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('cycle-dropdown');
+  const btn = document.getElementById('btn-prev-cycle');
+  if (!dd || !btn) return;
+  if (dd.contains(e.target) || btn.contains(e.target)) return;
+  dd.style.display = 'none';
+});
 
 function exitPreviousCycleMode() {
   if (!_prevCycleMode.active) return;
