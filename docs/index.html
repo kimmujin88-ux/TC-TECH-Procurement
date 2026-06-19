@@ -1651,8 +1651,6 @@ html.login-locked, html.login-locked body { overflow: hidden; }
         <div class="card__hint">함수·state·저장 흐름·라이브러리 자동 점검 + 공용 부품 감지 결과 · 매주 1회 실행 권장</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn btn--sm" id="btn-force-apply-may" style="background:rgba(245,158,11,0.2);color:var(--amb);border:0.5px solid var(--amb-b);font-weight:700;" title="2026-06-10 사용자 명시 모델별 5월말 현물재고 27건 강제 입력 (일회성)">🔧 5월말 재고 일괄 입력</button>
-        <button class="btn btn--sm" id="btn-force-apply-jul" style="background:rgba(96,170,220,0.2);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;" title="2026-06-09 발주된 7월 입고 PDF 4건 (YSP 윤성·가람기계·윈텍·태상테크) 일괄 반영">📦 7월 입고 PDF 반영</button>
         <button class="btn btn--sm" id="btn-run-diagnostics" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">진단 실행</button>
       </div>
     </div>
@@ -7306,180 +7304,36 @@ document.getElementById('btn-sync-erp-actual')?.addEventListener('click', syncEr
 // ⚙ 시스템 자가 진단 버튼
 document.getElementById('btn-run-diagnostics')?.addEventListener('click', runSystemDiagnostics);
 
-// 🔧 일회성: 사용자 명시 5월말 현물재고 강제 입력 (2026-06-10)
-const _MAY_STOCK_FORCE = {
-  '39340|GS1930E Drive Chassis': 3644,
-  '1311042|GS1930E Drive Chassis': 1511,
-  '96133|GS1930E Drive Chassis': 413,
-  '94151|Z40 DC Drive Chassis': 44,
-  '94151|Z45 DC Drive Chassis': 800,
-  '1270839|S60J Swing Chassis': 199,
-  '1281676|S60J Swing Chassis': 171,
-  '1270839|S80J Swing Chassis': 3,
-  '1281676|S80J Swing Chassis': 3,
-  '1311042|GS4655 Drive Chassis': 16,
-  '96133|GS4655 Drive Chassis': 108,
-  '39340|GS4655 Main Deck': 280,
-  '39340|GS4655 Extension Deck': 280,
-  '81554|Z80 Steer Axle': 0,
-  '27698|Z80 Steer Axle': 320,
-  '81554|Z80 Rear Axle': 114,
-  '27698|Z80 Rear Axle': 212,
-  '1059-3200|Z80 Drive Chassis': 32,
-  '1059-2100|Z80 Drive Chassis': 30,
-  '49092|Z80 Drive Chassis': 58,
-  '1059-3200|S85XC Drive Chassis': 106,
-  '1059-2100|S85XC Drive Chassis': 104,
-  '49092|S85XC Drive Chassis': 502,
-  '61M8-54030|R55C Lower Frame': 20,
-  '61M9-54040|R55C Lower Frame': 40,
-  'S344-402020|R55C Lower Frame': 190,
-  '61M8-54030|HX55ACR Lower Frame': 45,
-  '61M9-54040|HX55ACR Lower Frame': 123,
-  'S344-402020|HX63AH Lower Frame': 134
-};
-async function forceApplyMayStock() {
-  if (window.guardAdmin && !window.guardAdmin('5월말 재고 일괄 입력')) return;
-  const entries = Object.entries(_MAY_STOCK_FORCE);
-  const preview = entries.slice(0, 5).map(([k, v]) => `  · ${k}: ${v} EA`).join('\n');
-  if (!confirm(`사용자 명시 5월말 현물재고 ${entries.length}건을 모델별로 강제 입력합니다.\n\n예시:\n${preview}\n  ... 외 ${entries.length - 5}건\n\n• 기존 시작재고 값이 덮어쓰여짐\n• 변경 이력 자동 기록\n• 되돌리려면 ↶ Ctrl+Z 또는 백업 미리보기·복원\n\n진행하시겠습니까?`)) return;
-  // 자동 백업 (안전망)
-  try { await createBackup('5월말 재고 일괄 입력 직전 백업', false); } catch (e) { console.warn('백업 실패', e); }
-  const changes = [];
-  entries.forEach(([key, value]) => {
-    if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
-    const before = Number(state.itemInputs[key].starting_stock || 0);
-    state.itemInputs[key].starting_stock = value;
-    changes.push({ key, before, after: value });
-  });
-  state.auditLog = state.auditLog || [];
-  state.auditLog.push({
-    ts: new Date().toISOString(),
-    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
-    action: 'force_apply_may_stock',
-    field: '5월말 현물재고 일괄 강제 입력',
-    before: '(이전 값 다양)',
-    after: `${changes.length}건 모델별 강제 입력`
-  });
-  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
-  saveInputs();
-  renderForm();
-  if (typeof renderDashboard === 'function') renderDashboard();
-  alert(`✅ ${changes.length}건 모델별 5월말 재고 강제 입력 완료\n\n변경 사항:\n• 자동 백업 생성됨\n• 변경 이력 기록됨\n\n수급 운영 계획에서 확인하세요.`);
+// 📦 수동 백업 상태 캐시 (자가 진단 + 진입 시 알림용)
+let _lastManualBackupInfo = null;
+async function refreshLastManualBackupInfo() {
+  try {
+    if (typeof listBackups !== 'function') return;
+    const backups = await listBackups();
+    _lastManualBackupInfo = backups.find(b => (b.state_json && b.state_json._type) === 'manual') || null;
+  } catch (e) { console.warn('수동 백업 정보 조회 실패', e); }
 }
-document.getElementById('btn-force-apply-may')?.addEventListener('click', forceApplyMayStock);
 
-// 📦 일회성: 2026-06-09 발주된 7월 입고 PDF 4건 일괄 반영
-async function forceApplyJulIncoming() {
-  if (window.guardAdmin && !window.guardAdmin('7월 입고 PDF 일괄 반영')) return;
-  const DUE = '2026-07-10';
-  const orders = [
-    { supplier: 'YSP 윤성', date: '2026-06-09T09:00:00.000Z', dueDate: DUE, items: [
-      { pn: '51MT-03335', qty: 100, model: 'HX55ACR Lower Frame' }
-    ]},
-    { supplier: '가람기계', date: '2026-06-09T09:00:01.000Z', dueDate: DUE, items: [
-      { pn: '132044',  qty: 400,  model: 'GS1930E Drive Chassis' },
-      { pn: '132050',  qty: 600,  model: 'GS1930E Drive Chassis' },
-      { pn: '1311042', qty: 1400, model: 'GS1930E Drive Chassis' },
-      { pn: '96133',   qty: 400,  model: 'GS1930E Drive Chassis' },
-      { pn: '81554',   qty: 74,   model: null }, // Z80 Steer/Rear 합계
-      { pn: '1288711', qty: 75,   model: 'GS4655 Drive Chassis' },
-      { pn: '1294617', qty: 20,   model: 'GS4655 Main Deck' },
-      { pn: '1289399', qty: 47,   model: 'GS4655 Main Deck' },
-      { pn: '1289399', qty: 56,   model: 'GS4655 Extension Deck' }
-    ]},
-    { supplier: '윈텍', date: '2026-06-09T09:00:02.000Z', dueDate: DUE, items: [
-      { pn: '51MH-02140', qty: 100,  model: 'HX55ACR Lower Frame' },
-      { pn: '5DMN-01590', qty: 1000, model: 'HX63AH Lower Frame' }
-    ]},
-    { supplier: '태상테크', date: '2026-06-09T09:00:03.000Z', dueDate: DUE, items: [
-      { pn: '1305526',         qty: 800, model: 'GS1930E Drive Chassis' },
-      { pn: '1291093',         qty: 201, model: 'S45XC Drive Chassis' },
-      { pn: '1291094',         qty: 399, model: 'S45XC Drive Chassis' },
-      { pn: '1295995',         qty: 195, model: 'S45XC Drive Chassis' },
-      { pn: '1059-1700',       qty: 52,  model: 'Z80 Rear Axle' },
-      { pn: '1059-3200',       qty: 124, model: null }, // S85XC/Z80 합계
-      { pn: '1059-2100',       qty: 124, model: null },
-      { pn: '49092',           qty: 552, model: null },
-      { pn: 'S366-508040',     qty: 60,  model: 'R55C Lower Frame' },
-      { pn: '51M6-50570',      qty: 30,  model: 'R55C Lower Frame' },
-      { pn: '61M8-54030',      qty: 88,  model: 'R55C Lower Frame' },
-      { pn: '61M9-54040',      qty: 143, model: 'R55C Lower Frame' },
-      { pn: 'S316-007020',     qty: 600, model: 'R55C Lower Frame' },
-      { pn: 'S344-402020',     qty: 290, model: 'R55C Lower Frame' },
-      { pn: '51MT-01232',      qty: 80,  model: 'HX55ACR Lower Frame' },
-      { pn: '5DMN-01100',      qty: 100, model: 'HX63AH Lower Frame' },
-      { pn: '110408-00473B-4', qty: 50,  model: 'HX63AH Lower Frame' }
-    ]}
-  ];
-  // 미리보기 합계
-  let previewQty = 0, previewAmt = 0;
-  orders.forEach(o => o.items.forEach(it => {
-    const m = MASTERS.find(mm => mm.part_no === it.pn);
-    if (m) { previewQty += it.qty; previewAmt += it.qty * (m.unit_price || 0); }
-  }));
-  if (!confirm(`📦 7월 입고 발주 PDF 4건 일괄 반영\n\n• 공급사 4곳 (YSP 윤성·가람기계·윈텍·태상테크)\n• 총 ${fmt(previewQty)} EA · ₩${fmt(previewAmt)}\n• 발주 이력 4건 추가\n• 7월 입고계획 자동 누적 반영\n• 자동 백업 생성\n• 변경 이력 기록\n\n진행하시겠습니까?`)) return;
-  try { await createBackup('7월 입고 PDF 일괄 반영 직전 백업', false); } catch (e) { console.warn('백업 실패', e); }
-  let totalEntries = 0, totalItemRows = 0, notFound = [];
-  orders.forEach(order => {
-    const entryItems = order.items.map(it => {
-      const master = it.model
-        ? MASTERS.find(m => m.part_no === it.pn && displayName(m) === it.model)
-        : MASTERS.find(m => m.part_no === it.pn);
-      if (!master) { notFound.push(`${it.pn} / ${it.model || '(첫 row)'}`); return null; }
-      return {
-        master,
-        pn: master.part_no,
-        name: master.part_name,
-        model: displayName(master),
-        qty: it.qty,
-        unitPrice: master.unit_price,
-        amount: it.qty * (master.unit_price || 0)
-      };
-    }).filter(Boolean);
-    if (entryItems.length === 0) return;
-    const entry = {
-      date: order.date,
-      dueDate: order.dueDate || null, // 입고 예정일 (납기일)
-      type: 'order',
-      supplier: order.supplier,
-      items: entryItems.map(it => ({
-        pn: it.pn, name: it.name, model: it.model,
-        qty: it.qty, unitPrice: it.unitPrice, amount: it.amount
-      })),
-      totalQty: entryItems.reduce((s, it) => s + it.qty, 0),
-      totalAmt: entryItems.reduce((s, it) => s + it.amount, 0)
-    };
-    orderHistory.unshift(entry);
-    // 7월 입고계획 자동 반영 (jul_incoming += qty) - 모델별 분리 키 사용
-    entryItems.forEach(it => {
-      const key = masterInputKey(it.master);
-      if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
-      state.itemInputs[key].jul_incoming = (state.itemInputs[key].jul_incoming || 0) + it.qty;
-    });
-    totalEntries++;
-    totalItemRows += entryItems.length;
-  });
-  state.auditLog = state.auditLog || [];
-  state.auditLog.push({
-    ts: new Date().toISOString(),
-    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
-    action: 'force_apply_jul_incoming',
-    field: '7월 입고 PDF 4건 일괄 반영',
-    before: '(이전)',
-    after: `${totalEntries}건 · ${totalItemRows} 품목 · ₩${fmt(previewAmt)}`
-  });
-  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
-  saveInputs();
-  saveHistory();
-  renderForm();
-  if (typeof renderHistory === 'function') renderHistory();
-  if (typeof renderDashboard === 'function') renderDashboard();
-  if (typeof updateOrderCount === 'function') updateOrderCount();
-  if (typeof updateHistoryCount === 'function') updateHistoryCount();
-  alert(`✅ 7월 입고 발주 일괄 반영 완료\n\n• 발주 이력 ${totalEntries}건 추가\n• 7월 입고계획 ${totalItemRows} 품목 누적 반영\n• 자동 백업 생성\n${notFound.length > 0 ? `\n⚠ 매핑 실패 ${notFound.length}건:\n  ${notFound.join('\n  ')}` : ''}\n\n발주 이력 / 수급 운영 계획 탭에서 확인하세요.`);
+// 진입 시 수동 백업 안내 (세션당 1회, 30일 경과 또는 미존재 시)
+async function checkBackupReminder() {
+  if (sessionStorage.getItem('tctech_backup_reminder_shown')) return;
+  await refreshLastManualBackupInfo();
+  let warn = null;
+  if (!_lastManualBackupInfo) {
+    warn = '⚠ 수동 백업이 한 건도 없습니다.\n\n자동 일일 백업은 30일 후 정리되어 데이터 영구 보존이 안 될 수 있습니다.\n매월 말 수동 백업 권장.\n\n[데이터 점검 → 💾 데이터 백업·복원 → 지금 백업 만들기]';
+  } else {
+    const days = Math.floor((Date.now() - new Date(_lastManualBackupInfo.state_json._createdAt).getTime()) / 86400000);
+    if (days >= 30) {
+      warn = `⚠ 마지막 수동 백업이 ${days}일 전입니다.\n\n자동 백업은 30일 후 정리됩니다.\n새 수동 백업을 만들어 데이터를 영구 보존하세요.\n\n[데이터 점검 → 💾 데이터 백업·복원 → 지금 백업 만들기]`;
+    }
+  }
+  if (warn) {
+    sessionStorage.setItem('tctech_backup_reminder_shown', '1');
+    setTimeout(() => alert(warn), 2000);
+  }
 }
-document.getElementById('btn-force-apply-jul')?.addEventListener('click', forceApplyJulIncoming);
+// INIT 후 4초 지연 실행 (다른 데이터 로드 완료 후)
+setTimeout(() => { if (typeof checkBackupReminder === 'function') checkBackupReminder(); }, 4000);
 
 // 일회성 마이그레이션: 이미 반영된 2026-06-09 발주 4건에 dueDate 누락 시 7-10 자동 부여
 // idempotent — orderHistory가 로드될 때마다 호출돼도 안전
@@ -7890,6 +7744,23 @@ function runSystemDiagnostics() {
   // SUPPLIER_INFO / BUYER_INFO
   checks.push({ name: 'SUPPLIER_INFO 등록', pass: typeof SUPPLIER_INFO === 'object' && Object.keys(SUPPLIER_INFO).length > 0, detail: `${Object.keys(SUPPLIER_INFO || {}).length}개 공급사 양식 등록됨` });
   checks.push({ name: 'BUYER_INFO 등록', pass: typeof BUYER_INFO === 'object' && BUYER_INFO.company, detail: `회사: ${(BUYER_INFO || {}).company || '미설정'}` });
+  // 수동 백업 (영구 보존) - 30일 자동 정리 대비
+  if (_lastManualBackupInfo) {
+    const ts = new Date(_lastManualBackupInfo.state_json._createdAt).getTime();
+    const days = Math.floor((Date.now() - ts) / 86400000);
+    const dateStr = new Date(ts).toLocaleDateString('ko-KR');
+    checks.push({
+      name: '수동 백업 (영구 보존)',
+      pass: days < 30,
+      detail: `최근: ${dateStr} (${days}일 전) ${days < 30 ? '· 양호' : '· ⚠ 30일+ 경과 — 새 수동 백업 권장'}`
+    });
+  } else {
+    checks.push({
+      name: '수동 백업 (영구 보존)',
+      pass: false,
+      detail: '수동 백업 없음 — 데이터 점검 → 💾 백업·복원 → 지금 백업 만들기'
+    });
+  }
 
   const passed = checks.filter(c => c.pass).length;
   const failed = checks.length - passed;
