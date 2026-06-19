@@ -6936,13 +6936,26 @@ async function togglePreviousCycle() {
         <div class="cycle-item__meta">활성 · 수정 가능</div>
       </button>
     `;
-    // 자동 백업 사이클들 (월 이월 또는 일일 백업 중 일부)
-    const cycleBackups = backups.filter(b => {
+    // 자동 백업 사이클들 — 윈도우별 가장 최근 1건만 (중복 제거)
+    // listBackups는 updated_at 내림차순이므로 첫 매칭이 가장 최근
+    const cycleBackupsAll = backups.filter(b => {
       const d = b.state_json || {};
       return d.periodStartMonth && d.itemInputs && d.modelInputs;
-    }).slice(0, 12); // 최대 12개
+    });
+    const _seenWin = new Set();
+    const cycleBackups = [];
+    // 현재 윈도우도 제외 (현재 사이클 섹션에 이미 있음)
+    const curWinKey = `${state.periodYear || 2026}-${state.periodStartMonth || 5}`;
+    _seenWin.add(curWinKey);
+    cycleBackupsAll.forEach(b => {
+      const d = b.state_json || {};
+      const winKey = `${d.periodYear || 2026}-${d.periodStartMonth}`;
+      if (_seenWin.has(winKey)) return;
+      _seenWin.add(winKey);
+      cycleBackups.push(b);
+    });
     if (cycleBackups.length > 0) {
-      html += `<div class="cycle-section">▶ 자동 백업 사이클 (최근 12건)</div>`;
+      html += `<div class="cycle-section">▶ 과거 사이클 (윈도우별 최신 1건)</div>`;
       cycleBackups.forEach(b => {
         const d = b.state_json || {};
         const cl = _cycleLabelByMonth(d.periodStartMonth, d.periodYear || 2026);
