@@ -1315,7 +1315,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       </div>
     </div>
     <div class="card__body" style="padding:0;">
-      <div id="shortage-calendar-body" style="display:grid; grid-template-columns:repeat(4, 1fr);"></div>
+      <div id="shortage-calendar-body" style="display:grid; grid-template-columns:repeat(3, 1fr);"></div>
     </div>
   </div>
 
@@ -2493,6 +2493,10 @@ function priorMonthLabel() {
   return `${m}월`;
 }
 function rangeLabel() { return `${monthLabel('may')}~${monthLabel('aug')}`; }
+// 운영 현황 + 재무 분석용 — 발주 의사결정 기준 3개월(첫~끝-1)
+// 마지막 월(aug=윈도우 끝)은 다음 윈도우 데이터가 없어 정확한 발주 계산 불가 → 제외
+function rangeLabelOps() { return `${monthLabel('may')}~${monthLabel('jul')}`; }
+function opsMonths() { return ['may', 'jun', 'jul']; }
 function periodTitle() { return `${yearOfMonth('may')}년 ${rangeLabel()}`; }
 
 // 날짜 문자열(YYYY-MM-DD) → 현재 윈도우의 monthKey (may/jun/jul/aug) 또는 null (범위 외)
@@ -2523,9 +2527,10 @@ function updateStaticMonthLabels() {
   });
   const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   setText('period-section-title', `▎ ${yearOfMonth('may')}년 ${priorMonthLabel()}말 현물재고 기준 · ${rangeLabel()} 운영 양식`);
-  setText('kpi-incoming-label', `${rangeLabel()} 총 입고계획`);
-  setText('kpi-consumption-label', `4개월 사용금액 (${rangeLabel()})`);
-  setText('finance-hint-label', `${rangeLabel()} 시뮬레이션 기준 추정치 · 카드 클릭 시 상세`);
+  // 운영 현황 + 재무 분석은 3개월 기준(rangeLabelOps) — 발주 의사결정 가능 범위
+  setText('kpi-incoming-label', `${rangeLabelOps()} 총 입고계획`);
+  setText('kpi-consumption-label', `3개월 사용금액 (${rangeLabelOps()})`);
+  setText('finance-hint-label', `${rangeLabelOps()} 시뮬레이션 기준 추정치 · 카드 클릭 시 상세 · (발주 가능 3개월)`);
   setText('form-empty-hint', `${yearOfMonth('may')}년 ${rangeLabel()} 운영 안정`);
   const stockTh = document.getElementById('th-prior-stock');
   if (stockTh) stockTh.innerHTML = `${priorMonthLabel()}말<br>현물재고`;
@@ -2545,12 +2550,13 @@ function getResult(master) {
   return computeRow(master, merged);
 }
 
-// 재무 KPI 계산 (금액 기준, 4개월 시뮬레이션 → 연환산)
+// 재무 KPI 계산 — 발주 가능 3개월(opsMonths) 기준 시뮬레이션 → 연환산
+// 마지막 월(aug)은 다음 윈도우 미반영으로 정확한 발주 의사결정 불가 → 제외
 // 반환: { invValueStart, invValueEnd, avgInvValue, consumptionValue,
 //        annualConsumption, turnover, dio, safetyGapValue, perPart[] }
-// state.fxWeight (80~120, 기본 100): 수입품 단가에 % 가중치 적용 (감도분석)
 function computeFinancialKPIs() {
-  const months = ['may', 'jun', 'jul', 'aug'];
+  const months = opsMonths(); // ['may','jun','jul'] 3개월
+  const endMonth = months[months.length - 1]; // 'jul'
   const importMultiplier = ((state && state.fxWeight) || 100) / 100;
   let invValueStart = 0, invValueEnd = 0;
   let consumptionValue = 0, safetyGapValue = 0;
@@ -2566,7 +2572,7 @@ function computeFinancialKPIs() {
     // 부품 단위 시작재고 = 같은 part_no 모든 row 합산
     const partTotalStart = computePartTotalStart(m.part_no);
     const startV = partTotalStart * price;
-    const endStock = Math.max(0, r.months.aug.endingTotal); // 합계 기준 (부품 단위 KPI)
+    const endStock = Math.max(0, r.months[endMonth].endingTotal); // 3개월 윈도우 끝 (jul)
     const endV = endStock * price;
     let consumeV = 0;
     months.forEach(mo => { consumeV += r.months[mo].requiredTotal * price; });
@@ -2575,7 +2581,7 @@ function computeFinancialKPIs() {
     let maxGap = 0;
     months.forEach((mo, idx) => {
       if (!r.shortAt[mo]) return;
-      const nextReq = mo === 'aug' ? reqMap[3] : reqMap[idx + 1];
+      const nextReq = idx + 1 < months.length ? reqMap[idx + 1] : reqMap[idx];
       if (nextReq <= 0) return;
       const gap = nextReq - r.months[mo].endingTotal;
       if (gap > maxGap) maxGap = gap;
@@ -2588,7 +2594,7 @@ function computeFinancialKPIs() {
     perPart.push({ m, r, startV, endV, consumeV, maxGap, gapV });
   });
   const avgInvValue = (invValueStart + invValueEnd) / 2;
-  const annualConsumption = consumptionValue * 3;
+  const annualConsumption = consumptionValue * 4; // 3개월 × 4 = 연환산 (12개월)
   const turnover = avgInvValue > 0 ? annualConsumption / avgInvValue : 0;
   const dio = turnover > 0 ? 365 / turnover : null;
   return { invValueStart, invValueEnd, avgInvValue, consumptionValue, annualConsumption, turnover, dio, safetyGapValue, perPart };
@@ -2700,23 +2706,21 @@ function renderAlarms() {
 }
 
 // 다가오는 결품 캘린더 (월말 기준 부족 발생 품목 수)
+// 운영 현황은 3개월(opsMonths) 기준 — 마지막 월(aug)은 다음 윈도우 미반영으로 제외
 function renderShortageCalendar() {
-  const counts = { may: 0, jun: 0, jul: 0, aug: 0 };
+  const counts = { may: 0, jun: 0, jul: 0 };
   MASTERS.forEach(m => {
     const r = getResult(m);
-    ['may','jun','jul','aug'].forEach(mo => { if (r.shortAt[mo]) counts[mo]++; });
+    opsMonths().forEach(mo => { if (r.shortAt[mo]) counts[mo]++; });
   });
   const el = document.getElementById('shortage-calendar-body');
   if (!el) return;
   // 동적 월 라벨 (윈도우 이월 시 자동 갱신)
   const _mLcal = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
-  // aug 다음 추정월(9월 or +1) 라벨
-  const _nextMo = (typeof state !== 'undefined' && state.periodStartMonth) ? ((state.periodStartMonth + 3) % 12 || 12) + '월' : '9월';
   const months = [
     { key: 'may', label: _mLcal('may') + '말' },
     { key: 'jun', label: _mLcal('jun') + '말' },
-    { key: 'jul', label: _mLcal('jul') + '말' },
-    { key: 'aug', label: _mLcal('aug') + '말 (' + _nextMo + ' 추정)' }
+    { key: 'jul', label: _mLcal('jul') + '말' }
   ];
   el.innerHTML = months.map((m, idx) => {
     const n = counts[m.key];
@@ -4152,12 +4156,12 @@ function renderDashboard() {
   document.getElementById('kpi-models').textContent = models.size;
   document.getElementById('kpi-suppliers').textContent = suppliers.size;
   
-  // 입고계획 총합
+  // 입고계획 총합 — 운영 현황은 3개월(opsMonths) 기준 (발주 가능 범위)
   let totalInc = 0, totalAmt = 0;
-  const monthlyInc = { may: 0, jun: 0, jul: 0, aug: 0 };
+  const monthlyInc = { may: 0, jun: 0, jul: 0 };
   MASTERS.forEach(m => {
     const r = getResult(m);
-    ['may','jun','jul','aug'].forEach(mo => {
+    opsMonths().forEach(mo => {
       const val = r.months[mo].incoming;
       totalInc += val;
       monthlyInc[mo] += val;
@@ -4168,19 +4172,20 @@ function renderDashboard() {
   // 동적 월 라벨 (윈도우 이월 시 자동 갱신)
   const _mLd = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
   document.getElementById('kpi-incoming-amt').innerHTML =
-    `${_mLd('may')} ${fmt(monthlyInc.may)} · ${_mLd('jun')} ${fmt(monthlyInc.jun)} · ${_mLd('jul')} ${fmt(monthlyInc.jul)} · ${_mLd('aug')} ${fmt(monthlyInc.aug)}<br>` +
+    `${_mLd('may')} ${fmt(monthlyInc.may)} · ${_mLd('jun')} ${fmt(monthlyInc.jun)} · ${_mLd('jul')} ${fmt(monthlyInc.jul)}<br>` +
     `<span style="color:var(--teal); font-weight:600; font-size:9.5px; margin-top:4px; display:inline-block;">총 발주액 ₩${fmt(totalAmt)}</span>`;
 
   // 부족 항목
   const shorts = MASTERS.filter(m => getResult(m).anyShort);
   document.getElementById('kpi-shortage').innerHTML = fmt(shorts.length) + '<span class="kpi__unit">EA</span>';
-  const breakdown = { may: 0, jun: 0, jul: 0, aug: 0 };
+  // 부족 발생 breakdown — 운영 현황은 3개월(opsMonths) 기준
+  const breakdown = { may: 0, jun: 0, jul: 0 };
   shorts.forEach(m => {
     const r = getResult(m);
-    if (r.firstShort) breakdown[r.firstShort]++;
+    if (r.firstShort && opsMonths().includes(r.firstShort)) breakdown[r.firstShort]++;
   });
   document.getElementById('kpi-shortage-detail').textContent =
-    `${_mLd('may')}말 ${breakdown.may} · ${_mLd('jun')}말 ${breakdown.jun} · ${_mLd('jul')}말 ${breakdown.jul} · ${_mLd('aug')}말 ${breakdown.aug}`;
+    `${_mLd('may')}말 ${breakdown.may} · ${_mLd('jun')}말 ${breakdown.jun} · ${_mLd('jul')}말 ${breakdown.jul}`;
   
   // 손실 발생 항목 - 사용자 갱신값(state.itemInputs 합, state.erpStocks) 우선 사용
   // 부품 단위 1회만 카운트 (공용 부품 중복 방지)
@@ -4321,13 +4326,14 @@ function renderDashboard() {
   const _mLfin = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
   const _priorLbl = (typeof priorMonthLabel === 'function') ? priorMonthLabel() : '4월';
   const _invLabelEl = document.getElementById('kpi-inv-value-label');
-  if (_invLabelEl) _invLabelEl.textContent = `재고가치 (${_priorLbl}말 → ${_mLfin('aug')}말)`;
+  // 재무 KPI는 3개월(opsMonths) 기준 — 윈도우 끝 라벨 = jul
+  if (_invLabelEl) _invLabelEl.textContent = `재고가치 (${_priorLbl}말 → ${_mLfin('jul')}말)`;
   document.getElementById('kpi-inv-value-delta').innerHTML =
-    `${_mLfin('aug')}말 예상 ₩${fmt(fin.invValueEnd)} <span style="color:${invDeltaColor};">${invArrow} ₩${fmt(Math.abs(invDelta))}</span>`;
+    `${_mLfin('jul')}말 예상 ₩${fmt(fin.invValueEnd)} <span style="color:${invDeltaColor};">${invArrow} ₩${fmt(Math.abs(invDelta))}</span>`;
 
   document.getElementById('kpi-consumption').innerHTML = '₩' + fmt(fin.consumptionValue);
   document.getElementById('kpi-consumption-delta').textContent =
-    `연환산 ₩${fmt(fin.annualConsumption)} · 월평균 ₩${fmt(fin.consumptionValue / 4)}`;
+    `연환산 ₩${fmt(fin.annualConsumption)} · 월평균 ₩${fmt(fin.consumptionValue / 3)}`;
 
   document.getElementById('kpi-turnover').innerHTML = fin.turnover.toFixed(1) + '<span class="kpi__unit">회/년</span>';
 
