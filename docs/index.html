@@ -3547,11 +3547,11 @@ function showExecutiveSummary() {
   const shorts = MASTERS.filter(m => getResult(m).anyShort);
   const alarms = getAlarms();
   const supplierData = computeSupplierAnalysis();
-  // 운영 KPI 보조 계산
+  // 운영 KPI 보조 계산 — 3개월(opsMonths) 기준 (발주 가능 범위)
   let totalInc = 0;
   MASTERS.forEach(m => {
     const r = getResult(m);
-    ['may','jun','jul','aug'].forEach(mo => { totalInc += r.months[mo].incoming; });
+    opsMonths().forEach(mo => { totalInc += r.months[mo].incoming; });
   });
   // 손실 발생 항목 - 사용자 갱신값(state) 기준 (부품 단위 1회만 카운트)
   let lossCount = 0;
@@ -3563,11 +3563,11 @@ function showExecutiveSummary() {
     const erp = (state.erpStocks && state.erpStocks[m.part_no] !== undefined) ? Number(state.erpStocks[m.part_no]) : Number(m.erp_stock || 0);
     if (erp > 0 && Math.abs(actual - erp) > 0) lossCount++;
   });
-  // 결품 캘린더 카운트
-  const calCounts = { may: 0, jun: 0, jul: 0, aug: 0 };
+  // 결품 캘린더 카운트 — 3개월(opsMonths) 기준
+  const calCounts = { may: 0, jun: 0, jul: 0 };
   MASTERS.forEach(m => {
     const r = getResult(m);
-    ['may','jun','jul','aug'].forEach(mo => { if (r.shortAt[mo]) calCounts[mo]++; });
+    opsMonths().forEach(mo => { if (r.shortAt[mo]) calCounts[mo]++; });
   });
   const today = new Date().toLocaleDateString('ko-KR');
   const user = sessionStorage.getItem('tctech_auth_user') || '-';
@@ -3593,32 +3593,30 @@ function showExecutiveSummary() {
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
         <tr>
           <td ${cellTD}><div style="font-size:9px;color:#666;">총 관리 구매품</div><div style="font-size:16px;font-weight:700;">${fmt(MASTERS.length)} EA</div></td>
-          <td ${cellTD}><div style="font-size:9px;color:#666;">${rangeLabel()} 총 입고계획</div><div style="font-size:16px;font-weight:700;">${fmt(totalInc)} EA</div></td>
+          <td ${cellTD}><div style="font-size:9px;color:#666;">${rangeLabelOps()} 총 입고계획 (발주 가능 3개월)</div><div style="font-size:16px;font-weight:700;">${fmt(totalInc)} EA</div></td>
           <td ${cellTD}><div style="font-size:9px;color:#666;">부족 발생 항목</div><div style="font-size:16px;font-weight:700;color:#c00;">${shorts.length} 건</div></td>
           <td ${cellTD}><div style="font-size:9px;color:#666;">손실 발생 항목 (현물 vs ERP)</div><div style="font-size:16px;font-weight:700;color:${lossCount === 0 ? '#080' : '#c80'};">${lossCount === 0 ? '✓ 일치' : lossCount + ' 건'}</div></td>
         </tr>
       </table>
 
-      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin:10px 0 4px;border-bottom:2px solid #1a1a1a;padding-bottom:2px;">2. 재무 KPI (금액 기준 · ${rangeLabel()} 시뮬레이션)</div>
+      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin:10px 0 4px;border-bottom:2px solid #1a1a1a;padding-bottom:2px;">2. 재무 KPI (금액 기준 · ${rangeLabelOps()} 시뮬레이션 · 발주 가능 3개월)</div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
         <tr>
           <td ${cellTD}><div style="font-size:9px;color:#666;">재고가치 (${priorMonthLabel()}말)</div><div style="font-size:14px;font-weight:700;">₩${fmt(fin.invValueStart)}</div></td>
-          <td ${cellTD}><div style="font-size:9px;color:#666;">4개월 사용금액</div><div style="font-size:14px;font-weight:700;">₩${fmt(fin.consumptionValue)}</div></td>
+          <td ${cellTD}><div style="font-size:9px;color:#666;">3개월 사용금액</div><div style="font-size:14px;font-weight:700;">₩${fmt(fin.consumptionValue)}</div></td>
           <td ${cellTD}><div style="font-size:9px;color:#666;">재고회전율 (연환산)</div><div style="font-size:14px;font-weight:700;">${fin.turnover.toFixed(1)} 회/년</div></td>
           <td ${cellTD}><div style="font-size:9px;color:#666;">DIO</div><div style="font-size:14px;font-weight:700;">${fin.dio ? Math.round(fin.dio) : '-'} 일</div></td>
           <td ${cellTD}><div style="font-size:9px;color:#666;">안전재고 미달 손실</div><div style="font-size:14px;font-weight:700;color:#c00;">₩${fmt(fin.safetyGapValue)}</div></td>
         </tr>
       </table>
 
-      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin:10px 0 4px;border-bottom:2px solid #1a1a1a;padding-bottom:2px;">3. 다가오는 결품 캘린더 (월말 기준)</div>
+      <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin:10px 0 4px;border-bottom:2px solid #1a1a1a;padding-bottom:2px;">3. 다가오는 결품 캘린더 (월말 기준 · 발주 가능 3개월)</div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
         <tr>
-          ${['may','jun','jul','aug'].map((mo, i) => {
+          ${opsMonths().map((mo) => {
             const n = calCounts[mo];
             const _mLes = (k) => (typeof monthLabel === 'function') ? monthLabel(k) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[k];
-            const _next = (typeof state !== 'undefined' && state.periodStartMonth) ? ((state.periodStartMonth + 3) % 12 || 12) + '월' : '9월';
-            const labels = [_mLes('may')+'말', _mLes('jun')+'말', _mLes('jul')+'말', _mLes('aug')+'말 ('+_next+' 추정)'];
-            const label = labels[i];
+            const label = _mLes(mo) + '말';
             const color = n >= 20 ? '#c00' : n >= 10 ? '#c80' : '#080';
             return `<td ${cellTD} style="border:1px solid #ccc;padding:8px;text-align:center;font-size:10.5px;color:#1a1a1a;"><div style="font-size:9px;color:#666;">${label}</div><div style="font-size:18px;font-weight:700;color:${color};">${n}</div><div style="font-size:9px;color:#666;">건 부족</div></td>`;
           }).join('')}
