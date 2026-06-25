@@ -1651,6 +1651,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
         <div class="card__hint">함수·state·저장 흐름·라이브러리 자동 점검 + 공용 부품 감지 결과 · 매주 1회 실행 권장</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn--sm" id="btn-restore-may-stock" style="background:rgba(245,158,11,0.2);color:var(--amb);border:0.5px solid var(--amb-b);font-weight:700;" title="5월말 현물재고 복구 (월 이월 처리 시 보존 옵션 미체크로 덮어쓰여진 값 복원)">🔧 5월말 재고 복구</button>
         <button class="btn btn--sm" id="btn-run-diagnostics" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">진단 실행</button>
       </div>
     </div>
@@ -7303,6 +7304,74 @@ document.getElementById('btn-sync-erp-actual')?.addEventListener('click', syncEr
 
 // ⚙ 시스템 자가 진단 버튼
 document.getElementById('btn-run-diagnostics')?.addEventListener('click', runSystemDiagnostics);
+
+// 🔧 5월말 재고 복구 (월 이월 처리 시 보존 옵션 미체크로 덮어쓰여진 값 복원)
+const _MAY_STOCK_RESTORE = {
+  '39340|GS1930E Drive Chassis': 3644,
+  '1311042|GS1930E Drive Chassis': 1511,
+  '96133|GS1930E Drive Chassis': 413,
+  '94151|Z40 DC Drive Chassis': 44,
+  '94151|Z45 DC Drive Chassis': 800,
+  '1270839|S60J Swing Chassis': 199,
+  '1281676|S60J Swing Chassis': 171,
+  '1270839|S80J Swing Chassis': 3,
+  '1281676|S80J Swing Chassis': 3,
+  '1311042|GS4655 Drive Chassis': 16,
+  '96133|GS4655 Drive Chassis': 108,
+  '39340|GS4655 Main Deck': 280,
+  '39340|GS4655 Extension Deck': 280,
+  '81554|Z80 Steer Axle': 0,
+  '27698|Z80 Steer Axle': 320,
+  '81554|Z80 Rear Axle': 114,
+  '27698|Z80 Rear Axle': 212,
+  '1059-3200|Z80 Drive Chassis': 32,
+  '1059-2100|Z80 Drive Chassis': 30,
+  '49092|Z80 Drive Chassis': 58,
+  '1059-3200|S85XC Drive Chassis': 106,
+  '1059-2100|S85XC Drive Chassis': 104,
+  '49092|S85XC Drive Chassis': 502,
+  '61M8-54030|R55C Lower Frame': 20,
+  '61M9-54040|R55C Lower Frame': 40,
+  'S344-402020|R55C Lower Frame': 190,
+  '61M8-54030|HX55ACR Lower Frame': 45,
+  '61M9-54040|HX55ACR Lower Frame': 123,
+  'S344-402020|HX63AH Lower Frame': 134
+};
+async function restoreMayStock() {
+  if (window.guardAdmin && !window.guardAdmin('5월말 재고 복구')) return;
+  const entries = Object.entries(_MAY_STOCK_RESTORE);
+  const diffs = [];
+  entries.forEach(([key, value]) => {
+    const cur = (state.itemInputs[key] && state.itemInputs[key].starting_stock) || 0;
+    if (cur !== value) diffs.push({ key, cur, target: value });
+  });
+  if (diffs.length === 0) {
+    alert('✅ 모든 5월말 재고가 이미 정확합니다.');
+    return;
+  }
+  const preview = diffs.slice(0, 8).map(d => `  · ${d.key}: ${d.cur} → ${d.target}`).join('\n');
+  if (!confirm(`5월말 현물재고 복구\n\n${diffs.length}건 차이 발견:\n${preview}${diffs.length > 8 ? `\n  ... 외 ${diffs.length - 8}건` : ''}\n\n• 자동 백업 생성됨\n• 변경 이력 기록\n\n진행하시겠습니까?`)) return;
+  try { await createBackup('5월말 재고 복구 직전 백업', false); } catch (e) { console.warn('백업 실패', e); }
+  diffs.forEach(d => {
+    if (!state.itemInputs[d.key]) state.itemInputs[d.key] = emptyItemInput();
+    state.itemInputs[d.key].starting_stock = d.target;
+  });
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'restore_may_stock',
+    field: '5월말 재고 복구 (월 이월 후 덮어쓰여진 값)',
+    before: '(자동 ending)',
+    after: `${diffs.length}건 복구`
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
+  renderForm();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  alert(`✅ ${diffs.length}건 복구 완료\n\n• 자동 백업 생성\n• 변경 이력 기록\n\n수급 운영 계획 탭 확인 권장`);
+}
+document.getElementById('btn-restore-may-stock')?.addEventListener('click', restoreMayStock);
 
 // 📦 수동 백업 상태 캐시 (자가 진단 + 진입 시 알림용)
 let _lastManualBackupInfo = null;
