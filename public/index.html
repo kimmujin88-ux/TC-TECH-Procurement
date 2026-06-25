@@ -1652,6 +1652,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <button class="btn btn--sm" id="btn-restore-may-stock" style="background:rgba(245,158,11,0.2);color:var(--amb);border:0.5px solid var(--amb-b);font-weight:700;" title="5월말 현물재고 복구 (월 이월 처리 시 보존 옵션 미체크로 덮어쓰여진 값 복원)">🔧 5월말 재고 복구</button>
+        <button class="btn btn--sm" id="btn-model-matrix" style="background:rgba(96,170,220,0.2);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;" title="모든 모델 × 4개월 제작대수 한눈에 보기 + 이상치 검출">📋 모델 제작대수 매트릭스</button>
         <button class="btn btn--sm" id="btn-run-diagnostics" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">진단 실행</button>
       </div>
     </div>
@@ -7372,6 +7373,67 @@ async function restoreMayStock() {
   alert(`✅ ${diffs.length}건 복구 완료\n\n• 자동 백업 생성\n• 변경 이력 기록\n\n수급 운영 계획 탭 확인 권장`);
 }
 document.getElementById('btn-restore-may-stock')?.addEventListener('click', restoreMayStock);
+
+// 📋 모델별 제작대수 매트릭스 - 모든 모델 × 4개월 한눈에
+function showModelMatrix() {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.querySelector('.modal__title');
+  modal.classList.remove('modal--po');
+  modalTitle.textContent = '📋 모델별 제작대수 매트릭스 (전체 점검)';
+
+  // 모든 displayName 수집 (MASTERS 기준)
+  const dns = [...new Set(MASTERS.map(m => displayName(m)))].sort();
+  const months = ['may', 'jun', 'jul', 'aug'];
+  const _mLm = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
+
+  const rows = dns.map(dn => {
+    const mi = (state.modelInputs && state.modelInputs[dn]) || {};
+    const vals = months.map(mo => Number(mi[mo + '_qty']) || 0);
+    const sum = vals.reduce((s, v) => s + v, 0);
+    const empty = sum === 0;
+    const tds = vals.map(v => {
+      const color = v === 0 ? 'var(--t3)' : 'var(--t1)';
+      const bg = v === 0 ? '' : 'background:rgba(96,170,220,0.08);';
+      return `<td style="text-align:center;font-family:var(--mono);color:${color};${bg};font-weight:${v > 0 ? '700' : '400'};">${fmt(v)}</td>`;
+    }).join('');
+    const flag = empty ? '<span style="color:var(--amb);font-weight:700;">⚠ 4개월 모두 0</span>' : '';
+    return `<tr style="${empty ? 'background:rgba(245,158,11,0.04);' : ''}">
+      <td style="font-weight:600;">${sanitize(dn)}</td>
+      ${tds}
+      <td class="col-num" style="font-weight:700;color:${sum === 0 ? 'var(--amb)' : 'var(--teal)'};">${fmt(sum)}</td>
+      <td>${flag}</td>
+    </tr>`;
+  }).join('');
+
+  const emptyCount = dns.filter(dn => {
+    const mi = (state.modelInputs && state.modelInputs[dn]) || {};
+    return months.every(mo => (Number(mi[mo + '_qty']) || 0) === 0);
+  }).length;
+
+  modalBody.innerHTML = `
+    <div style="padding:18px 22px;">
+      <div style="margin-bottom:14px;font-size:11.5px;color:var(--t2);line-height:1.7;">
+        <strong>전체 모델 ${dns.length}개</strong> · 4개월 모두 0인 모델 <strong style="color:${emptyCount === 0 ? 'var(--teal)' : 'var(--amb)'};">${emptyCount}건</strong><br>
+        💡 0인 셀은 해당 월에 제작 안 함을 의미합니다. 0이 의도와 다르면 <strong>수급 운영 계획 탭에서 해당 모델 그룹의 제작대수 input을 직접 수정</strong>하세요.<br>
+        💡 ⚠ 4개월 모두 0인 모델은 사실상 미사용 모델 가능성 (확인 권장).
+      </div>
+      <table class="order-table" style="width:100%;font-size:11.5px;">
+        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+          <th style="text-align:left;">모델 (displayName)</th>
+          <th style="text-align:center;">${_mLm('may')}</th>
+          <th style="text-align:center;">${_mLm('jun')}</th>
+          <th style="text-align:center;">${_mLm('jul')}</th>
+          <th style="text-align:center;">${_mLm('aug')}</th>
+          <th class="col-num">4개월 합계</th>
+          <th>비고</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  modal.classList.add('modal-backdrop--open');
+}
+document.getElementById('btn-model-matrix')?.addEventListener('click', showModelMatrix);
 
 // 📦 수동 백업 상태 캐시 (자가 진단 + 진입 시 알림용)
 let _lastManualBackupInfo = null;
