@@ -5388,6 +5388,20 @@ function renderPOModal(supplier, info, orderDate, delivDate, monthLabel) {
           ※ 상기 단가는 발주 시점 기준이며, 단가 변동이 있을 경우 마감 시 최종 단가로 재정산합니다.
         </div>
       </div>
+
+      <!-- 품목 추가 섹션 (인쇄용 스타일과 분리 - .po-add-section) -->
+      <div class="po-add-section" style="margin-top:14px;padding:12px 14px;background:rgba(96,170,220,0.06);border:0.5px solid var(--sky-b);border-radius:6px;">
+        <div style="font-size:11.5px;font-weight:700;color:var(--sky);margin-bottom:8px;">
+          📌 품목 추가 (품번 또는 품명 검색 · 이 공급사 부품 우선)
+        </div>
+        <div style="position:relative;">
+          <input type="text" id="po-item-add-search" placeholder="예: 1296714 또는 CABLE BAR" autocomplete="off" style="width:100%;padding:8px 12px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:6px;font-size:12px;box-sizing:border-box;">
+          <div id="po-item-add-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.5);max-height:280px;overflow-y:auto;z-index:100;"></div>
+        </div>
+        <div style="font-size:10px;color:var(--t3);margin-top:6px;line-height:1.5;">
+          💡 클릭 시 수량 1로 추가됨 → 위 표에서 수량 수정 · 다른 공급사 부품은 ⚠ 경고
+        </div>
+      </div>
     </div>
   `;
 
@@ -5426,7 +5440,7 @@ function renderPOModal(supplier, info, orderDate, delivDate, monthLabel) {
       const idx = parseInt(btn.dataset.idx, 10);
       const tag = btn.dataset.tag;
       const input = document.querySelector(`.po-bigo-input[data-idx="${idx}"]`);
-      
+
       // 태그가 이미 존재하지 않는 경우에만 앞에 추가
       if (!input.value.includes(tag)) {
         input.value = tag + (input.value ? ' ' + input.value : '');
@@ -5434,6 +5448,73 @@ function renderPOModal(supplier, info, orderDate, delivDate, monthLabel) {
       }
     });
   });
+
+  // 📌 품목 추가 검색·드롭다운
+  const addSearch = document.getElementById('po-item-add-search');
+  const addDropdown = document.getElementById('po-item-add-dropdown');
+  if (addSearch && addDropdown) {
+    addSearch.addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      if (q.length < 2) { addDropdown.style.display = 'none'; return; }
+      const results = MASTERS.filter(m =>
+        m.part_no.toLowerCase().includes(q) || (m.part_name || '').toLowerCase().includes(q)
+      );
+      // 이 공급사 부품 먼저, 그다음 다른 공급사
+      results.sort((a, b) => {
+        const aMatch = a.supplier === supplier ? 0 : 1;
+        const bMatch = b.supplier === supplier ? 0 : 1;
+        return aMatch - bMatch;
+      });
+      const top = results.slice(0, 25);
+      if (top.length === 0) { addDropdown.innerHTML = '<div style="padding:10px;color:var(--t3);font-size:11px;text-align:center;">검색 결과 없음</div>'; addDropdown.style.display = 'block'; return; }
+      addDropdown.innerHTML = top.map(m => {
+        const isAdded = poEditState.items.some(it => it.master.part_no === m.part_no && displayName(it.master) === displayName(m));
+        const supplierMatch = m.supplier === supplier;
+        return `<div class="po-add-item" data-pn="${sanitize(m.part_no)}" data-dn="${sanitize(displayName(m))}" style="padding:8px 12px;cursor:${isAdded ? 'not-allowed' : 'pointer'};border-bottom:0.5px solid var(--border2);font-size:11.5px;${isAdded ? 'opacity:0.5;' : ''}">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span><strong style="color:var(--t1);">${sanitize(m.part_no)}</strong> <span style="color:var(--t2);">${sanitize(m.part_name)}</span></span>
+            <span style="font-size:10.5px;color:${supplierMatch ? 'var(--teal)' : 'var(--amb)'};font-weight:700;white-space:nowrap;">${sanitize(m.supplier || '?')}${!supplierMatch ? ' ⚠' : ''}</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--t3);margin-top:3px;">${sanitize(displayName(m))} · ₩${fmt(m.unit_price)} · LT ${m.lead_time_days || '-'}일${isAdded ? ' <span style="color:var(--red);">· 이미 추가됨</span>' : ''}</div>
+        </div>`;
+      }).join('');
+      addDropdown.style.display = 'block';
+      addDropdown.querySelectorAll('.po-add-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const pn = el.dataset.pn;
+          const dn = el.dataset.dn;
+          const master = MASTERS.find(m => m.part_no === pn && displayName(m) === dn);
+          if (!master) { alert('부품을 찾을 수 없습니다.'); return; }
+          if (poEditState.items.some(it => it.master.part_no === pn && displayName(it.master) === dn)) {
+            alert('이미 추가된 품목입니다.'); return;
+          }
+          if (master.supplier !== supplier) {
+            if (!confirm(`⚠ 이 부품의 구매업체는 "${master.supplier}"입니다.\n현재 발주 공급사는 "${supplier}"입니다.\n\n그래도 추가하시겠습니까?`)) return;
+          }
+          poEditState.items.push({
+            master,
+            qty: 1,
+            bigo: '',
+            groupKey: displayName(master)
+          });
+          renderPOModal(supplier, info, orderDate, delivDate, monthLabel);
+          setTimeout(() => {
+            const newIdx = poEditState.items.length - 1;
+            const newInput = document.querySelector(`.po-qty-input[data-idx="${newIdx}"]`);
+            if (newInput) {
+              newInput.focus(); newInput.select();
+              newInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        });
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!addSearch.contains(e.target) && !addDropdown.contains(e.target)) {
+        addDropdown.style.display = 'none';
+      }
+    });
+  }
 }
 
 // 발주 탭 수량 수정 및 실시간 합계 업데이트
