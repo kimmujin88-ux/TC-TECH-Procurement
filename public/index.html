@@ -5896,16 +5896,24 @@ function renderHistory() {
       const dueDateLabel = entry.dueDate
         ? `<span style="color:var(--sky);font-weight:700;"> · 입고예정 ${new Date(entry.dueDate).toLocaleDateString('ko-KR')}</span>`
         : '';
-      // 상태 뱃지 + 액션 버튼 (취소/재확정)
+      // 상태 뱃지 + 액션 버튼 (취소/재확정/입고취소)
       const cancelled = !!entry.cancelled;
       const statusBadge = cancelled
         ? `<span class="badge" style="background:rgba(255,90,90,0.15);color:var(--red);border:0.5px solid var(--red-b);">❌ 취소됨${entry.cancelledAt ? ' ' + new Date(entry.cancelledAt).toLocaleDateString('ko-KR') : ''}</span>`
         : `<span class="badge badge--info">발주확정</span>`;
-      const actionBtn = cancelled
-        ? `<button class="btn btn--sm" onclick="reconfirmOrder('${entry.date}')" style="background:rgba(56,201,160,0.10);color:var(--teal);border:0.5px solid var(--teal-b);">🔄 재확정</button>`
-        : (entry.received
-            ? '' // 입고완료면 취소 불가
-            : `<button class="btn btn--sm" onclick="cancelOrder('${entry.date}')" style="background:rgba(255,90,90,0.10);color:var(--red);border:0.5px solid var(--red-b);">❌ 발주 취소</button>`);
+      // 액션 버튼 조합: [입고취소] + [발주취소] or [재확정]
+      let actionBtns = '';
+      if (cancelled) {
+        actionBtns = `<button class="btn btn--sm" onclick="reconfirmOrder('${entry.date}')" style="background:rgba(56,201,160,0.10);color:var(--teal);border:0.5px solid var(--teal-b);">🔄 재확정</button>`;
+      } else {
+        // 입고완료 or 부분입고 상태면 '입고취소' 버튼 추가
+        if (entry.received || entry.partialReceived) {
+          actionBtns += `<button class="btn btn--sm" onclick="uncomfirmReceipt('${entry.date}')" style="background:rgba(245,158,11,0.10);color:var(--amb);border:0.5px solid var(--amb-b);">⏪ 입고 취소</button>`;
+        }
+        // 발주 취소는 언제나 가능 (입고완료 상태에서도 함께 해제)
+        actionBtns += `<button class="btn btn--sm" onclick="cancelOrder('${entry.date}')" style="background:rgba(255,90,90,0.10);color:var(--red);border:0.5px solid var(--red-b);">❌ 발주 취소</button>`;
+      }
+      const actionBtn = actionBtns;
       const cardStyle = cancelled ? 'opacity:0.55;background:rgba(255,90,90,0.03);' : (entry.received ? 'opacity:0.72;' : '');
       return `
         <div class="card history-entry" style="${cardStyle}">
@@ -6070,14 +6078,53 @@ function deleteHistory(dateStr) {
   updateHistoryCount();
 }
 
+// ⏪ 입고 완료/부분 취소 — 입고 상태만 되돌림 (발주는 활성 유지)
+function uncomfirmReceipt(dateStr) {
+  if (window.guardAdmin && !window.guardAdmin('입고 완료 취소')) return;
+  const entry = orderHistory.find(e => e.date === dateStr);
+  if (!entry) { alert('발주를 찾을 수 없습니다.'); return; }
+  if (!entry.received && !entry.partialReceived) { alert('입고가 아직 확인되지 않은 발주입니다.'); return; }
+  const cumRecv = entry.items.reduce((s, it) => s + (it.receivedQty || 0), 0);
+  if (!confirm(`⏪ 입고 완료 취소\n\n공급사: ${entry.supplier}\n${entry.received ? '전체 입고완료' : '부분 입고'} · 누적 ${fmt(cumRecv)}EA\n\n[확인] 입고 상태를 '미입고'로 되돌림\n         · received/partialReceived 해제\n         · 각 품목 receivedQty 0으로 초기화\n         · 이력에서 다시 '입고 확인' 가능\n[취소] 아무 것도 안 함\n\n※ 이 액션은 입고계획(수급 운영 계획)에는 영향 없습니다.\n※ 발주 자체를 취소하려면 '❌ 발주 취소' 사용.\n\n진행하시겠습니까?`)) return;
+  entry.items.forEach(it => { it.receivedQty = 0; });
+  const wasReceived = entry.received;
+  entry.received = false;
+  entry.partialReceived = false;
+  delete entry.receivedAt;
+  delete entry.lastReceivedAt;
+  entry.uncomfirmedAt = new Date().toISOString();
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'receipt_uncomfirm',
+    field: `발주 입고 취소 · ${entry.supplier}`,
+    before: wasReceived ? '입고완료' : '부분입고',
+    after: '미입고 (재확인 가능)'
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+  saveInputs();
+  saveHistory();
+  renderHistory();
+  if (typeof renderLTComparison === 'function') renderLTComparison();
+  alert(`✅ 입고 완료 취소\n\n• 상태: 미입고\n• receivedQty 초기화됨\n• 이력 카드에서 다시 '입고 확인' 또는 '❌ 발주 취소' 가능`);
+}
+
 // 발주 취소 — 이력 유지 + cancelled=true + 입고계획 롤백 옵션
+// 입고완료 상태에서도 취소 가능 (입고 상태 자동 함께 해제)
 function cancelOrder(dateStr) {
   if (window.guardAdmin && !window.guardAdmin('발주 취소')) return;
   const entry = orderHistory.find(e => e.date === dateStr);
   if (!entry) { alert('발주를 찾을 수 없습니다.'); return; }
   if (entry.cancelled) { alert('이미 취소된 발주입니다.'); return; }
-  if (entry.received) { alert('이미 입고 완료된 발주는 취소할 수 없습니다.\n(입고 확인을 먼저 취소하세요)'); return; }
-  const rollback = confirm(`❌ 발주 취소\n\n공급사: ${entry.supplier}\n품목 ${entry.items.length}건 · 총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}\n\n[확인] 이력에 '취소됨' 표시 + 입고계획에서 이 발주 수량 차감(롤백)\n[취소] 아무 것도 안 함\n\n입고계획 롤백 (7월 입고 예정 수량을 차감)까지 진행하시겠습니까?`);
+  const wasReceived = !!entry.received;
+  const wasPartial = !!entry.partialReceived;
+  const receivedMsg = wasReceived
+    ? '\n\n⚠ 이 발주는 입고완료 상태입니다.\n   → 취소 시 입고 완료 상태도 자동 해제됩니다.'
+    : wasPartial
+      ? '\n\n⚠ 이 발주는 부분 입고 상태입니다.\n   → 취소 시 입고 상태도 자동 해제됩니다.'
+      : '';
+  const rollback = confirm(`❌ 발주 취소\n\n공급사: ${entry.supplier}\n품목 ${entry.items.length}건 · 총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}${receivedMsg}\n\n[확인] 이력에 '취소됨' 표시 + 입고계획에서 이 발주 수량 차감(롤백)\n[취소] 아무 것도 안 함\n\n입고계획 롤백 (dueDate 월 입고 예정 수량 차감)까지 진행하시겠습니까?`);
   if (!rollback) return;
   // 입고계획 롤백 - dueDate에 해당하는 월의 incoming 차감
   let rolledBack = 0;
@@ -6097,6 +6144,14 @@ function cancelOrder(dateStr) {
       });
     }
   }
+  // 입고 상태도 함께 해제
+  if (wasReceived || wasPartial) {
+    entry.items.forEach(it => { it.receivedQty = 0; });
+    entry.received = false;
+    entry.partialReceived = false;
+    delete entry.receivedAt;
+    delete entry.lastReceivedAt;
+  }
   entry.cancelled = true;
   entry.cancelledAt = new Date().toISOString();
   entry.rolledBackQty = rolledBack;
@@ -6106,8 +6161,8 @@ function cancelOrder(dateStr) {
     user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
     action: 'cancel_order',
     field: `발주 취소 · ${entry.supplier}`,
-    before: '확정',
-    after: `취소 · 입고계획 ${fmt(rolledBack)}EA 롤백`
+    before: wasReceived ? '입고완료' : (wasPartial ? '부분입고' : '확정'),
+    after: `취소 · 입고계획 ${fmt(rolledBack)}EA 롤백${wasReceived || wasPartial ? ' · 입고상태 해제' : ''}`
   });
   saveInputs();
   saveHistory();
@@ -6115,7 +6170,7 @@ function cancelOrder(dateStr) {
   renderForm();
   if (typeof updateOrderCount === 'function') updateOrderCount();
   if (typeof renderDashboard === 'function') renderDashboard();
-  alert(`✅ 발주 취소 완료\n\n• 이력 상태: ❌ 취소됨\n• 입고계획 롤백: ${fmt(rolledBack)}EA\n• 변경 이력 기록됨\n\n필요 시 이력 카드의 '🔄 재확정' 버튼으로 되돌릴 수 있습니다.`);
+  alert(`✅ 발주 취소 완료\n\n• 이력 상태: ❌ 취소됨\n• 입고계획 롤백: ${fmt(rolledBack)}EA${wasReceived || wasPartial ? '\n• 입고 상태 자동 해제됨' : ''}\n• 변경 이력 기록됨\n\n필요 시 이력 카드의 '🔄 재확정' 버튼으로 되돌릴 수 있습니다.`);
 }
 
 // 재확정 — cancelled=false + 입고계획 재반영
