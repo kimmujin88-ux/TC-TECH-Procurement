@@ -1650,9 +1650,10 @@ html.login-locked, html.login-locked body { overflow: hidden; }
         <div class="card__title">⚙ 시스템 자가 진단</div>
         <div class="card__hint">함수·state·저장 흐름·라이브러리 자동 점검 + 공용 부품 감지 결과 · 매주 1회 실행 권장</div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <button class="btn btn--sm" id="btn-restore-may-stock" style="background:rgba(245,158,11,0.2);color:var(--amb);border:0.5px solid var(--amb-b);font-weight:700;" title="5월말 현물재고 복구 (월 이월 처리 시 보존 옵션 미체크로 덮어쓰여진 값 복원)">🔧 5월말 재고 복구</button>
         <button class="btn btn--sm" id="btn-model-matrix" style="background:rgba(96,170,220,0.2);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;" title="모든 모델 × 4개월 제작대수 한눈에 보기 + 이상치 검출">📋 모델 제작대수 매트릭스</button>
+        <button class="btn btn--sm" id="btn-req-check" style="background:rgba(174,124,244,0.2);color:#c084fc;border:0.5px solid #a855f7;font-weight:700;" title="모든 부품 × 4개월: 필요수량 = 제작대수 × 대당소요 검증">🔬 필요수량 검증</button>
         <button class="btn btn--sm" id="btn-run-diagnostics" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">진단 실행</button>
       </div>
     </div>
@@ -7434,6 +7435,90 @@ function showModelMatrix() {
   modal.classList.add('modal-backdrop--open');
 }
 document.getElementById('btn-model-matrix')?.addEventListener('click', showModelMatrix);
+
+// 🔬 필요수량 검증 — 부품 × 4개월: r.months[mo].required = mi[mo]_qty × qpu 확인
+function showRequirementCheck() {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  const modalTitle = document.querySelector('.modal__title');
+  modal.classList.remove('modal--po');
+  modalTitle.textContent = '🔬 필요수량 검증 (제작대수 × 대당소요)';
+
+  const months = ['may','jun','jul','aug'];
+  const _mLr = (mo) => (typeof monthLabel === 'function') ? monthLabel(mo) : { may:'5월', jun:'6월', jul:'7월', aug:'8월' }[mo];
+  const issues = [];
+  let totalChecked = 0;
+
+  MASTERS.forEach(m => {
+    const dn = displayName(m);
+    const mi = (state.modelInputs && state.modelInputs[dn]) || {};
+    const qpu = Number(m.qty_per_unit) || 0;
+    months.forEach(mo => {
+      totalChecked++;
+      const qty = Number(mi[mo + '_qty']) || 0;
+      const expected = qty * qpu;
+      const r = getResult(m);
+      const actual = Number(r.months[mo].required) || 0;
+      if (Math.abs(actual - expected) > 0.001) {
+        issues.push({
+          model: dn,
+          part_no: m.part_no,
+          part_name: m.part_name,
+          month: mo,
+          modelQty: qty,
+          qpu: qpu,
+          expected: expected,
+          actual: actual,
+          diff: actual - expected
+        });
+      }
+    });
+  });
+
+  const passCount = totalChecked - issues.length;
+  const statusMsg = issues.length === 0
+    ? `<div style="text-align:center;color:var(--teal);padding:32px;font-size:14px;font-weight:700;">✅ 전체 ${fmt(totalChecked)}건 검증 통과<br><span style="font-size:11px;color:var(--t3);font-weight:400;margin-top:8px;display:inline-block;">모든 부품의 필요수량 = 제작대수 × 대당소요 정확</span></div>`
+    : `<div style="margin-bottom:10px;font-size:12px;">
+        <span style="color:var(--red);font-weight:700;">🔴 ${issues.length}건 불일치</span> · 통과 ${fmt(passCount)} / 전체 ${fmt(totalChecked)}
+       </div>
+       <table class="order-table" style="width:100%;font-size:11px;">
+         <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+           <th>모델</th><th>품번</th><th>품명</th><th>월</th>
+           <th class="col-num">제작대수</th><th class="col-num">대당소요</th>
+           <th class="col-num">기대값<br>(대수×대당)</th>
+           <th class="col-num">실제 표시</th>
+           <th class="col-num">차이</th>
+         </tr></thead>
+         <tbody>
+           ${issues.slice(0, 80).map(is => `
+             <tr>
+               <td style="font-size:10.5px;">${sanitize(is.model)}</td>
+               <td style="font-family:var(--mono);font-size:10px;">${sanitize(is.part_no)}</td>
+               <td style="font-size:10.5px;">${sanitize(is.part_name)}</td>
+               <td style="text-align:center;">${_mLr(is.month)}</td>
+               <td class="col-num" style="font-family:var(--mono);">${fmt(is.modelQty)}</td>
+               <td class="col-num" style="font-family:var(--mono);">${fmt(is.qpu)}</td>
+               <td class="col-num" style="font-family:var(--mono);color:var(--teal);font-weight:700;">${fmt(is.expected)}</td>
+               <td class="col-num" style="font-family:var(--mono);color:var(--red);font-weight:700;">${fmt(is.actual)}</td>
+               <td class="col-num" style="font-family:var(--mono);color:${is.diff > 0 ? 'var(--red)' : 'var(--amb)'};font-weight:700;">${is.diff > 0 ? '+' : ''}${fmt(is.diff)}</td>
+             </tr>`).join('')}
+         </tbody>
+       </table>
+       ${issues.length > 80 ? `<div style="text-align:center;color:var(--t3);padding:10px;font-size:10.5px;">... 외 ${issues.length - 80}건 (상위 80건만 표시)</div>` : ''}
+      `;
+
+  modalBody.innerHTML = `
+    <div style="padding:18px 22px;">
+      <div style="margin-bottom:14px;font-size:11.5px;color:var(--t2);line-height:1.7;">
+        <strong>검증 규칙</strong>: 각 부품·월의 표시 필요수량 = 그 모델의 제작대수 × 부품의 대당소요<br>
+        예: GS4655 Main Deck의 8월 제작 24대 · 39340 대당소요 4 → 필요 = 24×4 = 96 이어야 함<br>
+        💡 불일치 발견 시 → 원인은 대개 <strong>모델별 제작대수 입력값 오류</strong> — 수급 운영 계획 탭에서 해당 모델 그룹 input을 직접 확인·수정
+      </div>
+      ${statusMsg}
+    </div>`;
+  modal.classList.add('modal-backdrop--open');
+}
+document.getElementById('btn-req-check')?.addEventListener('click', showRequirementCheck);
 
 // 📦 수동 백업 상태 캐시 (자가 진단 + 진입 시 알림용)
 let _lastManualBackupInfo = null;
