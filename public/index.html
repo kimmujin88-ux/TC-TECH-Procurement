@@ -2545,12 +2545,12 @@ function updateStaticMonthLabels() {
   const _p4 = monthLabel('aug'); // 4번째 달 (자동 복사 대상)
   const btnCopy = document.getElementById('btn-copy-may-to-rest');
   if (btnCopy) {
-    btnCopy.textContent = `${_prior} → ${_p1}·${_p2}·${_p3}월 (빈 값만)`;
+    btnCopy.textContent = `${_prior} → ${_p1}·${_p2}·${_p3} (빈 값만)`;
     btnCopy.title = `${_prior}말 현물재고 기준 신규 사이클\n[동작] 첫 달(${_p1}) 제작대수를 ${_p2}/${_p3}/${_p4}의 빈 값(0)에만 복사 (기존 입력 보호)`;
   }
   const btnCopyForce = document.getElementById('btn-copy-may-to-rest-force');
   if (btnCopyForce) {
-    btnCopyForce.textContent = `${_prior} → ${_p1}·${_p2}·${_p3}월 (덮어쓰기)`;
+    btnCopyForce.textContent = `${_prior} → ${_p1}·${_p2}·${_p3} (덮어쓰기)`;
     btnCopyForce.title = `${_prior}말 현물재고 기준 신규 사이클\n[동작] 첫 달(${_p1}) 제작대수를 ${_p2}/${_p3}/${_p4}에 강제 복사 (덮어쓰기, 주의)`;
   }
 }
