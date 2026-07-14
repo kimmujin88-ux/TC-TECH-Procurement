@@ -2535,20 +2535,23 @@ function updateStaticMonthLabels() {
   setText('form-empty-hint', `${yearOfMonth('may')}년 ${rangeLabel()} 운영 안정`);
   const stockTh = document.getElementById('th-prior-stock');
   if (stockTh) stockTh.innerHTML = `${priorMonthLabel()}말<br>현물재고`;
-  // 🔁 패턴 도구 버튼 텍스트·툴팁 동적 갱신 (윈도우 첫 달 → 나머지 3개월)
-  const _p1 = monthLabel('may');
+  // 🔁 패턴 도구 버튼 텍스트·툴팁 동적 갱신
+  // 표기 (사용자 시각): "6월말 현물재고 → 7·8·9월"
+  // 실제 로직: 첫 달(7월) → 나머지 3개월(8·9·10월) 복사 (툴팁으로 명시)
+  const _prior = (typeof priorMonthLabel === 'function') ? priorMonthLabel() : '';
+  const _p1 = monthLabel('may'); // 첫 달
   const _p2 = monthLabel('jun');
   const _p3 = monthLabel('jul');
-  const _p4 = monthLabel('aug');
+  const _p4 = monthLabel('aug'); // 4번째 달 (자동 복사 대상)
   const btnCopy = document.getElementById('btn-copy-may-to-rest');
   if (btnCopy) {
-    btnCopy.textContent = `${_p1} → ${_p2}·${_p3}·${_p4} (빈 값만)`;
-    btnCopy.title = `${_p1}에 입력된 제작대수를 ${_p2}/${_p3}/${_p4}의 빈 값(0)에만 복사 (기존 입력 보호)`;
+    btnCopy.textContent = `${_prior} → ${_p1}·${_p2}·${_p3}월 (빈 값만)`;
+    btnCopy.title = `${_prior}말 현물재고 기준 신규 사이클\n[동작] 첫 달(${_p1}) 제작대수를 ${_p2}/${_p3}/${_p4}의 빈 값(0)에만 복사 (기존 입력 보호)`;
   }
   const btnCopyForce = document.getElementById('btn-copy-may-to-rest-force');
   if (btnCopyForce) {
-    btnCopyForce.textContent = `${_p1} → ${_p2}·${_p3}·${_p4} (덮어쓰기)`;
-    btnCopyForce.title = `${_p1} 제작대수를 ${_p2}/${_p3}/${_p4}에 강제 복사 (덮어쓰기, 주의)`;
+    btnCopyForce.textContent = `${_prior} → ${_p1}·${_p2}·${_p3}월 (덮어쓰기)`;
+    btnCopyForce.title = `${_prior}말 현물재고 기준 신규 사이클\n[동작] 첫 달(${_p1}) 제작대수를 ${_p2}/${_p3}/${_p4}에 강제 복사 (덮어쓰기, 주의)`;
   }
 }
 
