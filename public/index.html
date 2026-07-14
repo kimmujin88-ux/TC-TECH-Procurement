@@ -2535,6 +2535,21 @@ function updateStaticMonthLabels() {
   setText('form-empty-hint', `${yearOfMonth('may')}년 ${rangeLabel()} 운영 안정`);
   const stockTh = document.getElementById('th-prior-stock');
   if (stockTh) stockTh.innerHTML = `${priorMonthLabel()}말<br>현물재고`;
+  // 🔁 패턴 도구 버튼 텍스트·툴팁 동적 갱신 (윈도우 첫 달 → 나머지 3개월)
+  const _p1 = monthLabel('may');
+  const _p2 = monthLabel('jun');
+  const _p3 = monthLabel('jul');
+  const _p4 = monthLabel('aug');
+  const btnCopy = document.getElementById('btn-copy-may-to-rest');
+  if (btnCopy) {
+    btnCopy.textContent = `${_p1} → ${_p2}·${_p3}·${_p4} (빈 값만)`;
+    btnCopy.title = `${_p1}에 입력된 제작대수를 ${_p2}/${_p3}/${_p4}의 빈 값(0)에만 복사 (기존 입력 보호)`;
+  }
+  const btnCopyForce = document.getElementById('btn-copy-may-to-rest-force');
+  if (btnCopyForce) {
+    btnCopyForce.textContent = `${_p1} → ${_p2}·${_p3}·${_p4} (덮어쓰기)`;
+    btnCopyForce.title = `${_p1} 제작대수를 ${_p2}/${_p3}/${_p4}에 강제 복사 (덮어쓰기, 주의)`;
+  }
 }
 
 function getResult(master) {
