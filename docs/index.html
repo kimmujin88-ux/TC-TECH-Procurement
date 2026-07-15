@@ -5215,11 +5215,14 @@ function isImportSupplier(name) {
 }
 
 // 모델별 비고 기본값 (납품 위치)
+// 2공장 텐트동 하차: GS4655 전 kind (Drive/Main/Extension) · R55C · HX55 ACR · HX63 AH
+// 나머지 모든 모델: G16 하차
 function defaultBigo(master) {
   const m = (master.model || '').toUpperCase();
-  if (m.includes('GS1930E')) return 'G16 하차';
-  if (m.includes('GS4655') || m.includes('R55C') || m.includes('HX')) return '2공장 텐트동 하차';
-  return '';
+  if (m.startsWith('GS4655')) return '2공장 텐트동 하차';
+  if (m.startsWith('R55')) return '2공장 텐트동 하차';
+  if (m.startsWith('HX55') || m.startsWith('HX63')) return '2공장 텐트동 하차';
+  return 'G16 하차';
 }
 
 // MOQ 추출
