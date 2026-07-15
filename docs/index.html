@@ -2870,9 +2870,13 @@ function renderAlarms() {
     }
   }
 
-  // 탭 배지: OVERDUE + URGENT 합산
+  // 탭 배지: OVERDUE + URGENT 합산 (0이면 숨김)
   const badgeEl = document.getElementById('count-alarms');
-  if (badgeEl) badgeEl.textContent = counts[0] + counts[1];
+  if (badgeEl) {
+    const total = counts[0] + counts[1];
+    badgeEl.textContent = total;
+    badgeEl.style.display = total > 0 ? '' : 'none';
+  }
 }
 
 // 다가오는 결품 캘린더 (월말 기준 부족 발생 품목 수)
@@ -4265,6 +4269,7 @@ function updateOrderCount() {
   const el = document.getElementById('count-orders');
   el.textContent = count;
   el.classList.toggle('tab__count--alert', count > 0);
+  el.style.display = count > 0 ? '' : 'none';
 }
 
 // 필터 이벤트
@@ -6089,7 +6094,10 @@ function saveHistory() {
 }
 function updateHistoryCount() {
   const el = document.getElementById('count-history');
-  if (el) el.textContent = orderHistory.length;
+  if (el) {
+    el.textContent = orderHistory.length;
+    el.style.display = orderHistory.length > 0 ? '' : 'none';
+  }
 }
 
 function applyHistoryFilters(history) {
