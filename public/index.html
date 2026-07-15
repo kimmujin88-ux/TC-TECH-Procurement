@@ -1161,6 +1161,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <button class="tab" data-tab="ops-detail">상세 분석</button>
     <button class="tab" data-tab="form">수급 운영 계획</button>
     <button class="tab" data-tab="orders">발주 확정/관리 <span class="tab__count tab__count--alert" id="count-orders" style="display:none;">0</span></button>
+    <button class="tab" data-tab="receipts">입고 확정/관리 <span class="tab__count tab__count--alert" id="count-receipts" style="display:none;">0</span></button>
     <button class="tab" data-tab="history">발주 이력 <span class="tab__count" id="count-history" style="display:none;">0</span></button>
     <button class="tab" data-tab="finance">재무·분석</button>
     <button class="tab" data-tab="data">데이터 점검</button>
@@ -2000,8 +2001,38 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="section-title__label">▎ 발주 확정 및 관리</div>
     <div style="display: flex; gap: 8px; align-items: center;">
       <div class="section-title__hint">수량 수정 시 자동 저장됩니다.</div>
-      <button class="btn btn--sm" id="btn-bulk-print-po" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);">📑 발주서 일괄 인쇄</button>
+      <button class="btn btn--sm" id="btn-bulk-print-po" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);">📑 발주서 일괄 인쇄 (부족분)</button>
       <button class="btn btn--ghost btn--sm" id="btn-reset-orders" style="color: var(--red); border-color: var(--red-b);">수정 사항 전체 초기화</button>
+    </div>
+  </div>
+
+  <!-- 🎯 수급 운영 계획 기반 자동 발주서 생성 -->
+  <div class="card" id="card-auto-po" style="margin-bottom:14px;border-left:3px solid var(--sky);background:rgba(96,170,220,0.04);">
+    <div class="card__head">
+      <div>
+        <div class="card__title" style="color:var(--sky);">🎯 수급 운영 계획 기반 자동 발주서 생성</div>
+        <div class="card__hint">수급 운영 계획 탭에서 입력한 <strong>선택 월의 입고계획(_incoming)</strong> 수량을 기준으로 업체별 발주서 자동 생성 · 일괄 PDF 출력</div>
+      </div>
+    </div>
+    <div class="card__body" style="padding:14px 16px;">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        <div style="flex:0 0 auto;">
+          <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px;">📅 발주 대상 월</label>
+          <select id="auto-po-month" class="filter-select" style="min-width:140px;font-size:12px;padding:6px 10px;"></select>
+        </div>
+        <div style="flex:0 0 auto;">
+          <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px;">📆 발주일자</label>
+          <input type="date" id="auto-po-order-date" class="filter-input" style="min-width:150px;font-size:12px;padding:6px 10px;">
+        </div>
+        <div style="flex:0 0 auto;">
+          <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px;">🚚 납기일자</label>
+          <input type="date" id="auto-po-deliv-date" class="filter-input" style="min-width:150px;font-size:12px;padding:6px 10px;">
+        </div>
+        <button class="btn btn--sm" id="btn-auto-po-preview" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;">🔍 대상 미리보기</button>
+        <button class="btn btn--sm btn--teal" id="btn-auto-po-generate" style="font-weight:700;">📑 업체별 일괄 PDF 생성</button>
+        <button class="btn btn--sm" id="btn-auto-po-confirm-all" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">✅ 전체 발주 확정 (이력 저장)</button>
+      </div>
+      <div id="auto-po-preview" style="margin-top:12px;font-size:11px;color:var(--t2);"></div>
     </div>
   </div>
 
@@ -2046,12 +2077,64 @@ html.login-locked, html.login-locked body { overflow: hidden; }
   </div>
 </section>
 
+<!-- PANEL: RECEIPTS (입고 확정/관리 - 신설) -->
+<section id="panel-receipts" class="panel">
+  <div class="section-title">
+    <div class="section-title__label">▎ 입고 확정/관리</div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div class="section-title__hint">확정된 발주 중 <strong style="color:var(--amb);">미입고 · 부분 입고</strong>만 표시. 잔량 관리·부분 입고 처리.</div>
+    </div>
+  </div>
+
+  <!-- 요약 KPI -->
+  <div class="dash-grid-hero" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:10.5px;color:var(--t3);letter-spacing:0.3px;margin-bottom:4px;">🔵 입고 대기</div>
+      <div style="font-size:22px;font-weight:800;color:var(--sky);font-family:var(--mono);" id="rcp-kpi-pending">0</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px;">건 (발주 미입고)</div>
+    </div>
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:10.5px;color:var(--t3);letter-spacing:0.3px;margin-bottom:4px;">⚠ 부분 입고</div>
+      <div style="font-size:22px;font-weight:800;color:var(--amb);font-family:var(--mono);" id="rcp-kpi-partial">0</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px;">건 (잔량 미입고)</div>
+    </div>
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:10.5px;color:var(--t3);letter-spacing:0.3px;margin-bottom:4px;">📦 총 잔량</div>
+      <div style="font-size:22px;font-weight:800;color:var(--t1);font-family:var(--mono);" id="rcp-kpi-remain-qty">0</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px;">EA (미입고+잔량 합계)</div>
+    </div>
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:10.5px;color:var(--t3);letter-spacing:0.3px;margin-bottom:4px;">🚨 납기 초과</div>
+      <div style="font-size:22px;font-weight:800;color:var(--red);font-family:var(--mono);" id="rcp-kpi-overdue">0</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px;">건 (오늘 기준)</div>
+    </div>
+  </div>
+
+  <!-- 필터 -->
+  <div class="card" style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+    <select id="rcp-filter-status" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;">
+      <option value="all">전체 (미입고+부분)</option>
+      <option value="pending">🔵 미입고만</option>
+      <option value="partial">⚠ 부분 입고만</option>
+      <option value="overdue">🚨 납기 초과만</option>
+    </select>
+    <select id="rcp-filter-supplier" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;">
+      <option value="">전체 공급사</option>
+    </select>
+    <input type="text" id="rcp-filter-search" class="filter-input" placeholder="품번·품명 검색" style="font-size:11px;padding:5px 8px;flex:1;min-width:180px;">
+    <button class="btn btn--ghost btn--sm" id="rcp-filter-reset">초기화</button>
+    <div id="rcp-summary" style="font-size:11px;font-family:var(--mono);color:var(--t3);"></div>
+  </div>
+
+  <div id="receipts-list"></div>
+</section>
+
 <!-- PANEL: HISTORY -->
 <section id="panel-history" class="panel">
   <div class="section-title">
-    <div class="section-title__label">▎ 발주 이력</div>
+    <div class="section-title__label">▎ 발주 이력 (전체 조회)</div>
     <div style="display:flex; gap:8px; align-items:center;">
-      <div class="section-title__hint">발주서 확정 시 자동 기록됩니다.</div>
+      <div class="section-title__hint">발주 확정·취소·입고 완료 <strong>전체 기록</strong>. 입고 관리는 → <strong style="color:var(--sky);">입고 확정/관리</strong> 탭.</div>
       <button class="btn btn--ghost btn--sm" id="btn-clear-history" style="color:var(--red); border-color:var(--red-b);">전체 삭제</button>
     </div>
   </div>
@@ -3942,7 +4025,9 @@ function setActiveTab(t) {
   else if (t === 'orders') {
     renderOrders();
     setTimeout(() => document.querySelectorAll('.order-qty-input').forEach(validateMOQOnInput), 80);
+    if (typeof initAutoPOSection === 'function') initAutoPOSection();
   }
+  else if (t === 'receipts') { if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel(); }
   else if (t === 'history') renderHistory();
   if (t === 'data') { renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); if (typeof renderDataQualityCard === 'function') renderDataQualityCard(); if (typeof renderVarianceCard === 'function') renderVarianceCard(); if (typeof renderLifecycleCard === 'function') renderLifecycleCard(); }
   if (t === 'finance') { if (typeof renderPriceTrendCard === 'function') renderPriceTrendCard(); if (typeof renderSupplierScoreCard === 'function') renderSupplierScoreCard(); if (typeof renderDeadStockCard === 'function') renderDeadStockCard(); if (typeof renderOpportunityLossCard === 'function') renderOpportunityLossCard(); if (typeof renderSeasonalityCard === 'function') renderSeasonalityCard(); if (typeof renderRenegotiationCard === 'function') renderRenegotiationCard(); if (typeof renderStatisticalSafety === 'function') renderStatisticalSafety(); if (typeof renderXYZAnalysis === 'function') renderXYZAnalysis(); if (typeof renderWhatIf === 'function') renderWhatIf(); }
@@ -6340,6 +6425,7 @@ function deleteHistory(dateStr) {
   saveHistory();
   renderHistory();
   updateHistoryCount();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
 }
 
 // ⏪ 입고 완료/부분 취소 — 입고 상태만 되돌림 (발주는 활성 유지)
@@ -6527,6 +6613,7 @@ function logOrderConfirm(supplier, items) {
   orderHistory.unshift(entry);
   saveHistory();
   updateHistoryCount();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
 }
 
 // ── 발주 마감일 역산 ──
@@ -7169,7 +7256,7 @@ document.addEventListener('keydown', (e) => {
   }
   // 1~7 : 탭 전환 (운영현황/상세분석/수급운영/발주확정/발주이력/재무분석/데이터점검)
   if (/^[1-7]$/.test(e.key)) {
-    const tabs = ['ops', 'ops-detail', 'form', 'orders', 'history', 'finance', 'data'];
+    const tabs = ['ops', 'ops-detail', 'form', 'orders', 'receipts', 'history', 'finance', 'data'];
     const t = tabs[parseInt(e.key, 10) - 1];
     if (t) { setActiveTab(t); e.preventDefault(); }
   }
@@ -8154,7 +8241,7 @@ function renderUpcomingReceipts() {
     const days = Math.ceil((due - today) / 86400000);
     const dateStr = due.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' });
     const ddColor = days === 0 ? 'var(--red)' : days <= 3 ? 'var(--amb)' : 'var(--sky)';
-    return `<div class="upcoming-item" onclick="setActiveTab('history')">
+    return `<div class="upcoming-item" onclick="setActiveTab('receipts')">
       <div class="upcoming-item__date" style="color:${ddColor};">${dateStr}</div>
       <div class="upcoming-item__supplier"><strong>${sanitize(e.supplier)}</strong><br><small style="color:var(--t3);">${e.items.length}품목 · ${fmt(e.totalQty)}EA${e.partialReceived ? ' · 부분' : ''}</small></div>
       <div class="upcoming-item__qty" style="color:${ddColor}; font-weight:700;">${days === 0 ? '오늘' : 'D-' + days}</div>
@@ -8314,7 +8401,7 @@ function renderOrderKanban() {
     <div class="kanban-col">
       <div class="kanban-col__head"><span>${title}</span><span style="font-family:var(--mono); color:${color}; font-weight:700;">${count}</span></div>
       ${items.length === 0 ? '<div style="font-size:10.5px; color:var(--t3); text-align:center; padding:16px 0;">없음</div>' : items.map(e => `
-        <div class="kanban-item" onclick="setActiveTab('history')" style="cursor:pointer;">
+        <div class="kanban-item" onclick="setActiveTab('receipts')" style="cursor:pointer;">
           <div class="kanban-item__supplier">${sanitize(e.supplier)}</div>
           <div class="kanban-item__meta">${e.items.length}품목 · ${fmt(e.totalQty)}EA${e.dueDate ? ' · ' + new Date(e.dueDate).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'}) : ''}</div>
         </div>
@@ -8351,7 +8438,7 @@ function renderReminders() {
   // 미확인 입고
   const unrecv = (typeof orderHistory !== 'undefined' ? orderHistory : []).filter(e => e.type === 'order' && !e.cancelled && !e.received && !e.partialReceived).length;
   if (unrecv > 0) {
-    items.push({ icon: '📦', title: `미확인 입고 ${unrecv}건`, meta: '발주 이력에서 ✅ 입고 확인', action: () => setActiveTab('history') });
+    items.push({ icon: '📦', title: `미확인 입고 ${unrecv}건`, meta: '입고 확정/관리 탭에서 처리', action: () => setActiveTab('receipts') });
   }
   // 미발주 사유 미입력
   if (typeof state !== 'undefined' && state.unmetReasons != null) {
@@ -8636,7 +8723,8 @@ function runSystemDiagnostics() {
     'renderVarianceCard', 'renderLifecycleCard', 'renderDataQualityCard', 'renderLTComparison',
     'renderUnmetCard', 'updateSafetyStockUI', 'updateCarryingCost', 'showMonthCloseChecklist',
     'previewBackup', 'confirmReceipt', 'applyReceipt', 'performUndo', 'pushUndoSnapshot',
-    'bulkPrintPOs', 'showTutorialModal', 'showExecutiveSummary'
+    'bulkPrintPOs', 'showTutorialModal', 'showExecutiveSummary',
+    'renderReceiptsPanel', 'updateReceiptsCount', 'previewAutoPO', 'confirmAllAutoPO', 'generateAutoPOPDF'
   ];
   let missingFns = requiredFns.filter(fn => typeof window[fn] !== 'function');
   checks.push({
@@ -9700,6 +9788,479 @@ ${allPOs}
 }
 document.getElementById('btn-bulk-print-po')?.addEventListener('click', bulkPrintPOs);
 
+// ─────────────────────────────────────────────
+// 🎯 수급 운영 계획 기반 자동 발주서 (선택 월의 _incoming 값 → 업체별 그룹핑)
+// ─────────────────────────────────────────────
+
+// 선택 월의 입고계획을 발주 대상으로 수집 (부품별로 모든 모델의 _incoming 합산)
+function computeIncomingBasedOrders(monthKey) {
+  if (!monthKey) return { bySupplier: {}, totalItems: 0, totalQty: 0, totalAmt: 0 };
+  const incField = `${monthKey}_incoming`;
+  const partAgg = {}; // part_no → { master(대표), totalQty, models:[displayName] }
+  MASTERS.forEach(m => {
+    const ii = getItemInput(m) || {};
+    const q = Number(ii[incField] || 0);
+    if (q <= 0) return;
+    const pn = m.part_no;
+    if (!partAgg[pn]) partAgg[pn] = { master: m, totalQty: 0, models: [] };
+    partAgg[pn].totalQty += q;
+    partAgg[pn].models.push({ model: displayName(m), qty: q });
+  });
+  const bySupplier = {};
+  let totalItems = 0, totalQty = 0, totalAmt = 0;
+  Object.values(partAgg).forEach(agg => {
+    const sup = agg.master.supplier || '(미지정)';
+    if (!bySupplier[sup]) bySupplier[sup] = [];
+    bySupplier[sup].push(agg);
+    totalItems += 1;
+    totalQty += agg.totalQty;
+    totalAmt += agg.totalQty * (agg.master.unit_price || 0);
+  });
+  return { bySupplier, totalItems, totalQty, totalAmt };
+}
+
+// 발주 대상 월 옵션 채우기 · 기본 발주/납기일자 계산
+function initAutoPOSection() {
+  const sel = document.getElementById('auto-po-month');
+  const orderDateEl = document.getElementById('auto-po-order-date');
+  const delivDateEl = document.getElementById('auto-po-deliv-date');
+  if (!sel) return;
+
+  const currentVal = sel.value || '';
+  const months = ['may', 'jun', 'jul', 'aug'];
+  sel.innerHTML = months.map(mo => `<option value="${mo}">${monthLabel(mo)} 입고계획 기준</option>`).join('');
+  // 기본값: 아직 발주 안 된 첫 월 (aug 우선 — 첨부 PDF들이 8월 발주분)
+  if (currentVal && months.includes(currentVal)) {
+    sel.value = currentVal;
+  } else {
+    sel.value = 'aug';
+  }
+
+  // 기본 발주일 = 오늘, 납기일 = 대상 월 15일
+  if (orderDateEl && !orderDateEl.value) {
+    orderDateEl.value = new Date().toISOString().slice(0, 10);
+  }
+  updateAutoPODelivDate();
+
+  if (!sel.dataset.wired) {
+    sel.addEventListener('change', () => { updateAutoPODelivDate(); previewAutoPO(); });
+    orderDateEl?.addEventListener('change', () => previewAutoPO());
+    document.getElementById('btn-auto-po-preview')?.addEventListener('click', previewAutoPO);
+    document.getElementById('btn-auto-po-generate')?.addEventListener('click', generateAutoPOPDF);
+    document.getElementById('btn-auto-po-confirm-all')?.addEventListener('click', confirmAllAutoPO);
+    sel.dataset.wired = '1';
+  }
+
+  previewAutoPO();
+}
+
+function updateAutoPODelivDate() {
+  const sel = document.getElementById('auto-po-month');
+  const delivDateEl = document.getElementById('auto-po-deliv-date');
+  if (!sel || !delivDateEl) return;
+  const off = { may: 0, jun: 1, jul: 2, aug: 3 }[sel.value] ?? 0;
+  const sm = state.periodStartMonth || 5;
+  const sy = state.periodYear || 2026;
+  let m = sm + off, y = sy;
+  while (m > 12) { m -= 12; y += 1; }
+  // 대상 월 15일을 기본 납기로
+  const d = new Date(y, m - 1, 15);
+  delivDateEl.value = d.toISOString().slice(0, 10);
+}
+
+// 미리보기 (대상 월의 업체별 발주 대상 요약)
+function previewAutoPO() {
+  const sel = document.getElementById('auto-po-month');
+  const preview = document.getElementById('auto-po-preview');
+  if (!sel || !preview) return;
+  const monthKey = sel.value;
+  const { bySupplier, totalItems, totalQty, totalAmt } = computeIncomingBasedOrders(monthKey);
+  const supArr = Object.entries(bySupplier);
+  if (supArr.length === 0) {
+    preview.innerHTML = `<div style="padding:12px;background:rgba(245,158,11,0.08);border:0.5px solid var(--amb-b);border-radius:6px;color:var(--amb);">⚠ ${monthLabel(monthKey)} 입고계획에 등록된 품목이 없습니다. 수급 운영 계획 탭에서 입고계획을 먼저 입력하세요.</div>`;
+    return;
+  }
+  const rows = supArr.map(([sup, items]) => {
+    const sq = items.reduce((s, it) => s + it.totalQty, 0);
+    const sa = items.reduce((s, it) => s + it.totalQty * (it.master.unit_price || 0), 0);
+    const hasInfo = !!(typeof SUPPLIER_INFO !== 'undefined' && SUPPLIER_INFO[sup]);
+    const infoWarn = hasInfo ? '' : ' <span style="color:var(--amb);font-size:10px;">⚠ 업체정보 미등록</span>';
+    return `<tr>
+      <td style="padding:5px 8px;"><strong>${sanitize(sup)}</strong>${infoWarn}</td>
+      <td style="padding:5px 8px;text-align:right;font-family:var(--mono);">${items.length}품목</td>
+      <td style="padding:5px 8px;text-align:right;font-family:var(--mono);color:var(--sky);font-weight:700;">${fmt(sq)} EA</td>
+      <td style="padding:5px 8px;text-align:right;font-family:var(--mono);color:var(--teal);font-weight:700;">₩${fmt(sa)}</td>
+    </tr>`;
+  }).join('');
+  preview.innerHTML = `
+    <div style="background:rgba(96,170,220,0.06);border:0.5px solid var(--sky-b);border-radius:6px;padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--sky);">📊 ${monthLabel(monthKey)} 발주 대상 요약</div>
+        <div style="font-size:11px;font-family:var(--mono);color:var(--t2);">${supArr.length}개 업체 · ${totalItems}품목 · ${fmt(totalQty)} EA · <strong style="color:var(--teal);">₩${fmt(totalAmt)}</strong></div>
+      </div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse;">
+        <thead><tr style="background:rgba(0,0,0,0.2);color:var(--t3);">
+          <th style="padding:5px 8px;text-align:left;">공급사</th>
+          <th style="padding:5px 8px;text-align:right;">품목수</th>
+          <th style="padding:5px 8px;text-align:right;">발주 수량</th>
+          <th style="padding:5px 8px;text-align:right;">금액</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// 자동 발주 - 업체별 일괄 PDF (인쇄용 새 창)
+function generateAutoPOPDF() {
+  if (window.guardAdmin && !window.guardAdmin('자동 발주서 PDF 생성')) return;
+  const monthKey = document.getElementById('auto-po-month').value;
+  const orderDate = document.getElementById('auto-po-order-date').value;
+  const delivDate = document.getElementById('auto-po-deliv-date').value;
+  const { bySupplier } = computeIncomingBasedOrders(monthKey);
+  const suppliers = Object.keys(bySupplier).filter(s => SUPPLIER_INFO[s]);
+  if (suppliers.length === 0) { alert('발주 대상 업체 없음 (SUPPLIER_INFO에 등록된 업체 필요)'); return; }
+  const missing = Object.keys(bySupplier).filter(s => !SUPPLIER_INFO[s]);
+  const missingNote = missing.length > 0 ? `\n\n⚠ 업체정보 미등록 (${missing.length}개 제외): ${missing.join(', ')}` : '';
+  if (!confirm(`${monthLabel(monthKey)} 입고계획 기준\n${suppliers.length}개 업체 발주서를 새 창에 생성합니다.${missingNote}\n\n진행하시겠습니까?`)) return;
+
+  const monthLabelStr = `${yearOfMonth(monthKey)}년 ${monthLabel(monthKey)}`;
+  const logoSrc = document.querySelector('header img, .po-header-logo img')?.src || 'logo.png';
+
+  const allPOs = suppliers.map(supplier => {
+    const info = SUPPLIER_INFO[supplier];
+    const items = bySupplier[supplier];
+    // 모델별 그룹핑 (하나의 부품이 여러 모델에 걸친 경우 모델별 row 생성)
+    const rowsByModel = {};
+    items.forEach(agg => {
+      agg.models.forEach(mm => {
+        const key = mm.model;
+        if (!rowsByModel[key]) rowsByModel[key] = [];
+        rowsByModel[key].push({ master: agg.master, qty: mm.qty, bigo: (typeof defaultBigo === 'function') ? defaultBigo(agg.master) : '' });
+      });
+    });
+    let totalQty = 0, totalAmt = 0;
+    Object.values(rowsByModel).forEach(arr => arr.forEach(it => { totalQty += it.qty; totalAmt += it.qty * (it.master.unit_price || 0); }));
+    const itemsHtml = Object.entries(rowsByModel).map(([groupKey, gItems]) =>
+      gItems.map((it, i) => `
+        <tr>
+          <td>${i === 0 ? sanitize(groupKey) : ''}</td>
+          <td class="po-mono">${sanitize(it.master.part_no)}</td>
+          <td>${sanitize(it.master.part_name)}</td>
+          <td class="po-right po-mono">${fmt(it.qty)}</td>
+          <td class="po-right po-mono">${fmt(it.master.unit_price)}</td>
+          <td class="po-right po-mono">${fmt(it.qty * (it.master.unit_price || 0))}</td>
+          <td>${sanitize(it.bigo || '')}</td>
+        </tr>`).join('')
+    ).join('');
+    return `<div class="bulk-po-page">
+      <div class="po-header-logo"><img src="${logoSrc}" alt="TC TECH"></div>
+      <div class="po-title">${sanitize(monthLabelStr)} 구매품 발주서</div>
+      <div class="po-info-grid">
+        <div class="po-info-block"><div class="po-info-head">발 주 처</div>
+          <table class="po-info-table">
+            <tr><th>회사명</th><td>${sanitize(BUYER_INFO.company)}</td><th>담당자</th><td>${sanitize(BUYER_INFO.contact)}</td></tr>
+            <tr><th>사업자번호</th><td>${sanitize(BUYER_INFO.bizNo)}</td><th>연락처</th><td>${sanitize(BUYER_INFO.phone)}</td></tr>
+            <tr><th>대표자</th><td>${sanitize(BUYER_INFO.ceo)}</td><th>발주일자</th><td>${orderDate}</td></tr>
+            <tr><th>주소</th><td colspan="3">${sanitize(BUYER_INFO.address)}</td></tr>
+          </table>
+        </div>
+        <div class="po-info-block"><div class="po-info-head">수 신 처</div>
+          <table class="po-info-table">
+            <tr><th>회사명</th><td>${sanitize(info.company)}</td><th>담당자</th><td>${sanitize(info.contact)}</td></tr>
+            <tr><th>사업자번호</th><td>${sanitize(info.bizNo)}</td><th>연락처</th><td>${sanitize(info.phone)}</td></tr>
+            <tr><th>대표자</th><td>${sanitize(info.ceo)}</td><th>납기일자</th><td>${delivDate}</td></tr>
+            <tr><th>주소</th><td colspan="3">${sanitize(info.address)}</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="po-section-head">▶  ${sanitize(monthLabel(monthKey))} 발주분 (확정)</div>
+      <table class="po-items-table">
+        <thead><tr>
+          <th class="po-w-model">모델</th><th class="po-w-pn">품번</th><th>품명</th>
+          <th class="po-right po-w-qty">수량(EA)</th>
+          <th class="po-right po-w-price">단가(원)</th>
+          <th class="po-right po-w-amt">금액(원)</th>
+          <th class="po-w-bigo">비고</th>
+        </tr></thead>
+        <tbody>
+          ${itemsHtml}
+          <tr><td colspan="7" class="po-blank-cell"><span class="po-blank-label">이  하  여  백</span></td></tr>
+          <tr class="po-total-row">
+            <td colspan="3" class="po-right">공급가액 합계</td>
+            <td class="po-right po-mono">${fmt(totalQty)}</td>
+            <td></td>
+            <td class="po-right po-mono">${fmt(totalAmt)}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="po-notice-box" style="margin-top:8px;border:0.5px solid #555;">
+        <div style="background:#e5e5e5;padding:4px 8px;font-weight:700;font-size:11px;border-bottom:0.5px solid #555;">특이사항 / 요청사항</div>
+        <div style="padding:6px 8px;font-size:10.5px;line-height:1.5;">
+          ※ 제품 입고 시, 품번 및 수량 필히 기재 후 입고 부탁드립니다.<br>
+          ※ 상기 단가는 발주 시점 기준이며, 단가 변동이 있을 경우 마감 시 최종 단가로 재정산합니다.
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const fullHtml = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><title>${monthLabelStr} 자동 발주서 (${suppliers.length}건)</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  body { font-family: 'Malgun Gothic', sans-serif; color: #000; margin: 0; padding: 0; background: #fff; font-size: 11px; }
+  .bulk-po-page { padding: 14mm; page-break-after: always; box-sizing: border-box; }
+  .bulk-po-page:last-child { page-break-after: auto; }
+  .po-header-logo { text-align: right; margin-bottom: 8px; }
+  .po-header-logo img { height: 36px; }
+  .po-title { font-size: 22px; font-weight: 800; text-align: center; margin: 6px 0 14px; }
+  .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .po-info-block { border: 1.5px solid #000; }
+  .po-info-head { background: #d0d0d0; text-align: center; font-weight: 700; padding: 4px; font-size: 12px; }
+  .po-info-table { width: 100%; border-collapse: collapse; }
+  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 4px 6px; font-size: 10.5px; vertical-align: middle; }
+  .po-info-table th { background: #f0f0f0; width: 22%; text-align: left; font-weight: 700; }
+  .po-section-head { font-size: 13px; font-weight: 700; margin: 8px 0 6px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
+  .po-items-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  .po-items-table th, .po-items-table td { border: 0.5px solid #555; padding: 4px 5px; }
+  .po-items-table th { background: #d0d0d0; text-align: center; font-weight: 700; }
+  .po-w-model { width: 18%; } .po-w-pn { width: 13%; } .po-w-qty { width: 8%; } .po-w-price { width: 10%; } .po-w-amt { width: 12%; } .po-w-bigo { width: 14%; }
+  .po-right { text-align: right; }
+  .po-mono { font-family: Consolas, 'Courier New', monospace; }
+  .po-blank-cell { text-align: center; padding: 10px 0; background: #fafafa; }
+  .po-blank-label { color: #888; font-size: 10px; letter-spacing: 4px; }
+  .po-total-row td { background: #f0f0f0; font-weight: 700; }
+  @media screen { body { background: #f5f5f5; } .bulk-po-page { background: #fff; max-width: 200mm; margin: 20px auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); } }
+  @media print { .no-print { display: none !important; } }
+</style></head><body>
+${allPOs}
+<div class="no-print" style="position:fixed;top:10px;right:10px;background:#fff;border:1px solid #ccc;padding:10px 14px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.15);z-index:9999;">
+  <button onclick="window.print()" style="padding:8px 16px;background:#111;color:#fff;border:0;cursor:pointer;font-size:13px;font-weight:700;border-radius:3px;">🖨 인쇄 / PDF 저장</button>
+  <span style="margin-left:10px;color:#555;font-size:11px;">${monthLabelStr} · ${suppliers.length}개 공급사</span>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('팝업이 차단되었습니다. 브라우저 팝업 허용 후 재시도해 주세요.'); return; }
+  w.document.write(fullHtml);
+  w.document.close();
+}
+
+// 자동 발주 - 전체 업체를 orderHistory에 일괄 확정 저장
+function confirmAllAutoPO() {
+  if (window.guardAdmin && !window.guardAdmin('자동 발주 전체 확정')) return;
+  const monthKey = document.getElementById('auto-po-month').value;
+  const orderDate = document.getElementById('auto-po-order-date').value;
+  const delivDate = document.getElementById('auto-po-deliv-date').value;
+  const { bySupplier, totalItems, totalQty, totalAmt } = computeIncomingBasedOrders(monthKey);
+  const suppliers = Object.keys(bySupplier).filter(s => SUPPLIER_INFO[s]);
+  if (suppliers.length === 0) { alert('발주 확정 대상 업체 없음'); return; }
+  if (!confirm(`${monthLabel(monthKey)} 입고계획 기준\n${suppliers.length}개 업체 · ${totalItems}품목 · ${fmt(totalQty)} EA · ₩${fmt(totalAmt)}\n\n일괄 발주 확정 (이력 저장)하시겠습니까?\n확정 후 "입고 확정/관리" 탭에서 입고 처리 가능.`)) return;
+
+  const baseTs = new Date(orderDate + 'T09:00:00').getTime();
+  let created = 0;
+  suppliers.forEach((supplier, sIdx) => {
+    const items = bySupplier[supplier];
+    // 각 공급사 발주는 milliseconds 단위로 unique 하도록 오프셋
+    const entryDate = new Date(baseTs + sIdx).toISOString();
+    const entryItems = [];
+    let eTotalQty = 0, eTotalAmt = 0;
+    items.forEach(agg => {
+      agg.models.forEach(mm => {
+        const amount = mm.qty * (agg.master.unit_price || 0);
+        entryItems.push({
+          pn: agg.master.part_no,
+          name: agg.master.part_name,
+          model: mm.model,
+          qty: mm.qty,
+          unitPrice: agg.master.unit_price || 0,
+          amount,
+          receivedQty: 0
+        });
+        eTotalQty += mm.qty;
+        eTotalAmt += amount;
+      });
+    });
+    orderHistory.push({
+      date: entryDate,
+      type: 'order',
+      supplier,
+      items: entryItems,
+      totalQty: eTotalQty,
+      totalAmt: eTotalAmt,
+      dueDate: delivDate,
+      autoGenerated: true,
+      autoGeneratedFrom: `${monthLabel(monthKey)}_incoming`,
+      createdBy: sessionStorage.getItem('tctech_auth_user') || 'unknown'
+    });
+    created += 1;
+  });
+  saveHistory();
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'auto_po_bulk_confirm',
+    field: `auto_po.${monthKey}`,
+    before: '',
+    after: `${created}개 업체 · ${totalItems}품목 · ${fmt(totalQty)} EA · ₩${fmt(totalAmt)}`
+  });
+  saveInputs();
+  updateHistoryCount();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+  alert(`✅ ${created}개 업체 발주 확정 완료.\n"입고 확정/관리" 탭에서 입고 처리하세요.`);
+  previewAutoPO();
+}
+
+// ─────────────────────────────────────────────
+// 📦 입고 확정/관리 탭
+// ─────────────────────────────────────────────
+
+function updateReceiptsCount() {
+  const el = document.getElementById('count-receipts');
+  if (!el) return;
+  const hist = typeof orderHistory !== 'undefined' ? orderHistory : [];
+  const count = hist.filter(e => e.type === 'order' && !e.cancelled && !e.received).length;
+  el.textContent = count;
+  el.style.display = count > 0 ? '' : 'none';
+}
+
+function getReceiptsList() {
+  const hist = typeof orderHistory !== 'undefined' ? orderHistory : [];
+  return hist.filter(e => e.type === 'order' && !e.cancelled && !e.received);
+}
+
+function isOverdue(entry) {
+  if (!entry.dueDate) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return entry.dueDate < today;
+}
+
+function renderReceiptsPanel() {
+  populateReceiptSupplierSelect();
+  updateReceiptsCount();
+  const container = document.getElementById('receipts-list');
+  if (!container) return;
+
+  const list = getReceiptsList();
+  const pending = list.filter(e => !e.partialReceived);
+  const partial = list.filter(e => e.partialReceived);
+  const overdue = list.filter(isOverdue);
+  const totalRemain = list.reduce((s, e) => s + e.items.reduce((ss, it) => ss + (it.qty - (it.receivedQty || 0)), 0), 0);
+
+  document.getElementById('rcp-kpi-pending').textContent = fmt(pending.length);
+  document.getElementById('rcp-kpi-partial').textContent = fmt(partial.length);
+  document.getElementById('rcp-kpi-remain-qty').textContent = fmt(totalRemain);
+  document.getElementById('rcp-kpi-overdue').textContent = fmt(overdue.length);
+
+  // 필터 적용
+  const statusF = document.getElementById('rcp-filter-status')?.value || 'all';
+  const supF = document.getElementById('rcp-filter-supplier')?.value || '';
+  const searchF = (document.getElementById('rcp-filter-search')?.value || '').toLowerCase().trim();
+
+  let filtered = list;
+  if (statusF === 'pending') filtered = filtered.filter(e => !e.partialReceived);
+  else if (statusF === 'partial') filtered = filtered.filter(e => e.partialReceived);
+  else if (statusF === 'overdue') filtered = filtered.filter(isOverdue);
+  if (supF) filtered = filtered.filter(e => e.supplier === supF);
+  if (searchF) filtered = filtered.filter(e => (e.items || []).some(it => (`${it.pn} ${it.name}`).toLowerCase().includes(searchF)));
+
+  // 정렬: 납기 초과 → 납기 임박 → 나머지
+  filtered.sort((a, b) => {
+    const ao = isOverdue(a), bo = isOverdue(b);
+    if (ao !== bo) return ao ? -1 : 1;
+    return (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1;
+  });
+
+  const summary = document.getElementById('rcp-summary');
+  if (summary) summary.textContent = filtered.length === list.length
+    ? `총 ${list.length}건 · 총잔량 ${fmt(totalRemain)} EA`
+    : `${filtered.length}건 표시 / 미완료 전체 ${list.length}건`;
+
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty">✅ 미입고 발주가 없습니다.<div class="empty__hint">모든 확정 발주가 입고 완료됨</div></div>';
+    return;
+  }
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty">조건에 맞는 건이 없습니다.<div class="empty__hint">필터를 조정해 보세요</div></div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(entry => {
+    const date = new Date(entry.date).toLocaleString('ko-KR');
+    const cumRecv = (entry.items || []).reduce((s, it) => s + (it.receivedQty || 0), 0);
+    const remain = entry.totalQty - cumRecv;
+    const overdueFlag = isOverdue(entry);
+    const dueLabel = entry.dueDate
+      ? `<span style="color:${overdueFlag ? 'var(--red)' : 'var(--sky)'};font-weight:700;"> · 납기 ${new Date(entry.dueDate).toLocaleDateString('ko-KR')}${overdueFlag ? ' 🚨 초과' : ''}</span>`
+      : '';
+    const statusBadge = entry.partialReceived
+      ? `<span class="badge" style="background:rgba(245,158,11,0.15);color:var(--amb);border:0.5px solid var(--amb-b);">⚠ 부분 입고 ${fmt(cumRecv)}/${fmt(entry.totalQty)}</span>`
+      : `<span class="badge" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);">🔵 미입고</span>`;
+    const autoTag = entry.autoGenerated
+      ? `<span style="font-size:9.5px;color:var(--t3);background:rgba(96,170,220,0.08);border:0.5px solid var(--sky-b);padding:1px 5px;border-radius:3px;margin-left:6px;">🎯 자동생성</span>`
+      : '';
+    const cardBorder = overdueFlag ? 'border-left:3px solid var(--red);' : entry.partialReceived ? 'border-left:3px solid var(--amb);' : 'border-left:3px solid var(--sky);';
+
+    return `<div class="card" style="${cardBorder}margin-bottom:10px;">
+      <div class="card__head">
+        <div>
+          <div class="card__title">${sanitize(entry.supplier)} — 발주 ${date}${dueLabel}${autoTag}</div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px;">${entry.items.length}품목 · 총 ${fmt(entry.totalQty)}EA · 잔량 <strong style="color:${remain > 0 ? 'var(--amb)' : 'var(--teal)'};">${fmt(remain)}EA</strong> · ₩${fmt(entry.totalAmt)}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          ${statusBadge}
+          <button class="btn btn--sm btn--teal" onclick="confirmReceipt('${entry.date}')" style="font-weight:700;">${entry.partialReceived ? '잔량 입고' : '✅ 입고 확인'}</button>
+          <button class="btn btn--ghost btn--sm" onclick="cancelOrder('${entry.date}')" style="color:var(--red);border-color:var(--red-b);">❌ 발주 취소</button>
+        </div>
+      </div>
+      <table class="order-table" style="width:100%;">
+        <thead><tr>
+          <th>품번</th><th>품명</th><th>모델</th>
+          <th class="col-num">발주</th><th class="col-num">입고</th><th class="col-num">잔량</th>
+        </tr></thead>
+        <tbody>
+          ${entry.items.map(it => {
+            const rq = Number(it.receivedQty || 0);
+            const rem = it.qty - rq;
+            const remColor = rem === 0 ? 'var(--teal)' : rq > 0 ? 'var(--amb)' : 'var(--sky)';
+            return `<tr>
+              <td style="font-family:var(--mono)">${sanitize(it.pn)}</td>
+              <td>${sanitize(it.name)}</td>
+              <td style="font-size:10px;color:var(--t3)">${sanitize(it.model)}</td>
+              <td class="col-num">${fmt(it.qty)}</td>
+              <td class="col-num" style="color:${rq > 0 ? 'var(--teal)' : 'var(--t3)'};font-family:var(--mono);">${fmt(rq)}</td>
+              <td class="col-num" style="color:${remColor};font-family:var(--mono);font-weight:${rem > 0 ? 700 : 400};">${fmt(rem)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+function populateReceiptSupplierSelect() {
+  const sel = document.getElementById('rcp-filter-supplier');
+  if (!sel) return;
+  const current = sel.value;
+  const list = getReceiptsList();
+  const suppliers = [...new Set(list.map(e => e.supplier).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">전체 공급사</option>' + suppliers.map(s => `<option value="${sanitize(s)}">${sanitize(s)}</option>`).join('');
+  sel.value = current;
+}
+
+// 필터 이벤트
+document.getElementById('rcp-filter-status')?.addEventListener('change', () => renderReceiptsPanel());
+document.getElementById('rcp-filter-supplier')?.addEventListener('change', () => renderReceiptsPanel());
+document.getElementById('rcp-filter-search')?.addEventListener('input', () => renderReceiptsPanel());
+document.getElementById('rcp-filter-reset')?.addEventListener('click', () => {
+  const s = document.getElementById('rcp-filter-status'); if (s) s.value = 'all';
+  const sup = document.getElementById('rcp-filter-supplier'); if (sup) sup.value = '';
+  const sr = document.getElementById('rcp-filter-search'); if (sr) sr.value = '';
+  renderReceiptsPanel();
+});
+
 // 글로벌 빠른 검색 (헤더)
 const _globalSearchInput = document.getElementById('global-search-input');
 if (_globalSearchInput) {
@@ -9749,6 +10310,7 @@ document.getElementById('btn-clear-history').addEventListener('click', () => {
   saveHistory();
   renderHistory();
   updateHistoryCount();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
 });
 
 // ERP 가져오기 버튼 이벤트
@@ -9786,6 +10348,7 @@ document.getElementById('btn-erp-reset').addEventListener('click', () => {
 // 발주 이력 로드
 orderHistory = loadHistory();
 updateHistoryCount();
+if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
 
 // datalist 품번 목록 채우기 (수동 추가 검색용)
 (function populateMastersList() {
