@@ -480,6 +480,40 @@ tbody tr[data-part-no]:hover, tbody tr[data-supplier]:hover { background: rgba(2
   font-weight: 600; vertical-align: middle;
 }
 .btn-moq-fix:hover { background: rgba(247, 199, 64, 0.25); }
+/* 히어로 대시보드 그리드 */
+.dash-grid-hero .card { border-radius:12px; }
+.hero-card .hero-progress { position:relative; width:140px; height:140px; }
+.hero-card .hero-progress svg { transform: rotate(-90deg); }
+.hero-card .hero-progress-text { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+.upcoming-item { padding:8px 10px; background:var(--bg-card); border:0.5px solid var(--border2); border-radius:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; cursor:pointer; transition:all 0.15s; }
+.upcoming-item:hover { border-color:var(--sky-b); background:var(--bg-card2); }
+.upcoming-item__date { font-family:var(--mono); font-size:11px; font-weight:700; color:var(--sky); min-width:52px; }
+.upcoming-item__supplier { font-size:11px; color:var(--t1); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.upcoming-item__qty { font-family:var(--mono); font-size:10.5px; color:var(--t2); }
+.alert-list-hero-item { padding:8px 12px; background:var(--bg-card); border:0.5px solid var(--border2); border-left-width:3px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; transition:all 0.15s; }
+.alert-list-hero-item:hover { background:var(--bg-card2); }
+.alert-list-hero-item--overdue { border-left-color: var(--red); }
+.alert-list-hero-item--urgent { border-left-color: var(--red); }
+.alert-list-hero-item--soon { border-left-color: var(--amb); }
+.alert-list-hero-item--plan { border-left-color: var(--teal); }
+.kanban-col { background:var(--bg-card); border:0.5px solid var(--border2); border-radius:8px; padding:10px 12px; min-height:140px; display:flex; flex-direction:column; gap:6px; }
+.kanban-col__head { font-size:11px; font-weight:700; color:var(--t2); text-transform:uppercase; letter-spacing:0.3px; padding-bottom:8px; border-bottom:0.5px solid var(--border2); display:flex; justify-content:space-between; align-items:center; }
+.kanban-item { padding:6px 8px; background:var(--bg-card2); border-radius:4px; font-size:10.5px; color:var(--t1); }
+.kanban-item__supplier { font-weight:700; }
+.kanban-item__meta { font-size:9.5px; color:var(--t3); margin-top:2px; }
+.reminder-item { padding:10px 12px; background:var(--bg-card); border:0.5px solid var(--border2); border-radius:6px; display:flex; align-items:flex-start; gap:8px; font-size:11px; }
+.reminder-item__icon { font-size:14px; flex-shrink:0; }
+.reminder-item__body { flex:1; color:var(--t2); line-height:1.5; }
+.reminder-item__body strong { color:var(--t1); font-weight:700; }
+.reminder-item__body small { display:block; color:var(--t3); font-size:9.5px; margin-top:2px; }
+.stock-health-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:0.5px solid var(--border2); font-size:11.5px; }
+.stock-health-row:last-child { border-bottom:0; }
+.stock-health-row__label { color:var(--t2); }
+.stock-health-row__value { font-family:var(--mono); font-weight:700; color:var(--t1); }
+/* 반응형: 좁은 화면 - 세로 스택 */
+@media (max-width: 1200px) {
+  .dash-grid-hero { grid-template-columns: 1fr !important; }
+}
 /* 헤더 그룹 구분선 (4그룹: 검색 | 저장·이동 | 정보·보고 | 권한) */
 .header-divider {
   display: inline-block;
@@ -1241,6 +1275,114 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="section-title__hint" id="dash-updated"></div>
   </div>
 
+  <!-- 🎨 대시보드 그리드 (스크린샷 스타일) -->
+  <div class="dash-grid-hero" style="display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:14px; margin-bottom:16px;">
+    <!-- 히어로 카드: 오늘의 최우선 액션 -->
+    <div class="card hero-card" id="hero-action-card" style="background:linear-gradient(135deg, rgba(56,201,160,0.10) 0%, rgba(56,201,160,0.02) 100%); border:0.5px solid var(--teal-b); padding:20px 22px; min-height:220px; display:flex; flex-direction:column;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+        <div>
+          <div style="font-size:11px; color:var(--t3); letter-spacing:0.4px; margin-bottom:4px;">TODAY · 오늘의 최우선</div>
+          <div style="font-size:15px; font-weight:700; color:var(--t1);" id="hero-title">오늘의 액션 큐</div>
+        </div>
+        <div style="font-size:10px; color:var(--t3); font-family:var(--mono);" id="hero-updated"></div>
+      </div>
+      <div id="hero-body" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center;"></div>
+      <div style="display:flex; gap:8px; margin-top:14px; padding-top:12px; border-top:0.5px solid var(--border2);">
+        <div style="flex:1; text-align:center;">
+          <div id="hero-stat1-val" style="font-size:16px; font-weight:700; color:var(--red); font-family:var(--mono);">–</div>
+          <div style="font-size:10px; color:var(--t3);">즉시 처리</div>
+        </div>
+        <div style="flex:1; text-align:center; border-left:0.5px solid var(--border2);">
+          <div id="hero-stat2-val" style="font-size:16px; font-weight:700; color:var(--amb); font-family:var(--mono);">–</div>
+          <div style="font-size:10px; color:var(--t3);">임박</div>
+        </div>
+        <div style="flex:1; text-align:center; border-left:0.5px solid var(--border2);">
+          <div id="hero-stat3-val" style="font-size:16px; font-weight:700; color:var(--sky); font-family:var(--mono);">–</div>
+          <div style="font-size:10px; color:var(--t3);">계획</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 다가오는 입고 이벤트 -->
+    <div class="card" style="padding:16px 18px; min-height:220px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; color:var(--t3); letter-spacing:0.4px; margin-bottom:2px;">SCHEDULE</div>
+          <div style="font-size:13px; font-weight:700; color:var(--t1);">📅 다가오는 입고</div>
+        </div>
+        <div id="upcoming-count" style="font-size:11px; color:var(--sky); font-family:var(--mono); font-weight:700;">–</div>
+      </div>
+      <div id="upcoming-body" style="max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+
+    <!-- 재고 상태 미니 KPI -->
+    <div class="card" style="padding:16px 18px; min-height:220px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; color:var(--t3); letter-spacing:0.4px; margin-bottom:2px;">STOCK HEALTH</div>
+          <div style="font-size:13px; font-weight:700; color:var(--t1);">📊 재고 상태</div>
+        </div>
+        <div id="stock-health-badge" style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700;"></div>
+      </div>
+      <div id="stock-health-body"></div>
+    </div>
+  </div>
+
+  <!-- 두 번째 행: 발주 알람 + 공급사 도넛 -->
+  <div class="dash-grid-hero" style="display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:16px;">
+    <!-- 발주 알람 리스트 -->
+    <div class="card" style="padding:16px 18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; color:var(--t3); letter-spacing:0.4px; margin-bottom:2px;">ORDER ALERT</div>
+          <div style="font-size:13px; font-weight:700; color:var(--t1);">🚨 발주 알람 (LT 역산)</div>
+        </div>
+        <div id="hero-alert-summary" style="font-size:10.5px; color:var(--t3); font-family:var(--mono);"></div>
+      </div>
+      <div id="hero-alert-list" style="max-height:260px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+    </div>
+
+    <!-- 공급사 도넛 -->
+    <div class="card" style="padding:16px 18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; color:var(--t3); letter-spacing:0.4px; margin-bottom:2px;">SUPPLIER SHARE</div>
+          <div style="font-size:13px; font-weight:700; color:var(--t1);">📈 공급사 비중</div>
+        </div>
+      </div>
+      <div id="supplier-donut-body" style="min-height:220px;"></div>
+    </div>
+  </div>
+
+  <!-- 세 번째 행: 발주 진행 칸반 + 리마인더 -->
+  <div class="dash-grid-hero" style="display:grid; grid-template-columns:2.2fr 1fr; gap:14px; margin-bottom:16px;">
+    <!-- 발주 진행 칸반 -->
+    <div class="card" style="padding:16px 18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; color:var(--t3); letter-spacing:0.4px; margin-bottom:2px;">ORDER PIPELINE</div>
+          <div style="font-size:13px; font-weight:700; color:var(--t1);">📦 발주 진행 상태</div>
+        </div>
+      </div>
+      <div id="kanban-body" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;"></div>
+    </div>
+
+    <!-- 리마인더 -->
+    <div class="card" style="padding:16px 18px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <div style="font-size:11px; color:var(--t3); letter-spacing:0.4px; margin-bottom:2px;">REMINDERS</div>
+          <div style="font-size:13px; font-weight:700; color:var(--t1);">⏰ 리마인더</div>
+        </div>
+      </div>
+      <div id="reminders-body" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+  </div>
+
+  <details style="margin:18px 0; border:0.5px solid var(--border2); border-radius:8px; background:var(--bg-card);">
+    <summary style="cursor:pointer; padding:12px 16px; font-size:12px; font-weight:700; color:var(--t2); user-select:none;">▶ 상세 분석 카드 (기존 KPI · 알람 · 결품 캘린더 · 모델 캐파 · ROP/EOQ · 필요수량 분포)</summary>
+    <div style="padding:0 14px 14px;">
+
   <!-- 🎯 오늘의 액션 (우선순위 큐) -->
   <div class="card" id="card-action-queue" style="margin-bottom:14px;background:rgba(56,201,160,0.10);border:0.5px solid var(--teal-b);">
     <div class="card__head">
@@ -1386,6 +1528,9 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <ul class="alert-list" id="alert-list"></ul>
     </div>
   </div>
+
+    </div>
+  </details>
 </section>
 
 <!-- PANEL: FINANCE (재무·분석) -->
@@ -3782,7 +3927,7 @@ function setActiveTab(t) {
   // 양식 탭일 때만 body 스크롤 잠금 (form-wrap 내부만 스크롤됨)
   document.body.classList.toggle('tab-form-active', t === 'form');
   if (t === 'ops' || t === 'finance' || t === 'data') renderDashboard();
-  if (t === 'ops') { if (typeof renderCapacityCard === 'function') renderCapacityCard(); if (typeof renderActionQueue === 'function') renderActionQueue(); if (typeof renderROPandEOQ === 'function') renderROPandEOQ(); }
+  if (t === 'ops') { if (typeof renderHeroDashboard === 'function') renderHeroDashboard(); if (typeof renderCapacityCard === 'function') renderCapacityCard(); if (typeof renderActionQueue === 'function') renderActionQueue(); if (typeof renderROPandEOQ === 'function') renderROPandEOQ(); }
   else if (t === 'orders') {
     renderOrders();
     setTimeout(() => document.querySelectorAll('.order-qty-input').forEach(validateMOQOnInput), 80);
@@ -7915,6 +8060,280 @@ function renderROPandEOQ() {
 }
 
 document.getElementById('eoq-order-cost')?.addEventListener('change', renderROPandEOQ);
+
+// 🎨 대시보드 히어로 렌더링 (스크린샷 스타일 대시보드)
+function renderHeroDashboard() {
+  renderHeroActionCard();
+  renderUpcomingReceipts();
+  renderStockHealth();
+  renderHeroAlertList();
+  renderSupplierDonut();
+  renderOrderKanban();
+  renderReminders();
+}
+
+// 히어로 카드 - 원형 프로그레스 + 오늘의 최우선 액션
+function renderHeroActionCard() {
+  const alarms = (typeof getAlarms === 'function') ? getAlarms() : [];
+  const overdue = alarms.filter(a => a.urgency === 0).length;
+  const urgent = alarms.filter(a => a.urgency === 1).length;
+  const soon = alarms.filter(a => a.urgency === 2).length;
+  const plan = alarms.filter(a => a.urgency === 3).length;
+  const totalNeed = alarms.length;
+  // 처리율 = 전체 부품 대비 alarm 없는 부품
+  const handled = MASTERS.length - totalNeed;
+  const pct = MASTERS.length > 0 ? Math.round((handled / MASTERS.length) * 100) : 100;
+  const strokeCol = pct >= 80 ? 'var(--teal)' : pct >= 60 ? 'var(--amb)' : 'var(--red)';
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const body = document.getElementById('hero-body');
+  if (body) {
+    body.innerHTML = `
+      <div class="hero-progress" style="width:160px; height:160px;">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          <circle cx="80" cy="80" r="68" stroke="var(--border2)" stroke-width="10" fill="none"/>
+          <circle cx="80" cy="80" r="68" stroke="${strokeCol}" stroke-width="10" fill="none"
+            stroke-dasharray="${(pct / 100) * 427.26}, 427.26" stroke-linecap="round"/>
+        </svg>
+        <div class="hero-progress-text">
+          <div style="font-size:28px; font-weight:700; color:${strokeCol}; font-family:var(--mono);">${pct}%</div>
+          <div style="font-size:10.5px; color:var(--t3); margin-top:2px;">부품 안정률</div>
+        </div>
+      </div>
+    `;
+  }
+  const titleEl = document.getElementById('hero-title');
+  if (titleEl) {
+    titleEl.textContent = overdue > 0 ? `🚨 ${overdue}건 즉시 발주 필요` : urgent > 0 ? `⚡ ${urgent}건 임박` : totalNeed === 0 ? '✅ 모든 부품 안정' : `${totalNeed}건 검토 필요`;
+  }
+  const updatedEl = document.getElementById('hero-updated');
+  if (updatedEl) updatedEl.textContent = `${timeStr} 갱신`;
+  const s1 = document.getElementById('hero-stat1-val'); if (s1) s1.textContent = fmt(overdue + urgent);
+  const s2 = document.getElementById('hero-stat2-val'); if (s2) s2.textContent = fmt(soon);
+  const s3 = document.getElementById('hero-stat3-val'); if (s3) s3.textContent = fmt(plan);
+}
+
+// 다가오는 입고 이벤트 (dueDate 기반)
+function renderUpcomingReceipts() {
+  const body = document.getElementById('upcoming-body');
+  const countEl = document.getElementById('upcoming-count');
+  if (!body) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const upcoming = (typeof orderHistory !== 'undefined' ? orderHistory : [])
+    .filter(e => e && e.type === 'order' && !e.cancelled && !e.received && e.dueDate)
+    .map(e => ({ e, due: new Date(e.dueDate) }))
+    .filter(x => x.due >= today)
+    .sort((a, b) => a.due - b.due)
+    .slice(0, 8);
+  if (countEl) countEl.textContent = `${upcoming.length}건`;
+  if (upcoming.length === 0) {
+    body.innerHTML = '<div style="text-align:center; color:var(--t3); font-size:11px; padding:32px 0;">예정된 입고 없음</div>';
+    return;
+  }
+  body.innerHTML = upcoming.map(({ e, due }) => {
+    const days = Math.ceil((due - today) / 86400000);
+    const dateStr = due.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' });
+    const ddColor = days === 0 ? 'var(--red)' : days <= 3 ? 'var(--amb)' : 'var(--sky)';
+    return `<div class="upcoming-item" onclick="setActiveTab('history')">
+      <div class="upcoming-item__date" style="color:${ddColor};">${dateStr}</div>
+      <div class="upcoming-item__supplier"><strong>${sanitize(e.supplier)}</strong><br><small style="color:var(--t3);">${e.items.length}품목 · ${fmt(e.totalQty)}EA${e.partialReceived ? ' · 부분' : ''}</small></div>
+      <div class="upcoming-item__qty" style="color:${ddColor}; font-weight:700;">${days === 0 ? '오늘' : 'D-' + days}</div>
+    </div>`;
+  }).join('');
+}
+
+// 재고 상태 미니 KPI
+function renderStockHealth() {
+  const body = document.getElementById('stock-health-body');
+  const badge = document.getElementById('stock-health-badge');
+  if (!body) return;
+  const shortsAll = MASTERS.filter(m => getResult(m).anyShort);
+  const shortRate = MASTERS.length > 0 ? (shortsAll.length / MASTERS.length) * 100 : 0;
+  const fin = (typeof computeFinancialKPIs === 'function') ? computeFinancialKPIs() : null;
+  const level = shortRate < 5 ? 'good' : shortRate < 15 ? 'warn' : 'crit';
+  const levelText = level === 'good' ? '✓ 양호' : level === 'warn' ? '⚠ 주의' : '🔴 위험';
+  const levelColor = level === 'good' ? 'var(--teal)' : level === 'warn' ? 'var(--amb)' : 'var(--red)';
+  if (badge) {
+    badge.textContent = levelText;
+    badge.style.background = level === 'good' ? 'rgba(56,201,160,0.15)' : level === 'warn' ? 'rgba(245,158,11,0.15)' : 'rgba(255,90,90,0.15)';
+    badge.style.color = levelColor;
+    badge.style.border = `0.5px solid ${levelColor}`;
+  }
+  body.innerHTML = `
+    <div class="stock-health-row"><span class="stock-health-row__label">총 구매품</span><span class="stock-health-row__value">${fmt(MASTERS.length)} 종</span></div>
+    <div class="stock-health-row"><span class="stock-health-row__label">부족 발생</span><span class="stock-health-row__value" style="color:${shortsAll.length > 0 ? 'var(--red)' : 'var(--teal)'};">${fmt(shortsAll.length)} 건 (${shortRate.toFixed(1)}%)</span></div>
+    ${fin ? `
+      <div class="stock-health-row"><span class="stock-health-row__label">재고가치</span><span class="stock-health-row__value" style="color:var(--sky);">₩${fmt(fin.invValueStart)}</span></div>
+      <div class="stock-health-row"><span class="stock-health-row__label">재고회전율</span><span class="stock-health-row__value">${fin.turnover.toFixed(1)} 회/년</span></div>
+      <div class="stock-health-row"><span class="stock-health-row__label">DIO</span><span class="stock-health-row__value">${fin.dio ? Math.round(fin.dio) : '-'} 일</span></div>
+    ` : ''}
+  `;
+}
+
+// 히어로 발주 알람 리스트
+function renderHeroAlertList() {
+  const list = document.getElementById('hero-alert-list');
+  const summary = document.getElementById('hero-alert-summary');
+  if (!list) return;
+  const alarms = (typeof getAlarms === 'function') ? getAlarms() : [];
+  const top = alarms.slice(0, 8);
+  if (summary) summary.textContent = `총 ${alarms.length}건 · OVERDUE ${alarms.filter(a=>a.urgency===0).length} · URGENT ${alarms.filter(a=>a.urgency===1).length}`;
+  if (top.length === 0) {
+    list.innerHTML = '<div style="text-align:center; color:var(--teal); font-size:11.5px; padding:32px 0;">✅ 즉시 발주 필요 품목 없음</div>';
+    return;
+  }
+  list.innerHTML = top.map(a => {
+    const cls = a.urgency === 0 ? 'overdue' : a.urgency === 1 ? 'urgent' : a.urgency === 2 ? 'soon' : 'plan';
+    const urgencyText = a.urgency === 0 ? '⚠ OVERDUE' : a.urgency === 1 ? '🔴 URGENT' : a.urgency === 2 ? '🟡 SOON' : '🟢 PLAN';
+    const urgencyColor = a.urgency <= 1 ? 'var(--red)' : a.urgency === 2 ? 'var(--amb)' : 'var(--teal)';
+    const ddText = a.daysLeft < 0 ? `D+${-a.daysLeft} 경과` : `D-${a.daysLeft}`;
+    return `<div class="alert-list-hero-item alert-list-hero-item--${cls}" onclick="setActiveTab('orders')">
+      <div style="flex:1; min-width:0;">
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span style="font-size:10px; font-weight:700; color:${urgencyColor};">${urgencyText}</span>
+          <span style="font-family:var(--mono); font-size:10.5px; color:var(--t1);">${sanitize(a.m.part_no)}</span>
+        </div>
+        <div style="font-size:10.5px; color:var(--t2); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sanitize(a.m.part_name)} · ${sanitize(a.m.supplier || '-')}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:var(--mono); font-size:12px; font-weight:700; color:${urgencyColor};">${ddText}</div>
+        <div style="font-size:9.5px; color:var(--t3);">LT ${a.lt}일</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 공급사 도넛
+function renderSupplierDonut() {
+  const body = document.getElementById('supplier-donut-body');
+  if (!body) return;
+  const suppliers = {};
+  const seen = new Set();
+  MASTERS.forEach(m => {
+    if (seen.has(m.part_no)) return;
+    seen.add(m.part_no);
+    const s = m.supplier || '(미지정)';
+    if (!suppliers[s]) suppliers[s] = { count: 0, value: 0 };
+    suppliers[s].count += 1;
+    const start = (typeof computePartTotalStart === 'function') ? computePartTotalStart(m.part_no) : (m.starting_stock || 0);
+    suppliers[s].value += start * (m.unit_price || 0);
+  });
+  const arr = Object.entries(suppliers).map(([name, v]) => ({ name, ...v })).sort((a,b) => b.value - a.value);
+  const total = arr.reduce((s, x) => s + x.value, 0);
+  const colors = ['#4aa8ff','#38c9a0','#f59e0b','#f472b6','#a855f7','#22d3ee','#84cc16','#ef4444'];
+  let cumAngle = 0;
+  const size = 140; const cx = size/2; const cy = size/2; const r = size/2 - 8;
+  const arcs = arr.map((s, i) => {
+    if (total === 0) return '';
+    const pct = s.value / total;
+    const angle = pct * 360;
+    const startAngle = cumAngle;
+    const endAngle = cumAngle + angle;
+    cumAngle = endAngle;
+    const startRad = (startAngle - 90) * Math.PI / 180;
+    const endRad = (endAngle - 90) * Math.PI / 180;
+    const x1 = cx + r * Math.cos(startRad);
+    const y1 = cy + r * Math.sin(startRad);
+    const x2 = cx + r * Math.cos(endRad);
+    const y2 = cy + r * Math.sin(endRad);
+    const largeArc = angle > 180 ? 1 : 0;
+    const color = colors[i % colors.length];
+    return `<path d="M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${color}" opacity="0.85"/>`;
+  }).join('');
+  body.innerHTML = `
+    <div style="display:flex; gap:14px; align-items:center;">
+      <div style="position:relative; width:${size}px; height:${size}px; flex-shrink:0;">
+        <svg width="${size}" height="${size}">${arcs}<circle cx="${cx}" cy="${cy}" r="${r*0.55}" fill="var(--bg-card)"/></svg>
+        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none;">
+          <div style="font-size:9px; color:var(--t3);">총 공급사</div>
+          <div style="font-size:18px; font-weight:700; color:var(--t1); font-family:var(--mono);">${arr.length}</div>
+        </div>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column; gap:4px; font-size:10.5px;">
+        ${arr.slice(0, 6).map((s, i) => `
+          <div style="display:flex; justify-content:space-between; gap:8px;">
+            <span style="color:var(--t2); display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; border-radius:50%; background:${colors[i % colors.length]}; display:inline-block;"></span>${sanitize(s.name)}</span>
+            <span style="font-family:var(--mono); color:var(--t1); font-weight:700;">${((s.value/total)*100).toFixed(1)}%</span>
+          </div>
+        `).join('')}
+        ${arr.length > 6 ? `<div style="color:var(--t3); font-size:9.5px;">외 ${arr.length - 6}개</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+// 발주 진행 칸반 (확정 / 부분입고 / 입고완료)
+function renderOrderKanban() {
+  const body = document.getElementById('kanban-body');
+  if (!body) return;
+  const hist = typeof orderHistory !== 'undefined' ? orderHistory : [];
+  const active = hist.filter(e => e.type === 'order' && !e.cancelled && !e.received && !e.partialReceived).slice(0, 5);
+  const partial = hist.filter(e => e.type === 'order' && !e.cancelled && e.partialReceived).slice(0, 5);
+  const done = hist.filter(e => e.type === 'order' && !e.cancelled && e.received).slice(0, 5);
+  const col = (title, items, color, count) => `
+    <div class="kanban-col">
+      <div class="kanban-col__head"><span>${title}</span><span style="font-family:var(--mono); color:${color}; font-weight:700;">${count}</span></div>
+      ${items.length === 0 ? '<div style="font-size:10.5px; color:var(--t3); text-align:center; padding:16px 0;">없음</div>' : items.map(e => `
+        <div class="kanban-item" onclick="setActiveTab('history')" style="cursor:pointer;">
+          <div class="kanban-item__supplier">${sanitize(e.supplier)}</div>
+          <div class="kanban-item__meta">${e.items.length}품목 · ${fmt(e.totalQty)}EA${e.dueDate ? ' · ' + new Date(e.dueDate).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'}) : ''}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  body.innerHTML =
+    col('🔵 발주 확정', active, 'var(--sky)', hist.filter(e => e.type === 'order' && !e.cancelled && !e.received && !e.partialReceived).length) +
+    col('⚠ 부분 입고', partial, 'var(--amb)', hist.filter(e => e.type === 'order' && !e.cancelled && e.partialReceived).length) +
+    col('✅ 입고 완료', done, 'var(--teal)', hist.filter(e => e.type === 'order' && !e.cancelled && e.received).length);
+}
+
+// 리마인더 (백업·이월 등)
+function renderReminders() {
+  const body = document.getElementById('reminders-body');
+  if (!body) return;
+  const items = [];
+  // 수동 백업 30일 경과
+  if (typeof _lastManualBackupInfo !== 'undefined' && _lastManualBackupInfo) {
+    const days = Math.floor((Date.now() - new Date(_lastManualBackupInfo.state_json._createdAt).getTime()) / 86400000);
+    if (days >= 20) {
+      items.push({ icon: '⚠', title: `수동 백업 ${days}일 경과`, meta: '매월 말 수동 백업 권장', action: () => setActiveTab('data') });
+    }
+  } else {
+    items.push({ icon: '⚠', title: '수동 백업 없음', meta: '데이터 점검 → 백업 생성 필수', action: () => setActiveTab('data') });
+  }
+  // 매월 말/1일 이월 처리 안내
+  const today = new Date();
+  const dayOfMonth = today.getDate();
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+  if (dayOfMonth >= lastDayOfMonth - 3 || dayOfMonth <= 3) {
+    items.push({ icon: '📅', title: '월말 마감 시기', meta: '월 이월 처리 · 시작재고 보존 옵션 체크 필수' });
+  }
+  // 미확인 입고
+  const unrecv = (typeof orderHistory !== 'undefined' ? orderHistory : []).filter(e => e.type === 'order' && !e.cancelled && !e.received && !e.partialReceived).length;
+  if (unrecv > 0) {
+    items.push({ icon: '📦', title: `미확인 입고 ${unrecv}건`, meta: '발주 이력에서 ✅ 입고 확인', action: () => setActiveTab('history') });
+  }
+  // 미발주 사유 미입력
+  if (typeof state !== 'undefined' && state.unmetReasons != null) {
+    const unmetMissing = MASTERS.filter(m => {
+      const r = getResult(m);
+      return r.anyShort && (typeof getOrderQty === 'function' ? getOrderQty(m) : 0) === 0 && !(state.unmetReasons[m.part_no] || '').trim();
+    }).length;
+    if (unmetMissing > 0) {
+      items.push({ icon: '🟡', title: `미발주 사유 ${unmetMissing}건 누락`, meta: '발주 확정 탭 → 사유 입력', action: () => setActiveTab('orders') });
+    }
+  }
+  if (items.length === 0) {
+    body.innerHTML = '<div style="text-align:center; color:var(--teal); font-size:11.5px; padding:32px 0;">✅ 처리 대기 항목 없음</div>';
+    return;
+  }
+  body.innerHTML = items.map(it => `
+    <div class="reminder-item" ${it.action ? 'style="cursor:pointer;" onclick="(' + it.action.toString() + ')()"' : ''}>
+      <div class="reminder-item__icon">${it.icon}</div>
+      <div class="reminder-item__body"><strong>${sanitize(it.title)}</strong><small>${sanitize(it.meta)}</small></div>
+    </div>
+  `).join('');
+}
 
 // 🎯 오늘의 액션 (우선순위 큐) — 즉시 처리 필요한 작업 자동 집계
 function renderActionQueue() {
