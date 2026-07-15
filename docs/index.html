@@ -1158,7 +1158,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 <nav class="tabs">
   <div class="tabs__inner">
     <button class="tab tab--active" data-tab="ops">운영 현황 <span class="tab__count tab__count--alert" id="count-alarms">0</span></button>
-    <button class="tab" data-tab="ops-detail">📈 상세 분석</button>
+    <button class="tab" data-tab="ops-detail">상세 분석</button>
     <button class="tab" data-tab="form">수급 운영 계획</button>
     <button class="tab" data-tab="orders">발주 확정/관리 <span class="tab__count tab__count--alert" id="count-orders">0</span></button>
     <button class="tab" data-tab="history">발주 이력 <span class="tab__count" id="count-history">0</span></button>
@@ -1381,7 +1381,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
   </div>
 
   <div style="text-align:center; padding:14px; color:var(--t3); font-size:11px; border:0.5px dashed var(--border2); border-radius:8px;">
-    💡 상세 KPI · 알람 · 결품 캘린더 · 모델 캐파 · ROP/EOQ · 필요수량 분포는 <strong style="color:var(--sky);">📈 상세 분석</strong> 탭에서 확인
+    💡 상세 KPI · 알람 · 결품 캘린더 · 모델 캐파 · ROP/EOQ · 필요수량 분포는 <strong style="color:var(--sky);">상세 분석</strong> 탭에서 확인
   </div>
 </section>
 
@@ -8230,18 +8230,33 @@ function renderSupplierDonut() {
     const start = (typeof computePartTotalStart === 'function') ? computePartTotalStart(m.part_no) : (m.starting_stock || 0);
     suppliers[s].value += start * (m.unit_price || 0);
   });
-  const arr = Object.entries(suppliers).map(([name, v]) => ({ name, ...v })).sort((a,b) => b.value - a.value);
-  const total = arr.reduce((s, x) => s + x.value, 0);
+  const arrValue = Object.entries(suppliers).map(([name, v]) => ({ name, ...v })).sort((a,b) => b.value - a.value);
+  const totalValue = arrValue.reduce((s, x) => s + x.value, 0);
+  // 재고 가치가 0이면 (윈도우 이월 직후 등) 품목수 기반으로 폴백
+  const useValue = totalValue > 0;
+  const arr = useValue
+    ? arrValue
+    : Object.entries(suppliers).map(([name, v]) => ({ name, ...v })).sort((a,b) => b.count - a.count);
+  const total = useValue ? totalValue : arr.reduce((s, x) => s + x.count, 0);
+  const metricLabel = useValue ? '재고가치' : '품목수';
+  if (arr.length === 0 || total === 0) {
+    body.innerHTML = `<div style="text-align:center; color:var(--t3); font-size:11px; padding:60px 0;">공급사 데이터 없음</div>`;
+    return;
+  }
   const colors = ['#4aa8ff','#38c9a0','#f59e0b','#f472b6','#a855f7','#22d3ee','#84cc16','#ef4444'];
   let cumAngle = 0;
   const size = 140; const cx = size/2; const cy = size/2; const r = size/2 - 8;
   const arcs = arr.map((s, i) => {
-    if (total === 0) return '';
-    const pct = s.value / total;
+    const metric = useValue ? s.value : s.count;
+    const pct = metric / total;
     const angle = pct * 360;
     const startAngle = cumAngle;
     const endAngle = cumAngle + angle;
     cumAngle = endAngle;
+    // 100% 단독 공급사 → 완전 원
+    if (arr.length === 1 || pct >= 0.999) {
+      return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${colors[i % colors.length]}" opacity="0.85"/>`;
+    }
     const startRad = (startAngle - 90) * Math.PI / 180;
     const endRad = (endAngle - 90) * Math.PI / 180;
     const x1 = cx + r * Math.cos(startRad);
@@ -8262,12 +8277,17 @@ function renderSupplierDonut() {
         </div>
       </div>
       <div style="flex:1; display:flex; flex-direction:column; gap:4px; font-size:10.5px;">
-        ${arr.slice(0, 6).map((s, i) => `
+        <div style="font-size:9.5px; color:var(--t3); margin-bottom:2px;">기준: ${metricLabel}</div>
+        ${arr.slice(0, 6).map((s, i) => {
+          const metric = useValue ? s.value : s.count;
+          const pct = ((metric/total)*100).toFixed(1);
+          return `
           <div style="display:flex; justify-content:space-between; gap:8px;">
-            <span style="color:var(--t2); display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; border-radius:50%; background:${colors[i % colors.length]}; display:inline-block;"></span>${sanitize(s.name)}</span>
-            <span style="font-family:var(--mono); color:var(--t1); font-weight:700;">${((s.value/total)*100).toFixed(1)}%</span>
+            <span style="color:var(--t2); display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><span style="width:8px; height:8px; border-radius:50%; background:${colors[i % colors.length]}; display:inline-block; flex-shrink:0;"></span>${sanitize(s.name)}</span>
+            <span style="font-family:var(--mono); color:var(--t1); font-weight:700; flex-shrink:0;">${pct}%<span style="color:var(--t3); font-weight:500;"> · ${s.count}품</span></span>
           </div>
-        `).join('')}
+          `;
+        }).join('')}
         ${arr.length > 6 ? `<div style="color:var(--t3); font-size:9.5px;">외 ${arr.length - 6}개</div>` : ''}
       </div>
     </div>
