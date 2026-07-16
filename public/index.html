@@ -9683,23 +9683,23 @@ function bulkPrintPOs() {
     items.forEach(it => { if (!grouped[it.groupKey]) grouped[it.groupKey] = []; grouped[it.groupKey].push({ master: it.master, qty: it.qty, bigo: it.bigo }); });
     const { dataRowsHtml, blankRowsHtml, totalQty, totalAmt } = buildPOItemsBody(grouped, 24);
     return `<div class="bulk-po-page">
-      <div class="po-header-logo"><img src="${logoSrc}" alt="TC TECH"></div>
+      <div class="po-header-logo"><img src="${logoSrc}" alt="TC TECH"><span class="po-brand-text">주식회사티시테크</span></div>
       <div class="po-title">${sanitize(monthLabelStr)} 구매품 발주서</div>
       <div class="po-info-grid">
         <div class="po-info-block"><div class="po-info-head">발 주 처</div>
           <table class="po-info-table">
-            <tr><th>회사명</th><td>${sanitize(BUYER_INFO.company)}</td><th>담당자</th><td>${sanitize(BUYER_INFO.contact)}</td></tr>
-            <tr><th>사업자번호</th><td>${sanitize(BUYER_INFO.bizNo)}</td><th>연락처</th><td>${sanitize(BUYER_INFO.phone)}</td></tr>
-            <tr><th>대표자</th><td>${sanitize(BUYER_INFO.ceo)}</td><th>발주일자</th><td>${orderDate}</td></tr>
-            <tr><th>주소</th><td colspan="3">${sanitize(BUYER_INFO.address)}</td></tr>
+            <tr><th>회사명</th><td class="po-info-cell">${sanitize(BUYER_INFO.company)}</td><th>담당자</th><td class="po-info-cell">${sanitize(BUYER_INFO.contact)}</td></tr>
+            <tr><th>사업자번호</th><td class="po-info-cell">${sanitize(BUYER_INFO.bizNo)}</td><th>연락처</th><td class="po-info-cell">${sanitize(BUYER_INFO.phone)}</td></tr>
+            <tr><th>대표자</th><td class="po-info-cell">${sanitize(BUYER_INFO.ceo)}</td><th>발주일자</th><td class="po-info-cell">${orderDate}</td></tr>
+            <tr><th>주소</th><td class="po-info-cell po-info-cell--addr" colspan="3">${sanitize(BUYER_INFO.address)}</td></tr>
           </table>
         </div>
         <div class="po-info-block"><div class="po-info-head">수 신 처</div>
           <table class="po-info-table">
-            <tr><th>회사명</th><td>${sanitize(info.company)}</td><th>담당자</th><td>${sanitize(info.contact)}</td></tr>
-            <tr><th>사업자번호</th><td>${sanitize(info.bizNo)}</td><th>연락처</th><td>${sanitize(info.phone)}</td></tr>
-            <tr><th>대표자</th><td>${sanitize(info.ceo)}</td><th>납기일자</th><td>${delivDate}</td></tr>
-            <tr><th>주소</th><td colspan="3">${sanitize(info.address)}</td></tr>
+            <tr><th>회사명</th><td class="po-info-cell">${sanitize(info.company)}</td><th>담당자</th><td class="po-info-cell">${sanitize(info.contact)}</td></tr>
+            <tr><th>사업자번호</th><td class="po-info-cell">${sanitize(info.bizNo)}</td><th>연락처</th><td class="po-info-cell">${sanitize(info.phone)}</td></tr>
+            <tr><th>대표자</th><td class="po-info-cell">${sanitize(info.ceo)}</td><th>납기일자</th><td class="po-info-cell">${delivDate}</td></tr>
+            <tr><th>주소</th><td class="po-info-cell po-info-cell--addr" colspan="3">${sanitize(info.address)}</td></tr>
           </table>
         </div>
       </div>
@@ -9741,15 +9741,18 @@ function bulkPrintPOs() {
   body { font-family: 'Malgun Gothic', sans-serif; color: #000; margin: 0; padding: 0; background: #fff; font-size: 11px; }
   .bulk-po-page { padding: 14mm; page-break-after: always; box-sizing: border-box; }
   .bulk-po-page:last-child { page-break-after: auto; }
-  .po-header-logo { text-align: right; margin-bottom: 8px; }
-  .po-header-logo img { height: 36px; }
+  .po-header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; }
+  .po-header-logo img { height: 36px; width: auto; object-fit: contain; }
+  .po-brand-text { font-size: 20px; font-weight: 800; color: #111; letter-spacing: 0.5px; }
   .po-title { font-size: 22px; font-weight: 800; text-align: center; margin: 6px 0 14px; }
   .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .po-info-block { border: 1.5px solid #000; }
   .po-info-head { background: #d0d0d0; text-align: center; font-weight: 700; padding: 4px; font-size: 12px; }
-  .po-info-table { width: 100%; border-collapse: collapse; }
-  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 4px 6px; font-size: 10.5px; vertical-align: middle; }
+  .po-info-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 4px 6px; font-size: 10.5px; vertical-align: middle; height: 22px; box-sizing: border-box; overflow: hidden; }
   .po-info-table th { background: #f0f0f0; width: 22%; text-align: left; font-weight: 700; }
+  .po-info-cell { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .po-info-cell--addr { text-align: left; padding-left: 10px; }
   .po-section-head { font-size: 13px; font-weight: 700; margin: 8px 0 6px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
   .po-items-table { width: 100%; border-collapse: collapse; font-size: 10px; }
   .po-items-table th, .po-items-table td { border: 0.5px solid #555; padding: 4px 5px; }
@@ -10016,23 +10019,23 @@ function generateAutoPOPDF() {
     });
     const { dataRowsHtml, blankRowsHtml, totalQty, totalAmt } = buildPOItemsBody(rowsByModel, 24);
     return `<div class="bulk-po-page">
-      <div class="po-header-logo"><img src="${logoSrc}" alt="TC TECH"></div>
+      <div class="po-header-logo"><img src="${logoSrc}" alt="TC TECH"><span class="po-brand-text">주식회사티시테크</span></div>
       <div class="po-title">${sanitize(monthLabelStr)} 구매품 발주서</div>
       <div class="po-info-grid">
         <div class="po-info-block"><div class="po-info-head">발 주 처</div>
           <table class="po-info-table">
-            <tr><th>회사명</th><td>${sanitize(BUYER_INFO.company)}</td><th>담당자</th><td>${sanitize(BUYER_INFO.contact)}</td></tr>
-            <tr><th>사업자번호</th><td>${sanitize(BUYER_INFO.bizNo)}</td><th>연락처</th><td>${sanitize(BUYER_INFO.phone)}</td></tr>
-            <tr><th>대표자</th><td>${sanitize(BUYER_INFO.ceo)}</td><th>발주일자</th><td>${orderDate}</td></tr>
-            <tr><th>주소</th><td colspan="3">${sanitize(BUYER_INFO.address)}</td></tr>
+            <tr><th>회사명</th><td class="po-info-cell">${sanitize(BUYER_INFO.company)}</td><th>담당자</th><td class="po-info-cell">${sanitize(BUYER_INFO.contact)}</td></tr>
+            <tr><th>사업자번호</th><td class="po-info-cell">${sanitize(BUYER_INFO.bizNo)}</td><th>연락처</th><td class="po-info-cell">${sanitize(BUYER_INFO.phone)}</td></tr>
+            <tr><th>대표자</th><td class="po-info-cell">${sanitize(BUYER_INFO.ceo)}</td><th>발주일자</th><td class="po-info-cell">${orderDate}</td></tr>
+            <tr><th>주소</th><td class="po-info-cell po-info-cell--addr" colspan="3">${sanitize(BUYER_INFO.address)}</td></tr>
           </table>
         </div>
         <div class="po-info-block"><div class="po-info-head">수 신 처</div>
           <table class="po-info-table">
-            <tr><th>회사명</th><td>${sanitize(info.company)}</td><th>담당자</th><td>${sanitize(info.contact)}</td></tr>
-            <tr><th>사업자번호</th><td>${sanitize(info.bizNo)}</td><th>연락처</th><td>${sanitize(info.phone)}</td></tr>
-            <tr><th>대표자</th><td>${sanitize(info.ceo)}</td><th>납기일자</th><td>${delivDate}</td></tr>
-            <tr><th>주소</th><td colspan="3">${sanitize(info.address)}</td></tr>
+            <tr><th>회사명</th><td class="po-info-cell">${sanitize(info.company)}</td><th>담당자</th><td class="po-info-cell">${sanitize(info.contact)}</td></tr>
+            <tr><th>사업자번호</th><td class="po-info-cell">${sanitize(info.bizNo)}</td><th>연락처</th><td class="po-info-cell">${sanitize(info.phone)}</td></tr>
+            <tr><th>대표자</th><td class="po-info-cell">${sanitize(info.ceo)}</td><th>납기일자</th><td class="po-info-cell">${delivDate}</td></tr>
+            <tr><th>주소</th><td class="po-info-cell po-info-cell--addr" colspan="3">${sanitize(info.address)}</td></tr>
           </table>
         </div>
       </div>
@@ -10074,15 +10077,18 @@ function generateAutoPOPDF() {
   body { font-family: 'Malgun Gothic', sans-serif; color: #000; margin: 0; padding: 0; background: #fff; font-size: 11px; }
   .bulk-po-page { padding: 14mm; page-break-after: always; box-sizing: border-box; }
   .bulk-po-page:last-child { page-break-after: auto; }
-  .po-header-logo { text-align: right; margin-bottom: 8px; }
-  .po-header-logo img { height: 36px; }
+  .po-header-logo { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; }
+  .po-header-logo img { height: 36px; width: auto; object-fit: contain; }
+  .po-brand-text { font-size: 20px; font-weight: 800; color: #111; letter-spacing: 0.5px; }
   .po-title { font-size: 22px; font-weight: 800; text-align: center; margin: 6px 0 14px; }
   .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .po-info-block { border: 1.5px solid #000; }
   .po-info-head { background: #d0d0d0; text-align: center; font-weight: 700; padding: 4px; font-size: 12px; }
-  .po-info-table { width: 100%; border-collapse: collapse; }
-  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 4px 6px; font-size: 10.5px; vertical-align: middle; }
+  .po-info-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 4px 6px; font-size: 10.5px; vertical-align: middle; height: 22px; box-sizing: border-box; overflow: hidden; }
   .po-info-table th { background: #f0f0f0; width: 22%; text-align: left; font-weight: 700; }
+  .po-info-cell { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .po-info-cell--addr { text-align: left; padding-left: 10px; }
   .po-section-head { font-size: 13px; font-weight: 700; margin: 8px 0 6px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
   .po-items-table { width: 100%; border-collapse: collapse; font-size: 10px; }
   .po-items-table th, .po-items-table td { border: 0.5px solid #555; padding: 4px 5px; }
