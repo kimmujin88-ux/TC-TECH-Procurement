@@ -2135,6 +2135,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div class="section-title__label">▎ 발주 이력 (전체 조회)</div>
     <div style="display:flex; gap:8px; align-items:center;">
       <div class="section-title__hint">발주 확정·취소·입고 완료 <strong>전체 기록</strong>. 입고 관리는 → <strong style="color:var(--sky);">입고 확정/관리</strong> 탭.</div>
+      <button class="btn btn--sm" id="btn-quick-add-order" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;">➕ 긴급 단일 발주 직접 추가</button>
       <button class="btn btn--ghost btn--sm" id="btn-clear-history" style="color:var(--red); border-color:var(--red-b);">전체 삭제</button>
     </div>
   </div>
@@ -10390,6 +10391,146 @@ document.getElementById('btn-clear-history').addEventListener('click', () => {
   updateHistoryCount();
   if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
 });
+
+// ➕ 긴급 단일 발주 직접 추가 모달
+document.getElementById('btn-quick-add-order')?.addEventListener('click', openQuickAddOrderModal);
+
+function openQuickAddOrderModal() {
+  if (window.guardAdmin && !window.guardAdmin('긴급 단일 발주 추가')) return;
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  document.querySelector('.modal__title').textContent = '➕ 긴급 단일 발주 직접 추가';
+  const today = new Date().toISOString().slice(0, 10);
+  modalBody.innerHTML = `<div style="padding:18px 22px;color:var(--t1);">
+    <div style="background:rgba(96,170,220,0.08);border-left:3px solid var(--sky);padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:11px;color:var(--t2);line-height:1.6;">
+      ℹ 정기 발주 외 <strong>단일 품목 긴급 발주</strong>를 이력에 직접 추가합니다.<br>
+      • 발주 확정 후 이력·입고 확정/관리 탭에 즉시 나타납니다.<br>
+      • 실제 입고 시 입고 확정/관리 탭에서 <strong>✅ 입고 확인</strong>을 누르세요.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;margin-bottom:14px;">
+      <div>
+        <label style="display:block;font-size:11px;color:var(--t3);margin-bottom:4px;">품번 (검색·자동완성)</label>
+        <input type="text" id="qa-part" list="masters-list" placeholder="예: 1296714" autocomplete="off" style="width:100%;padding:8px 12px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;font-size:12px;font-family:var(--mono);box-sizing:border-box;">
+        <div id="qa-part-info" style="font-size:10.5px;color:var(--t3);margin-top:4px;line-height:1.4;min-height:32px;"></div>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--t3);margin-bottom:4px;">수량 (EA)</label>
+        <input type="number" id="qa-qty" placeholder="예: 50" min="1" step="1" style="width:100%;padding:8px 12px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;font-size:12px;font-family:var(--mono);box-sizing:border-box;">
+        <div id="qa-qty-info" style="font-size:10.5px;color:var(--t3);margin-top:4px;">단가 × 수량 = 금액</div>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--t3);margin-bottom:4px;">발주일자</label>
+        <input type="date" id="qa-order-date" value="${today}" style="width:100%;padding:8px 12px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;font-size:12px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--t3);margin-bottom:4px;">납기일자 (예상 입고일)</label>
+        <input type="date" id="qa-due-date" value="${today}" style="width:100%;padding:8px 12px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;font-size:12px;box-sizing:border-box;">
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:11px;color:var(--t3);margin-bottom:4px;">비고 (선택)</label>
+      <input type="text" id="qa-bigo" placeholder="예: 긴급 · 추가 발주 · 샘플 등" style="width:100%;padding:8px 12px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;font-size:12px;box-sizing:border-box;">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
+      <button class="btn btn--teal" id="qa-save" style="font-weight:700;">✅ 발주 이력에 추가</button>
+    </div>
+  </div>`;
+  modal.classList.remove('modal--po');
+  modal.classList.add('modal-backdrop--open');
+
+  const partEl = document.getElementById('qa-part');
+  const qtyEl = document.getElementById('qa-qty');
+  const orderDateEl = document.getElementById('qa-order-date');
+  const dueDateEl = document.getElementById('qa-due-date');
+  const infoEl = document.getElementById('qa-part-info');
+  const qtyInfoEl = document.getElementById('qa-qty-info');
+
+  const updatePartInfo = () => {
+    const pn = partEl.value.trim();
+    const found = MASTERS.find(m => m.part_no === pn);
+    if (!found) {
+      infoEl.innerHTML = '<span style="color:var(--t3);">품번을 정확히 입력하면 정보가 표시됩니다.</span>';
+      qtyInfoEl.textContent = '단가 × 수량 = 금액';
+      return;
+    }
+    infoEl.innerHTML = `<strong style="color:var(--t1);">${sanitize(found.part_name)}</strong><br>공급사 <strong style="color:var(--teal);">${sanitize(found.supplier)}</strong> · 모델 ${sanitize(displayName(found))} · LT ${found.lead_time_days || '-'}일 · 단가 ₩${fmt(found.unit_price)}`;
+    // LT 기반 납기 자동 갱신
+    if (orderDateEl.value && found.lead_time_days) {
+      const od = new Date(orderDateEl.value);
+      od.setDate(od.getDate() + Number(found.lead_time_days || 0));
+      dueDateEl.value = od.toISOString().slice(0, 10);
+    }
+    updateQtyInfo();
+  };
+  const updateQtyInfo = () => {
+    const pn = partEl.value.trim();
+    const found = MASTERS.find(m => m.part_no === pn);
+    const q = parseInt(qtyEl.value, 10) || 0;
+    if (found && q > 0) {
+      const amt = q * (found.unit_price || 0);
+      qtyInfoEl.innerHTML = `${fmt(q)} EA × ₩${fmt(found.unit_price)} = <strong style="color:var(--teal);">₩${fmt(amt)}</strong>`;
+    } else {
+      qtyInfoEl.textContent = '단가 × 수량 = 금액';
+    }
+  };
+  partEl.addEventListener('input', updatePartInfo);
+  partEl.addEventListener('change', updatePartInfo);
+  qtyEl.addEventListener('input', updateQtyInfo);
+  orderDateEl.addEventListener('change', updatePartInfo);
+  setTimeout(() => partEl.focus(), 100);
+
+  document.getElementById('qa-save').addEventListener('click', () => {
+    const pn = partEl.value.trim();
+    const found = MASTERS.find(m => m.part_no === pn);
+    if (!found) { alert('품번을 찾을 수 없습니다. 마스터에 등록된 품번을 입력하세요.'); partEl.focus(); return; }
+    const q = parseInt(qtyEl.value, 10) || 0;
+    if (q <= 0) { alert('수량을 1 이상 입력하세요.'); qtyEl.focus(); return; }
+    const orderDate = orderDateEl.value;
+    const dueDate = dueDateEl.value;
+    if (!orderDate) { alert('발주일자를 입력하세요.'); return; }
+    const bigo = document.getElementById('qa-bigo').value.trim();
+    const amount = q * (found.unit_price || 0);
+    const entry = {
+      date: new Date(orderDate + 'T09:00:00').toISOString() + '_qa_' + Date.now(),
+      type: 'order',
+      supplier: found.supplier || '(미지정)',
+      items: [{
+        pn: found.part_no,
+        name: found.part_name,
+        model: displayName(found),
+        qty: q,
+        unitPrice: found.unit_price || 0,
+        amount,
+        receivedQty: 0,
+        bigo
+      }],
+      totalQty: q,
+      totalAmt: amount,
+      dueDate: dueDate || null,
+      quickAdd: true,
+      createdBy: sessionStorage.getItem('tctech_auth_user') || 'unknown'
+    };
+    orderHistory.push(entry);
+    saveHistory();
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: entry.createdBy,
+      action: 'quick_add_order',
+      field: `${found.supplier}.${found.part_no}`,
+      before: '',
+      after: `+${fmt(q)}EA · ₩${fmt(amount)}${bigo ? ' · ' + bigo : ''}`
+    });
+    saveInputs();
+    updateHistoryCount();
+    if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+    if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+    renderHistory();
+    document.getElementById('modal').classList.remove('modal-backdrop--open');
+    alert(`✅ 발주 이력에 추가 완료.\n\n${found.supplier} · ${found.part_no} · ${fmt(q)} EA · ₩${fmt(amount)}\n\n입고 시 "입고 확정/관리" 탭에서 ✅ 입고 확인을 누르세요.`);
+  });
+}
 
 // ERP 가져오기 버튼 이벤트
 document.getElementById('btn-erp-import').addEventListener('click', () => {
