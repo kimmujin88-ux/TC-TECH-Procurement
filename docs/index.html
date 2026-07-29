@@ -4153,8 +4153,9 @@ function renderForm() {
 // }
 
 function summaryRowHtml(label, items, isGrand = false) {
-  const totals = { start: 0, may: {req:0, inc:0, end:0}, jun: {req:0, inc:0, end:0}, jul: {req:0, inc:0, end:0}, aug: {req:0, inc:0, end:0} };
-  
+  const totals = { start: 0, may: {qty:0, req:0, inc:0, end:0}, jun: {qty:0, req:0, inc:0, end:0}, jul: {qty:0, req:0, inc:0, end:0}, aug: {qty:0, req:0, inc:0, end:0} };
+
+  // 필요·입고·재고: 각 master row의 값 합산 (공용 부품은 자연스럽게 모델별 합계)
   items.forEach(m => {
     const r = getResult(m);
     totals.start += (r.start || 0);
@@ -4162,6 +4163,15 @@ function summaryRowHtml(label, items, isGrand = false) {
       totals[mo].req += (r.months[mo].required || 0);
       totals[mo].inc += (r.months[mo].incoming || 0);
       totals[mo].end += (r.months[mo].ending || 0);
+    });
+  });
+  // 제작대수: 모델별 1회씩만 (동일 모델 여러 부품에서 중복 카운트 방지)
+  const uniqueModels = new Set();
+  items.forEach(m => uniqueModels.add(displayName(m)));
+  uniqueModels.forEach(dn => {
+    const mi = (state.modelInputs && state.modelInputs[dn]) || emptyModelInput();
+    ['may','jun','jul','aug'].forEach(mo => {
+      totals[mo].qty += (mi[`${mo}_qty`] || 0);
     });
   });
 
@@ -4175,7 +4185,7 @@ function summaryRowHtml(label, items, isGrand = false) {
       <td></td>
       <td class="cell-num" style="text-align:center;">${fmt(totals.start)}</td>
       ${['may','jun','jul','aug'].map(mo => `
-        <td class="${monthClass[mo]}"></td>
+        <td class="cell-num ${monthClass[mo]}" style="font-weight:700;">${fmt(totals[mo].qty)}</td>
         <td class="cell-num ${monthClass[mo]}">${fmt(totals[mo].req)}</td>
         <td class="cell-num ${monthClass[mo]}">${fmt(totals[mo].inc)}</td>
         <td class="cell-num ${monthClass[mo]}">${fmt(totals[mo].end)}</td>
@@ -4325,27 +4335,90 @@ function updateSharedPartRows(pn) {
       }
     });
   });
+  if (typeof updateSummaryRows === 'function') updateSummaryRows();
 }
 
 function updateItemRow(pn) {
-  const master = MASTERS.find(m => m.part_no === pn);
-  if (!master) return;
-  const r = getResult(master);
-  const tr = document.querySelector(`tr.item-row[data-pn="${CSS.escape(pn)}"]`);
-  if (!tr) return;
-  
+  // 공용 부품 대응: 같은 part_no의 모든 model row를 각각 갱신 (masterKey 기준)
+  const masters = MASTERS.filter(m => m.part_no === pn);
   const months = ['may', 'jun', 'jul', 'aug'];
-  months.forEach(mo => {
-    const d = r.months[mo];
-    // 제작대수 셀은 그룹 첫 행에만 존재 (rowspan으로 병합)
-    const qtyCell = tr.querySelector(`[data-cell="${mo}_qty"]`);
-    const reqCell = tr.querySelector(`[data-cell="${mo}_required"]`);
-    const endCell = tr.querySelector(`[data-cell="${mo}_ending"]`);
-    if (qtyCell) qtyCell.textContent = fmt(d.qty);
-    if (reqCell) reqCell.textContent = fmt(d.required);
-    if (endCell) {
-      endCell.textContent = fmt(d.ending);
-      endCell.classList.toggle('cell-num--alert', r.shortAt[mo]);
+  masters.forEach(master => {
+    const r = getResult(master);
+    const mkey = masterInputKey(master);
+    const tr = document.querySelector(`tr.item-row[data-mkey="${CSS.escape(mkey)}"]`);
+    if (!tr) return;
+    months.forEach(mo => {
+      const d = r.months[mo];
+      const qtyCell = tr.querySelector(`[data-cell="${mo}_qty"]`);
+      const reqCell = tr.querySelector(`[data-cell="${mo}_required"]`);
+      const endCell = tr.querySelector(`[data-cell="${mo}_ending"]`);
+      if (qtyCell) qtyCell.textContent = fmt(d.qty);
+      if (reqCell) reqCell.textContent = fmt(d.required);
+      if (endCell) {
+        endCell.textContent = fmt(d.ending);
+        endCell.classList.toggle('cell-num--alert', r.shortAt[mo]);
+      }
+    });
+  });
+  // 누계·총합계 row 갱신
+  if (typeof updateSummaryRows === 'function') updateSummaryRows();
+}
+
+// 고객사 누계 / 총 합계 row를 최신값으로 갱신 (모델 qty·입고 변경 후 호출)
+function updateSummaryRows() {
+  const filtered = filterMasters();
+  const groups = { 'TEREX GENIE': [], 'HD건설기계': [] };
+  filtered.forEach(m => {
+    const dn = displayName(m);
+    const cust = (dn.includes('R55C Lower Frame') ||
+                  dn.includes('HX55ACR Lower Frame') ||
+                  dn.includes('HX63AH Lower Frame')) ? 'HD건설기계' : 'TEREX GENIE';
+    groups[cust].push(m);
+  });
+  const grand = [...groups['TEREX GENIE'], ...groups['HD건설기계']];
+
+  const computeTotals = (items) => {
+    const t = { start: 0, may: {qty:0,req:0,inc:0,end:0}, jun: {qty:0,req:0,inc:0,end:0}, jul: {qty:0,req:0,inc:0,end:0}, aug: {qty:0,req:0,inc:0,end:0} };
+    items.forEach(m => {
+      const r = getResult(m);
+      t.start += (r.start || 0);
+      ['may','jun','jul','aug'].forEach(mo => {
+        t[mo].req += (r.months[mo].required || 0);
+        t[mo].inc += (r.months[mo].incoming || 0);
+        t[mo].end += (r.months[mo].ending || 0);
+      });
+    });
+    // 제작대수: 유니크 모델 기준 1회 카운트
+    const uniqueModels = new Set();
+    items.forEach(m => uniqueModels.add(displayName(m)));
+    uniqueModels.forEach(dn => {
+      const mi = (state.modelInputs && state.modelInputs[dn]) || emptyModelInput();
+      ['may','jun','jul','aug'].forEach(mo => { t[mo].qty += (mi[`${mo}_qty`] || 0); });
+    });
+    return t;
+  };
+
+  // 각 summary-row는 label로 식별 → 순서 기반으로 찾기 (TEREX 누계, HD 누계, 총 합계 순)
+  const summaryRows = document.querySelectorAll('#form-tbody tr.summary-row');
+  const targets = [
+    { items: groups['TEREX GENIE'], row: summaryRows[0] },
+    { items: groups['HD건설기계'], row: summaryRows[1] },
+    { items: grand, row: summaryRows[2] }
+  ];
+  targets.forEach(tg => {
+    if (!tg.row) return;
+    const t = computeTotals(tg.items);
+    const cells = tg.row.querySelectorAll('td.cell-num');
+    // cells 순서: [start, may.qty, may.req, may.inc, may.end, jun.qty, ..., aug.end]
+    if (cells.length >= 17) {
+      cells[0].textContent = fmt(t.start);
+      let i = 1;
+      ['may','jun','jul','aug'].forEach(mo => {
+        cells[i++].textContent = fmt(t[mo].qty);
+        cells[i++].textContent = fmt(t[mo].req);
+        cells[i++].textContent = fmt(t[mo].inc);
+        cells[i++].textContent = fmt(t[mo].end);
+      });
     }
   });
 }
