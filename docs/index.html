@@ -9819,15 +9819,13 @@ function bulkPrintPOs() {
   .po-header-logo img { height: 36px; width: auto; object-fit: contain; }
   .po-brand-text { font-size: 20px; font-weight: 800; color: #111; letter-spacing: 0.5px; }
   .po-title { font-size: 22px; font-weight: 800; text-align: center; margin: 6px 0 14px; }
-  .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .po-info-block { border: 1.5px solid #000; box-sizing: border-box; height: 132px; display: flex; flex-direction: column; overflow: hidden; }
+  .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; align-items: stretch; }
+  .po-info-block { border: 1.5px solid #000; box-sizing: border-box; display: flex; flex-direction: column; }
   .po-info-head { background: #d0d0d0; text-align: center; font-weight: 700; padding: 3px 4px; font-size: 12px; flex: 0 0 auto; line-height: 1.4; }
   .po-info-table { width: 100%; border-collapse: collapse; table-layout: fixed; flex: 1; }
-  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 3px 6px; font-size: 10.5px; vertical-align: middle; line-height: 1.3; box-sizing: border-box; word-break: keep-all; overflow-wrap: break-word; }
+  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 3px 5px; font-size: 10.5px; vertical-align: middle; line-height: 1.3; box-sizing: border-box; word-break: keep-all; overflow-wrap: break-word; }
   .po-info-table th { background: #f0f0f0; text-align: center; font-weight: 700; width: 22%; white-space: nowrap; }
   .po-info-table td { width: 28%; }
-  .po-info-table tr { height: 24px; }
-  .po-info-table tr:last-child { height: 36px; }
   .po-info-cell { text-align: center; }
   .po-info-cell--addr { text-align: left; padding-left: 10px; font-size: 9.5px; line-height: 1.35; }
   .po-section-head { font-size: 13px; font-weight: 700; margin: 8px 0 6px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
@@ -9849,9 +9847,32 @@ function bulkPrintPOs() {
 </style></head><body>
 ${allPOs}
 <div class="no-print" style="position:fixed;top:10px;right:10px;background:#fff;border:1px solid #ccc;padding:10px 14px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.15);z-index:9999;">
-  <button onclick="window.print()" style="padding:8px 16px;background:#111;color:#fff;border:0;cursor:pointer;font-size:13px;font-weight:700;border-radius:3px;">🖨 인쇄 / PDF 저장</button>
+  <button onclick="syncPOInfoRowHeights(); window.print()" style="padding:8px 16px;background:#111;color:#fff;border:0;cursor:pointer;font-size:13px;font-weight:700;border-radius:3px;">🖨 인쇄 / PDF 저장</button>
   <span style="margin-left:10px;color:#555;font-size:11px;">${suppliers.length}개 공급사 · 페이지 break 분리</span>
 </div>
+<script>
+function syncPOInfoRowHeights() {
+  document.querySelectorAll('.bulk-po-page').forEach(page => {
+    const tables = page.querySelectorAll('.po-info-table');
+    if (tables.length !== 2) return;
+    // 각 테이블의 row들을 순회하며 좌·우 같은 행의 최대 높이로 통일
+    const rows1 = tables[0].rows;
+    const rows2 = tables[1].rows;
+    const n = Math.min(rows1.length, rows2.length);
+    for (let i = 0; i < n; i++) {
+      // reset 후 자연 높이 측정
+      rows1[i].style.height = ''; rows2[i].style.height = '';
+    }
+    for (let i = 0; i < n; i++) {
+      const h = Math.max(rows1[i].offsetHeight, rows2[i].offsetHeight);
+      rows1[i].style.height = h + 'px';
+      rows2[i].style.height = h + 'px';
+    }
+  });
+}
+window.addEventListener('load', () => setTimeout(syncPOInfoRowHeights, 100));
+window.addEventListener('beforeprint', syncPOInfoRowHeights);
+</script>
 </body></html>`;
 
   const w = window.open('', '_blank');
@@ -10158,15 +10179,13 @@ function generateAutoPOPDF() {
   .po-header-logo img { height: 36px; width: auto; object-fit: contain; }
   .po-brand-text { font-size: 20px; font-weight: 800; color: #111; letter-spacing: 0.5px; }
   .po-title { font-size: 22px; font-weight: 800; text-align: center; margin: 6px 0 14px; }
-  .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .po-info-block { border: 1.5px solid #000; box-sizing: border-box; height: 132px; display: flex; flex-direction: column; overflow: hidden; }
+  .po-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; align-items: stretch; }
+  .po-info-block { border: 1.5px solid #000; box-sizing: border-box; display: flex; flex-direction: column; }
   .po-info-head { background: #d0d0d0; text-align: center; font-weight: 700; padding: 3px 4px; font-size: 12px; flex: 0 0 auto; line-height: 1.4; }
   .po-info-table { width: 100%; border-collapse: collapse; table-layout: fixed; flex: 1; }
-  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 3px 6px; font-size: 10.5px; vertical-align: middle; line-height: 1.3; box-sizing: border-box; word-break: keep-all; overflow-wrap: break-word; }
+  .po-info-table th, .po-info-table td { border: 0.5px solid #888; padding: 3px 5px; font-size: 10.5px; vertical-align: middle; line-height: 1.3; box-sizing: border-box; word-break: keep-all; overflow-wrap: break-word; }
   .po-info-table th { background: #f0f0f0; text-align: center; font-weight: 700; width: 22%; white-space: nowrap; }
   .po-info-table td { width: 28%; }
-  .po-info-table tr { height: 24px; }
-  .po-info-table tr:last-child { height: 36px; }
   .po-info-cell { text-align: center; }
   .po-info-cell--addr { text-align: left; padding-left: 10px; font-size: 9.5px; line-height: 1.35; }
   .po-section-head { font-size: 13px; font-weight: 700; margin: 8px 0 6px; border-bottom: 1.5px solid #000; padding-bottom: 2px; }
@@ -10188,9 +10207,28 @@ function generateAutoPOPDF() {
 </style></head><body>
 ${allPOs}
 <div class="no-print" style="position:fixed;top:10px;right:10px;background:#fff;border:1px solid #ccc;padding:10px 14px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,0.15);z-index:9999;">
-  <button onclick="window.print()" style="padding:8px 16px;background:#111;color:#fff;border:0;cursor:pointer;font-size:13px;font-weight:700;border-radius:3px;">🖨 인쇄 / PDF 저장</button>
+  <button onclick="syncPOInfoRowHeights(); window.print()" style="padding:8px 16px;background:#111;color:#fff;border:0;cursor:pointer;font-size:13px;font-weight:700;border-radius:3px;">🖨 인쇄 / PDF 저장</button>
   <span style="margin-left:10px;color:#555;font-size:11px;">${monthLabelStr} · ${suppliers.length}개 공급사</span>
 </div>
+<script>
+function syncPOInfoRowHeights() {
+  document.querySelectorAll('.bulk-po-page').forEach(page => {
+    const tables = page.querySelectorAll('.po-info-table');
+    if (tables.length !== 2) return;
+    const rows1 = tables[0].rows;
+    const rows2 = tables[1].rows;
+    const n = Math.min(rows1.length, rows2.length);
+    for (let i = 0; i < n; i++) { rows1[i].style.height = ''; rows2[i].style.height = ''; }
+    for (let i = 0; i < n; i++) {
+      const h = Math.max(rows1[i].offsetHeight, rows2[i].offsetHeight);
+      rows1[i].style.height = h + 'px';
+      rows2[i].style.height = h + 'px';
+    }
+  });
+}
+window.addEventListener('load', () => setTimeout(syncPOInfoRowHeights, 100));
+window.addEventListener('beforeprint', syncPOInfoRowHeights);
+</script>
 </body></html>`;
 
   const w = window.open('', '_blank');
