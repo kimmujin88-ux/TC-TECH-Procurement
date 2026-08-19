@@ -2137,6 +2137,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
     <div style="display:flex; gap:8px; align-items:center;">
       <div class="section-title__hint">발주 확정·취소·입고 완료 <strong>전체 기록</strong>. 입고 관리는 → <strong style="color:var(--sky);">입고 확정/관리</strong> 탭.</div>
       <button class="btn btn--sm" id="btn-quick-add-order" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;">➕ 긴급 단일 발주 직접 추가</button>
+      <button class="btn btn--sm" id="btn-bulk-import-orders" style="background:rgba(168,85,247,0.15);color:#a855f7;border:0.5px solid rgba(168,85,247,0.4);font-weight:700;">📥 발주 이력 일괄 가져오기</button>
       <button class="btn btn--ghost btn--sm" id="btn-clear-history" style="color:var(--red); border-color:var(--red-b);">전체 삭제</button>
     </div>
   </div>
@@ -10652,6 +10653,171 @@ document.getElementById('btn-clear-history').addEventListener('click', () => {
 
 // ➕ 긴급 단일 발주 직접 추가 모달
 document.getElementById('btn-quick-add-order')?.addEventListener('click', openQuickAddOrderModal);
+// 📥 발주 이력 일괄 가져오기 모달
+document.getElementById('btn-bulk-import-orders')?.addEventListener('click', openBulkImportOrdersModal);
+
+// 이미 발송된 발주(외부 처리)를 이력에 소급 등록
+function openBulkImportOrdersModal() {
+  if (window.guardAdmin && !window.guardAdmin('발주 이력 일괄 가져오기')) return;
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  document.querySelector('.modal__title').textContent = '📥 발주 이력 일괄 가져오기 (외부 발송분 소급 등록)';
+
+  // 2026-09 발주 프리셋 (첨부 PDF 3건)
+  const preset202609 = [
+    {
+      supplier: '가람기계', orderDate: '2026-08-18', dueDate: '2026-09-11',
+      items: [
+        {pn:'132044',   qty:400,  model:'GS1930E Drive Chassis'},
+        {pn:'132050',   qty:800,  model:'GS1930E Drive Chassis'},
+        {pn:'1311042',  qty:2200, model:'GS1930E Drive Chassis'},
+        {pn:'96133',    qty:500,  model:'GS1930E Drive Chassis'},
+        {pn:'1287166',  qty:34,   model:'GS4655 Main Deck'},
+        {pn:'1294617',  qty:68,   model:'GS4655 Main Deck'},
+        {pn:'1289399',  qty:65,   model:'GS4655 Extension Deck'}
+      ]
+    },
+    {
+      supplier: '윈텍', orderDate: '2026-08-18', dueDate: '2026-09-11',
+      items: [
+        {pn:'51MH-02140', qty:20,   model:'HX55ACR Lower Frame'},
+        {pn:'5DMN-01590', qty:2200, model:'HX63AH Lower Frame'}
+      ]
+    },
+    {
+      supplier: '태상테크', orderDate: '2026-08-18', dueDate: '2026-09-11',
+      items: [
+        {pn:'1305526',        qty:800, model:'GS1930E Drive Chassis'},
+        {pn:'1291093',        qty:258, model:'S45XC Drive Chassis'},
+        {pn:'1291094',        qty:496, model:'S45XC Drive Chassis'},
+        {pn:'1295995',        qty:239, model:'S45XC Drive Chassis'},
+        {pn:'1059-3200',      qty:128, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1059-2100',      qty:116, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'49092',          qty:550, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1296714',        qty:50,  model:'GS4655 Drive Chassis'},
+        {pn:'S344-402020',    qty:237, model:'R55C Lower Frame'},
+        {pn:'51MT-01232',     qty:20,  model:'HX55ACR Lower Frame'},
+        {pn:'5DMN-01100',     qty:119, model:'HX63AH Lower Frame'},
+        {pn:'5DMN-09260',     qty:70,  model:'HX63AH Lower Frame'},
+        {pn:'110408-00473B-3',qty:44,  model:'HX63AH Lower Frame'},
+        {pn:'110408-00473B-4',qty:38,  model:'HX63AH Lower Frame'}
+      ]
+    }
+  ];
+
+  modalBody.innerHTML = `<div style="padding:18px 22px;color:var(--t1);">
+    <div style="background:rgba(168,85,247,0.08);border-left:3px solid #a855f7;padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:11px;color:var(--t2);line-height:1.7;">
+      ℹ 이미 <strong>외부에서 발송된 발주서</strong>(메일·직접 통보 등)를 시스템에 소급 기록합니다.<br>
+      • JSON 형식: [{supplier, orderDate, dueDate, items:[{pn, qty, model}]}, ...]<br>
+      • unit_price·품명은 MASTERS에서 자동 조회 (품번만 정확히 기재)<br>
+      • 저장 시 <strong>발주 이력·입고 확정/관리 탭에 즉시 반영</strong>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="btn btn--sm" id="bulk-load-2026-09" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;">📋 2026-09 발주 프리셋 (가람·윈텍·태상 3건 · 첨부 PDF)</button>
+      <button class="btn btn--ghost btn--sm" id="bulk-clear">텍스트 지우기</button>
+    </div>
+    <textarea id="bulk-json" style="width:100%;height:280px;padding:10px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;font-family:var(--mono);font-size:11px;box-sizing:border-box;resize:vertical;" placeholder='[
+  {
+    "supplier": "가람기계",
+    "orderDate": "2026-08-18",
+    "dueDate": "2026-09-11",
+    "items": [
+      { "pn": "132044", "qty": 400, "model": "GS1930E Drive Chassis" }
+    ]
+  }
+]'></textarea>
+    <div id="bulk-summary" style="margin-top:8px;font-size:11px;color:var(--t3);font-family:var(--mono);"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
+      <button class="btn btn--sm" id="bulk-validate" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">🔍 검증만 (미리보기)</button>
+      <button class="btn btn--teal" id="bulk-save" style="font-weight:700;">✅ 발주 이력에 저장</button>
+    </div>
+  </div>`;
+  modal.classList.remove('modal--po');
+  modal.classList.add('modal-backdrop--open');
+
+  const ta = document.getElementById('bulk-json');
+  const summaryEl = document.getElementById('bulk-summary');
+
+  document.getElementById('bulk-load-2026-09').addEventListener('click', () => {
+    ta.value = JSON.stringify(preset202609, null, 2);
+    summaryEl.textContent = '프리셋 로드됨. 저장 전 검증 권장.';
+  });
+  document.getElementById('bulk-clear').addEventListener('click', () => { ta.value = ''; summaryEl.textContent = ''; });
+
+  const parseAndValidate = () => {
+    let arr;
+    try { arr = JSON.parse(ta.value); } catch(e) { alert('JSON 파싱 오류: ' + e.message); return null; }
+    if (!Array.isArray(arr)) { alert('JSON은 배열 형태여야 합니다: [...]'); return null; }
+    const errors = [];
+    const parsed = arr.map((ord, i) => {
+      if (!ord.supplier || !ord.orderDate || !ord.items || !Array.isArray(ord.items)) {
+        errors.push(`#${i+1}: supplier/orderDate/items 필수`);
+        return null;
+      }
+      let totalQty = 0, totalAmt = 0;
+      const entryItems = ord.items.map((it, j) => {
+        const master = MASTERS.find(m => m.part_no === it.pn);
+        if (!master) { errors.push(`#${i+1}.${j+1}: 품번 '${it.pn}' 미등록`); return null; }
+        const q = parseInt(it.qty, 10) || 0;
+        if (q <= 0) { errors.push(`#${i+1}.${j+1}: 수량 0 이하`); return null; }
+        const unitPrice = master.unit_price || 0;
+        const amount = q * unitPrice;
+        totalQty += q; totalAmt += amount;
+        return { pn: master.part_no, name: master.part_name, model: it.model || displayName(master), qty: q, unitPrice, amount, receivedQty: 0 };
+      });
+      if (entryItems.includes(null)) return null;
+      return { supplier: ord.supplier, orderDate: ord.orderDate, dueDate: ord.dueDate || ord.orderDate, items: entryItems, totalQty, totalAmt };
+    });
+    if (errors.length > 0) { alert('❌ 검증 실패:\n\n' + errors.join('\n')); return null; }
+    return parsed;
+  };
+
+  document.getElementById('bulk-validate').addEventListener('click', () => {
+    const parsed = parseAndValidate(); if (!parsed) return;
+    const summary = parsed.map((p, i) => `#${i+1} ${p.supplier} · ${p.items.length}품목 · ${fmt(p.totalQty)}EA · ₩${fmt(p.totalAmt)} (발주 ${p.orderDate} · 납기 ${p.dueDate})`).join('\n');
+    const grandQty = parsed.reduce((s,p) => s + p.totalQty, 0);
+    const grandAmt = parsed.reduce((s,p) => s + p.totalAmt, 0);
+    alert(`✅ 검증 통과 · ${parsed.length}건\n\n` + summary + `\n\n[총합] ${fmt(grandQty)}EA · ₩${fmt(grandAmt)}`);
+    summaryEl.innerHTML = `✅ 검증 통과: ${parsed.length}건 · ${fmt(grandQty)}EA · <strong style="color:var(--teal);">₩${fmt(grandAmt)}</strong>`;
+  });
+
+  document.getElementById('bulk-save').addEventListener('click', () => {
+    const parsed = parseAndValidate(); if (!parsed) return;
+    if (!confirm(`✅ ${parsed.length}건의 발주 이력을 추가합니다.\n총 ${fmt(parsed.reduce((s,p)=>s+p.totalQty,0))}EA · ₩${fmt(parsed.reduce((s,p)=>s+p.totalAmt,0))}\n\n진행하시겠습니까?`)) return;
+    const baseTs = new Date().getTime();
+    parsed.forEach((p, i) => {
+      orderHistory.push({
+        date: new Date(new Date(p.orderDate + 'T09:00:00').getTime() + i).toISOString(),
+        type: 'order',
+        supplier: p.supplier,
+        items: p.items,
+        totalQty: p.totalQty,
+        totalAmt: p.totalAmt,
+        dueDate: p.dueDate,
+        bulkImported: true,
+        createdBy: sessionStorage.getItem('tctech_auth_user') || 'unknown'
+      });
+    });
+    saveHistory();
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+      action: 'bulk_import_orders',
+      field: `count.${parsed.length}`,
+      before: '',
+      after: `${parsed.length}건 · ${fmt(parsed.reduce((s,p)=>s+p.totalQty,0))}EA`
+    });
+    saveInputs();
+    updateHistoryCount();
+    if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+    if (typeof renderHistory === 'function') renderHistory();
+    if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+    document.getElementById('modal').classList.remove('modal-backdrop--open');
+    alert(`✅ ${parsed.length}건 발주 이력 저장 완료.\n입고 확정/관리 탭에서 확인 후 입고 처리하세요.`);
+  });
+}
 
 function openQuickAddOrderModal() {
   if (window.guardAdmin && !window.guardAdmin('긴급 단일 발주 추가')) return;
