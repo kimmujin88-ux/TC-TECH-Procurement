@@ -1140,7 +1140,8 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <div class="more-menu" style="position:relative;">
         <button class="btn btn--ghost btn--sm" id="btn-more" title="가끔 쓰는 기능 (월 이월·내보내기·초기값 복원)">⚙ 더보기 ▾</button>
         <div id="more-dropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.5);min-width:180px;z-index:100;overflow:hidden;">
-          <button class="btn btn--ghost btn--sm" id="btn-rollover" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;color:var(--amb);">📅 월 이월 처리</button>
+          <button class="btn btn--ghost btn--sm" id="btn-rollover" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;color:var(--amb);">📅 월 이월 처리 (1개월씩)</button>
+          <button class="btn btn--ghost btn--sm" id="btn-jump-to-month" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);color:var(--sky);">⏩ 특정 월로 리셋 (건너뛰기)</button>
           <button class="btn btn--ghost btn--sm" id="btn-export-excel" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);">📊 엑셀 내보내기</button>
           <button class="btn btn--ghost btn--sm" id="btn-export-json" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);">💾 JSON 내보내기</button>
           <button class="btn btn--ghost btn--sm" id="btn-reset-all" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);color:var(--red);">⚠ 초기값 복원</button>
@@ -10493,6 +10494,152 @@ document.getElementById('btn-export-json').addEventListener('click', () => {
 });
 
 document.getElementById('btn-rollover').addEventListener('click', showMonthCloseChecklist);
+document.getElementById('btn-jump-to-month')?.addEventListener('click', showJumpToMonthModal);
+
+// ⏩ 특정 월로 리셋 (여러 달 건너뛰기·이월 없이 직접 이동)
+async function showJumpToMonthModal() {
+  if (window.guardAdmin && !window.guardAdmin('특정 월로 리셋')) return;
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  document.querySelector('.modal__title').textContent = '⏩ 특정 월로 직접 리셋';
+  const curMonth = state.periodStartMonth || 5;
+  const curYear = state.periodYear || 2026;
+  const curLabel = `${curYear}년 ${curMonth}월~${((curMonth + 3 - 1) % 12) + 1}월`;
+  modalBody.innerHTML = `<div style="padding:18px 22px;color:var(--t1);">
+    <div style="background:rgba(96,170,220,0.08);border-left:3px solid var(--sky);padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:11px;color:var(--t2);line-height:1.7;">
+      ℹ 여러 달 건너뛰거나 새 사이클을 시작할 때 사용합니다.<br>
+      • 현재 사이클: <strong style="color:var(--t1);">${curLabel}</strong><br>
+      • 실행 시 <strong style="color:var(--amb);">자동 백업</strong> 생성 → 되돌리기 가능<br>
+      • 시작재고는 <strong>유지</strong>(사용자가 실측값 입력 예정)<br>
+      • 제작대수·입고계획은 <strong>모두 0으로 초기화</strong> (선택 해제 가능)
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;margin-bottom:14px;">
+      <div>
+        <label style="display:block;font-size:11px;color:var(--t3);margin-bottom:4px;">대상 시작 월</label>
+        <select id="jump-month" class="filter-select" style="width:100%;font-size:12px;padding:8px 10px;">
+          ${Array.from({length:12},(_,i)=>i+1).map(m => `<option value="${m}" ${m===8?'selected':''}>${m}월</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--t3);margin-bottom:4px;">대상 연도</label>
+        <select id="jump-year" class="filter-select" style="width:100%;font-size:12px;padding:8px 10px;">
+          ${[curYear-1, curYear, curYear+1].map(y => `<option value="${y}" ${y===curYear?'selected':''}>${y}년</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="padding:10px 14px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;margin-bottom:14px;font-size:11px;color:var(--t2);">
+      <div id="jump-preview" style="font-weight:700;color:var(--sky);"></div>
+    </div>
+    <div style="padding:10px 14px;background:rgba(56,201,160,0.06);border:0.5px solid var(--teal-b);border-radius:6px;margin-bottom:14px;font-size:11px;color:var(--t2);line-height:1.7;">
+      <div style="font-weight:700;color:var(--teal);margin-bottom:6px;">⚙ 리셋 옵션</div>
+      <label style="display:block;cursor:pointer;margin-bottom:5px;">
+        <input type="checkbox" id="jump-clear-prod" checked> 제작대수(모델별) 모두 0으로 초기화 <span style="color:var(--t3);">— 신규 사이클 새로 입력할 경우 체크</span>
+      </label>
+      <label style="display:block;cursor:pointer;margin-bottom:5px;">
+        <input type="checkbox" id="jump-clear-incoming" checked> 입고계획(품목별 _incoming) 모두 0으로 초기화 <span style="color:var(--t3);">— 신규 사이클 새로 입력할 경우 체크</span>
+      </label>
+      <label style="display:block;cursor:pointer;margin-bottom:5px;">
+        <input type="checkbox" id="jump-preserve-stock" checked> 시작재고 유지 (실측값 입력 예정) <span style="color:var(--t3);">— 데이터 점검 → ERP 가져오기로 별도 입력</span>
+      </label>
+      <label style="display:block;cursor:pointer;">
+        <input type="checkbox" id="jump-clear-overrides" checked> 발주 수동 조정 값 초기화 <span style="color:var(--t3);">— orderOverrides 리셋</span>
+      </label>
+    </div>
+    <div style="padding:8px 12px;background:rgba(255,90,90,0.06);border:0.5px solid var(--red-b);border-radius:6px;margin-bottom:14px;font-size:10.5px;color:var(--t2);">
+      ⚠ <strong style="color:var(--red);">기존 사이클 데이터(제작대수·입고계획)는 삭제됩니다.</strong>
+      복원은 데이터 점검 → 백업 미리보기·복원.
+      발주 이력·마스터·시작재고는 그대로 보존됩니다.
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
+      <button class="btn" id="jump-proceed" style="background:var(--sky);color:#fff;font-weight:700;">⏩ 리셋 실행</button>
+    </div>
+  </div>`;
+  modal.classList.add('modal-backdrop--open');
+
+  const monthEl = document.getElementById('jump-month');
+  const yearEl = document.getElementById('jump-year');
+  const previewEl = document.getElementById('jump-preview');
+  const updatePreview = () => {
+    const m = parseInt(monthEl.value, 10);
+    const y = parseInt(yearEl.value, 10);
+    const months = [0,1,2,3].map(off => {
+      let mm = m + off, yy = y;
+      while (mm > 12) { mm -= 12; yy += 1; }
+      return `${mm}월`;
+    });
+    previewEl.innerHTML = `🎯 새 윈도우: <strong>${y}년 ${months.join(' → ')}</strong>`;
+  };
+  monthEl.addEventListener('change', updatePreview);
+  yearEl.addEventListener('change', updatePreview);
+  updatePreview();
+
+  document.getElementById('jump-proceed').addEventListener('click', async () => {
+    const targetMonth = parseInt(monthEl.value, 10);
+    const targetYear = parseInt(yearEl.value, 10);
+    const clearProd = document.getElementById('jump-clear-prod').checked;
+    const clearIncoming = document.getElementById('jump-clear-incoming').checked;
+    const preserveStock = document.getElementById('jump-preserve-stock').checked;
+    const clearOverrides = document.getElementById('jump-clear-overrides').checked;
+
+    if (!confirm(`⚠ 사이클을 ${targetYear}년 ${targetMonth}월~로 리셋합니다.\n\n자동 백업 후 진행됩니다. 계속하시겠습니까?`)) return;
+
+    const btn = document.getElementById('jump-proceed');
+    btn.disabled = true; btn.textContent = '백업 생성 중...';
+    try { await createBackup(`특정 월 리셋 자동 백업 (→ ${targetYear}년 ${targetMonth}월)`, false); }
+    catch(e) { console.warn('리셋 전 백업 실패', e); }
+
+    // periodStartMonth·periodYear 갱신
+    state.periodStartMonth = targetMonth;
+    state.periodYear = targetYear;
+
+    // 제작대수 초기화
+    if (clearProd) {
+      Object.keys(state.modelInputs || {}).forEach(dn => {
+        state.modelInputs[dn] = { may_qty: 0, jun_qty: 0, jul_qty: 0, aug_qty: 0 };
+      });
+    }
+    // 입고계획 + 시작재고 처리
+    Object.keys(state.itemInputs || {}).forEach(key => {
+      const ii = state.itemInputs[key];
+      const newStart = preserveStock ? (ii.starting_stock || 0) : 0;
+      state.itemInputs[key] = {
+        starting_stock: newStart,
+        may_incoming: clearIncoming ? 0 : (ii.may_incoming || 0),
+        jun_incoming: clearIncoming ? 0 : (ii.jun_incoming || 0),
+        jul_incoming: clearIncoming ? 0 : (ii.jul_incoming || 0),
+        aug_incoming: clearIncoming ? 0 : (ii.aug_incoming || 0)
+      };
+    });
+    // 발주 override 초기화
+    if (clearOverrides) state.orderOverrides = {};
+    // 미발주 사유 초기화
+    state.unmetReasons = {};
+    // ERP 임시 재고 초기화
+    state.erpStocks = {};
+    // 감사 로그
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+      action: 'jump_to_month',
+      field: `period.${targetYear}.${targetMonth}`,
+      before: '',
+      after: `${targetYear}년 ${targetMonth}월~ (제작:${clearProd?'초기화':'유지'} 입고:${clearIncoming?'초기화':'유지'} 재고:${preserveStock?'유지':'초기화'})`
+    });
+
+    saveInputs();
+    document.getElementById('modal').classList.remove('modal-backdrop--open');
+    // 라벨·화면 전체 재렌더
+    if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
+    if (typeof renderForm === 'function') renderForm();
+    if (typeof renderDashboard === 'function') renderDashboard();
+    if (typeof updateOrderCount === 'function') updateOrderCount();
+    if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+    setActiveTab('form');
+    alert(`✅ 리셋 완료.\n\n새 사이클: ${targetYear}년 ${targetMonth}월~${((targetMonth+3-1)%12)+1}월\n\n[수급 운영 계획] 탭에서 새 사이클 데이터를 입력하세요.\n실측 재고는 [데이터 점검 → ERP 가져오기]로 일괄 입력 권장.`);
+  });
+}
 
 document.getElementById('btn-clear-history').addEventListener('click', () => {
   if (!confirm('발주 이력을 전체 삭제하시겠습니까?')) return;
