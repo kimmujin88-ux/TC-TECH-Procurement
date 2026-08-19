@@ -10663,6 +10663,60 @@ function openBulkImportOrdersModal() {
   const modalBody = document.getElementById('modal-body');
   document.querySelector('.modal__title').textContent = '📥 발주 이력 일괄 가져오기 (외부 발송분 소급 등록)';
 
+  // 2026-08 발주 프리셋 (첨부 PDF 4건, 납기 지나 이미 입고 완료 처리)
+  const preset202608 = [
+    {
+      supplier: 'YSP윤성', orderDate: '2026-07-15', dueDate: '2026-08-14', received: true,
+      items: [
+        {pn:'51MT-03335', qty:100, model:'HX55ACR Lower Frame'}
+      ]
+    },
+    {
+      supplier: '가람기계', orderDate: '2026-07-15', dueDate: '2026-08-14', received: true,
+      items: [
+        {pn:'132044',   qty:400,  model:'GS1930E Drive Chassis'},
+        {pn:'132050',   qty:800,  model:'GS1930E Drive Chassis'},
+        {pn:'1311042',  qty:1600, model:'GS1930E Drive Chassis'},
+        {pn:'96133',    qty:200,  model:'GS1930E Drive Chassis'},
+        {pn:'81554',    qty:100,  model:'Z80 Steer/Rear Axle'},
+        {pn:'1288711',  qty:75,   model:'GS4655 Drive Chassis'},
+        {pn:'1287166',  qty:34,   model:'GS4655 Main Deck'},
+        {pn:'1294617',  qty:68,   model:'GS4655 Main Deck'},
+        {pn:'1289399',  qty:68,   model:'GS4655 Extension Deck'}
+      ]
+    },
+    {
+      supplier: '윈텍', orderDate: '2026-07-15', dueDate: '2026-08-14', received: true,
+      items: [
+        {pn:'5DMN-01590', qty:1200, model:'HX63AH Lower Frame'}
+      ]
+    },
+    {
+      supplier: '태상테크', orderDate: '2026-07-15', dueDate: '2026-08-14', received: true,
+      items: [
+        {pn:'1305526',        qty:600, model:'GS1930E Drive Chassis'},
+        {pn:'1291093',        qty:182, model:'S45XC Drive Chassis'},
+        {pn:'1291094',        qty:389, model:'S45XC Drive Chassis'},
+        {pn:'1295995',        qty:180, model:'S45XC Drive Chassis'},
+        {pn:'1059-1700',      qty:52,  model:'Z80 Rear Axle'},
+        {pn:'1059-3200',      qty:125, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1059-2100',      qty:116, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'49092',          qty:543, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'S366-508040',    qty:20,  model:'R55C Lower Frame'},
+        {pn:'51M6-50570',     qty:10,  model:'R55C Lower Frame'},
+        {pn:'61M8-54030',     qty:50,  model:'R55C Lower Frame'},
+        {pn:'61M9-54040',     qty:100, model:'R55C Lower Frame'},
+        {pn:'S316-007020',    qty:200, model:'R55C Lower Frame'},
+        {pn:'S344-402020',    qty:200, model:'R55C Lower Frame'},
+        {pn:'51MT-01232',     qty:40,  model:'HX55ACR Lower Frame'},
+        {pn:'5DMN-01100',     qty:80,  model:'HX63AH Lower Frame'},
+        {pn:'5DMN-09260',     qty:80,  model:'HX63AH Lower Frame'},
+        {pn:'110408-00473B-3',qty:40,  model:'HX63AH Lower Frame'},
+        {pn:'110408-00473B-4',qty:40,  model:'HX63AH Lower Frame'}
+      ]
+    }
+  ];
+
   // 2026-09 발주 프리셋 (첨부 PDF 3건)
   const preset202609 = [
     {
@@ -10712,8 +10766,9 @@ function openBulkImportOrdersModal() {
       • unit_price·품명은 MASTERS에서 자동 조회 (품번만 정확히 기재)<br>
       • 저장 시 <strong>발주 이력·입고 확정/관리 탭에 즉시 반영</strong>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button class="btn btn--sm" id="bulk-load-2026-09" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;">📋 2026-09 발주 프리셋 (가람·윈텍·태상 3건 · 첨부 PDF)</button>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <button class="btn btn--sm" id="bulk-load-2026-08" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">📋 2026-08 발주 프리셋 (윤성·가람·윈텍·태상 4건 · 입고완료 처리)</button>
+      <button class="btn btn--sm" id="bulk-load-2026-09" style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;">📋 2026-09 발주 프리셋 (가람·윈텍·태상 3건)</button>
       <button class="btn btn--ghost btn--sm" id="bulk-clear">텍스트 지우기</button>
     </div>
     <textarea id="bulk-json" style="width:100%;height:280px;padding:10px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;font-family:var(--mono);font-size:11px;box-sizing:border-box;resize:vertical;" placeholder='[
@@ -10739,9 +10794,13 @@ function openBulkImportOrdersModal() {
   const ta = document.getElementById('bulk-json');
   const summaryEl = document.getElementById('bulk-summary');
 
+  document.getElementById('bulk-load-2026-08').addEventListener('click', () => {
+    ta.value = JSON.stringify(preset202608, null, 2);
+    summaryEl.innerHTML = '2026-08 프리셋 로드됨 (received:true 포함) · 저장 시 <strong style="color:var(--teal);">즉시 입고완료 처리</strong>됩니다.';
+  });
   document.getElementById('bulk-load-2026-09').addEventListener('click', () => {
     ta.value = JSON.stringify(preset202609, null, 2);
-    summaryEl.textContent = '프리셋 로드됨. 저장 전 검증 권장.';
+    summaryEl.textContent = '2026-09 프리셋 로드됨 · 저장 전 검증 권장.';
   });
   document.getElementById('bulk-clear').addEventListener('click', () => { ta.value = ''; summaryEl.textContent = ''; });
 
@@ -10756,6 +10815,7 @@ function openBulkImportOrdersModal() {
         return null;
       }
       let totalQty = 0, totalAmt = 0;
+      const isReceived = !!ord.received;
       const entryItems = ord.items.map((it, j) => {
         const master = MASTERS.find(m => m.part_no === it.pn);
         if (!master) { errors.push(`#${i+1}.${j+1}: 품번 '${it.pn}' 미등록`); return null; }
@@ -10764,10 +10824,10 @@ function openBulkImportOrdersModal() {
         const unitPrice = master.unit_price || 0;
         const amount = q * unitPrice;
         totalQty += q; totalAmt += amount;
-        return { pn: master.part_no, name: master.part_name, model: it.model || displayName(master), qty: q, unitPrice, amount, receivedQty: 0 };
+        return { pn: master.part_no, name: master.part_name, model: it.model || displayName(master), qty: q, unitPrice, amount, receivedQty: isReceived ? q : 0 };
       });
       if (entryItems.includes(null)) return null;
-      return { supplier: ord.supplier, orderDate: ord.orderDate, dueDate: ord.dueDate || ord.orderDate, items: entryItems, totalQty, totalAmt };
+      return { supplier: ord.supplier, orderDate: ord.orderDate, dueDate: ord.dueDate || ord.orderDate, items: entryItems, totalQty, totalAmt, received: isReceived };
     });
     if (errors.length > 0) { alert('❌ 검증 실패:\n\n' + errors.join('\n')); return null; }
     return parsed;
@@ -10786,8 +10846,9 @@ function openBulkImportOrdersModal() {
     const parsed = parseAndValidate(); if (!parsed) return;
     if (!confirm(`✅ ${parsed.length}건의 발주 이력을 추가합니다.\n총 ${fmt(parsed.reduce((s,p)=>s+p.totalQty,0))}EA · ₩${fmt(parsed.reduce((s,p)=>s+p.totalAmt,0))}\n\n진행하시겠습니까?`)) return;
     const baseTs = new Date().getTime();
+    const nowIso = new Date().toISOString();
     parsed.forEach((p, i) => {
-      orderHistory.push({
+      const entry = {
         date: new Date(new Date(p.orderDate + 'T09:00:00').getTime() + i).toISOString(),
         type: 'order',
         supplier: p.supplier,
@@ -10797,7 +10858,15 @@ function openBulkImportOrdersModal() {
         dueDate: p.dueDate,
         bulkImported: true,
         createdBy: sessionStorage.getItem('tctech_auth_user') || 'unknown'
-      });
+      };
+      if (p.received) {
+        entry.received = true;
+        entry.partialReceived = false;
+        entry.receivedAt = new Date(p.dueDate + 'T18:00:00').toISOString();
+        entry.lastReceivedAt = nowIso;
+        entry.receivedBy = entry.createdBy;
+      }
+      orderHistory.push(entry);
     });
     saveHistory();
     state.auditLog = state.auditLog || [];
