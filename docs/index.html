@@ -2706,7 +2706,9 @@ function computeRow(master, inp) {
     may: result.months.may.endingTotal < reqs[1] * sf,
     jun: result.months.jun.endingTotal < reqs[2] * sf,
     jul: result.months.jul.endingTotal < reqs[3] * sf,
-    aug: result.months.aug.endingTotal < reqs[3] * sf
+    // 마지막 슬롯(aug=윈도우 끝)은 다음 윈도우 데이터가 없어 정확한 다음달 필요량을 모름
+    // → 물리적 부족(ending<0)만 알람 (자기 자신 요구량으로 대체하던 기존 로직은 과잉 알람 유발)
+    aug: result.months.aug.endingTotal < 0
   };
   result.anyShort = result.shortAt.may || result.shortAt.jun || result.shortAt.jul || result.shortAt.aug;
   // 최초 부족 시점
@@ -6478,6 +6480,7 @@ function renderHistory() {
   if (typeof migrateJulDueDate === 'function') migrateJulDueDate();
   populateHistorySupplierSelect();
   if (typeof populateHistoryMonthSelects === 'function') populateHistoryMonthSelects();
+  if (typeof setDefaultHistoryDueMonth === 'function') setDefaultHistoryDueMonth();
   if (typeof updateHistorySyncCard === 'function') updateHistorySyncCard();
   const filtered = applyHistoryFilters(orderHistory);
   const summary = document.getElementById('history-summary');
@@ -11263,6 +11266,61 @@ document.getElementById('btn-erp-reset').addEventListener('click', () => {
 orderHistory = loadHistory();
 updateHistoryCount();
 if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+
+// ── 일회성 LT 마이그레이션 (수입 60일 · 특정 국내 부품 90일) ──
+// idempotent: 이미 목표값이면 skip. 변경 발생 시에만 저장.
+(function migrateLTSpec() {
+  const LT_TARGETS = [
+    { pn: '119619', lt: 60, tag: 'POLYGON 60일' },
+    { pn: '36369',  lt: 60, tag: 'POLYGON 60일' },
+    { pn: '18722',  lt: 60, tag: 'POLYGON 60일' },
+    { pn: '27698',  lt: 60, tag: 'POLYGON 60일' },
+    { pn: '25817',  lt: 60, tag: 'POLYGON 60일' },
+    { pn: '94151',  lt: 60, tag: '상해 60일' },
+    { pn: '132044', lt: 90, tag: '가람 자체 발주 기준 90일' },
+    { pn: '132050', lt: 90, tag: '가람 자체 발주 기준 90일' },
+    { pn: '81554',  lt: 90, tag: '가람 자체 발주 기준 90일' }
+  ];
+  let changed = 0;
+  const changeLog = [];
+  MASTERS.forEach(m => {
+    const t = LT_TARGETS.find(x => x.pn === m.part_no);
+    if (t && m.lead_time_days !== t.lt) {
+      changeLog.push(`${m.part_no}(${m.supplier}): LT ${m.lead_time_days}→${t.lt} · ${t.tag}`);
+      m.lead_time_days = t.lt;
+      changed++;
+    }
+  });
+  if (changed > 0) {
+    console.info('[LT 마이그레이션]', changeLog.join(' / '));
+    if (typeof saveMastersToServer === 'function') {
+      saveMastersToServer().catch(e => console.warn('LT 마이그레이션 저장 실패', e));
+    }
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: 'system',
+      action: 'lt_migration',
+      field: `count.${changed}`,
+      before: '',
+      after: changeLog.join(' / ')
+    });
+    if (typeof saveInputs === 'function') saveInputs();
+  }
+})();
+
+// ── 발주 이력 입고월 기본값: 익월 자동 설정 (오늘이 8월이면 9월 입고예정 표시) ──
+function setDefaultHistoryDueMonth() {
+  const sel = document.getElementById('history-filter-due-month');
+  if (!sel || sel.value) return; // 이미 값이 있으면 유지
+  const today = new Date();
+  const nextY = today.getMonth() === 11 ? today.getFullYear() + 1 : today.getFullYear();
+  const nextM = today.getMonth() === 11 ? 1 : today.getMonth() + 2;
+  const targetYM = `${nextY}-${String(nextM).padStart(2, '0')}`;
+  // 해당 옵션 존재 시 자동 선택
+  const opt = Array.from(sel.options).find(o => o.value === targetYM);
+  if (opt) sel.value = targetYM;
+}
 
 // datalist 품번 목록 채우기 (수동 추가 검색용)
 (function populateMastersList() {
