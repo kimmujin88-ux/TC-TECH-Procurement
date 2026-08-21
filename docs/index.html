@@ -141,23 +141,24 @@
 :root[data-theme="light"] .form-table thead th.month-jun-h.h-sub { background: #FFFBEB !important; color: var(--amb) !important; }
 :root[data-theme="light"] .form-table thead th.month-jul-h.h-sub { background: #ECFDF5 !important; color: var(--teal) !important; }
 :root[data-theme="light"] .form-table thead th.month-aug-h.h-sub { background: #F5F3FF !important; color: var(--purple) !important; }
-/* 월별 셀 배경 (아주 옅음) */
-:root[data-theme="light"] .form-table td.month-may-bg { background: #F8FAFF !important; }
-:root[data-theme="light"] .form-table td.month-jun-bg { background: #FFFDF5 !important; }
-:root[data-theme="light"] .form-table td.month-jul-bg { background: #F8FCFA !important; }
-:root[data-theme="light"] .form-table td.month-aug-bg { background: #FAF9FF !important; }
-/* 본문 셀 */
+/* 월별 셀 배경 (명확한 파스텔 tint - 컬럼별 시각 구분) */
+:root[data-theme="light"] .form-table td.month-may-bg { background: #EFF6FF !important; }
+:root[data-theme="light"] .form-table td.month-jun-bg { background: #FEF7E1 !important; }
+:root[data-theme="light"] .form-table td.month-jul-bg { background: #E9FAF1 !important; }
+:root[data-theme="light"] .form-table td.month-aug-bg { background: #F2EEFC !important; }
+/* 본문 셀 - sticky 좌측 컬럼 옅은 회색 tint (좌우 구분) */
 :root[data-theme="light"] .form-table tbody td { color: var(--t1); background: #FFFFFF; }
-:root[data-theme="light"] .form-table tbody td.sticky-col { background: #FFFFFF; color: var(--t1); }
-/* 짝수행 zebra */
-:root[data-theme="light"] .form-table tbody tr.item-row:nth-child(even) td:not(.sticky-col):not([class*="month-"]) { background: #FAFBFC; }
-/* hover */
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td { background: #E8F0FA !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col { background: #DFEAF7 !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-may-bg { background: #DCE9FA !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jun-bg { background: #FAF3DB !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jul-bg { background: #DAF3E5 !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-aug-bg { background: #E9E1FA !important; }
+:root[data-theme="light"] .form-table tbody td.sticky-col { background: #F8FAFC !important; color: var(--t1); }
+/* 대당소요·전월말 현물재고 열도 옅은 회색 tint */
+:root[data-theme="light"] .form-table tbody td.cell-meta,
+:root[data-theme="light"] .form-table tbody td.has-input:not([class*="month-"]) { background: #F8FAFC !important; }
+/* hover - 각 월별 컬러 대응 진한 tint */
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td { background: #E1EEFB !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col { background: #E5EDF5 !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-may-bg { background: #DBEAFE !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jun-bg { background: #FEF3C7 !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jul-bg { background: #D1FAE5 !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-aug-bg { background: #E5DDFA !important; }
 /* summary·grand-total row */
 :root[data-theme="light"] .form-table .summary-row td { background: #F1F5F9 !important; color: var(--t1) !important; font-weight: 700; border-top: 1px solid var(--border); }
 :root[data-theme="light"] .form-table .summary-row.grand-total td { background: #E2E8F0 !important; font-weight: 800; }
