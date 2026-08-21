@@ -2872,17 +2872,24 @@ function computeFinancialKPIs() {
 
 // 자동 부족 알람 (LT 역산: 부족 시점 - LT(일) = 발주 deadline)
 const ALARM_WARN_DAYS = 14;
-const MONTH_FIRST_DAY = {
-  may: new Date(2026, 4, 1), jun: new Date(2026, 5, 1),
-  jul: new Date(2026, 6, 1), aug: new Date(2026, 7, 1)
-};
+// 동적 계산: 현재 윈도우의 각 슬롯(may/jun/jul/aug)이 실제 몇 월인지는 state에 따라 달라짐
+// 부족 시점 = 해당 월의 "말일" (엄격) — 부족이 다음 달 시작 시 발생하는 게 아니라 이번 달 말에 발생
+function monthFirstDay(slot) {
+  const offset = { may: 0, jun: 1, jul: 2, aug: 3 }[slot];
+  if (offset === undefined) return null;
+  const sm = (state && state.periodStartMonth) || 5;
+  const sy = (state && state.periodYear) || 2026;
+  let m = sm + offset, y = sy;
+  while (m > 12) { m -= 12; y += 1; }
+  return new Date(y, m - 1, 1);  // 해당 월의 1일 (부족이 발생하는 시점)
+}
 function getAlarms(today = new Date()) {
   const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const out = [];
   MASTERS.forEach(m => {
     const r = getResult(m);
     if (!r.firstShort) return;
-    const shortStart = MONTH_FIRST_DAY[r.firstShort];
+    const shortStart = monthFirstDay(r.firstShort);
     if (!shortStart) return;
     const lt = m.lead_time_days || 30;
     const deadline = new Date(shortStart);
