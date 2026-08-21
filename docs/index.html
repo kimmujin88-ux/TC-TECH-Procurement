@@ -148,7 +148,113 @@
 }
 /* 대시보드 히어로 카드 - 원형 프로그레스 배경 및 색 */
 :root[data-theme="light"] .hero-progress { color: var(--t1); }
-/* KPI 대형 숫자는 색상 유지 (색 계열 var로 이미 정의된 부분) */
+/* KPI 카드 - 하드코딩 #fff 텍스트 오버라이드 */
+:root[data-theme="light"] .kpi__label,
+:root[data-theme="light"] .kpi__value,
+:root[data-theme="light"] .kpi__unit {
+  color: var(--t1) !important;
+}
+:root[data-theme="light"] .kpi__value--red { color: var(--red) !important; }
+:root[data-theme="light"] .kpi__label { opacity: 0.75; }
+:root[data-theme="light"] .kpi__unit { opacity: 0.65; }
+/* KPI 컬러 카드 배경·테두리 (다크에서 var(--sky-d)=진한 남색이던 것을 라이트에선 옅은 파란 tint로 이미 재정의) */
+:root[data-theme="light"] .kpi--sky { background: var(--sky-d); border-color: var(--sky-b); }
+:root[data-theme="light"] .kpi--red { background: var(--red-d); border-color: var(--red-b); }
+:root[data-theme="light"] .kpi--teal { background: var(--teal-d); border-color: var(--teal-b); }
+:root[data-theme="light"] .kpi--amb { background: var(--amb-d); border-color: var(--amb-b); }
+:root[data-theme="light"] .kpi[onclick]:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+/* 수급 운영 계획 테이블 - 월별 헤더 하드코딩 다크 배경 오버라이드 */
+:root[data-theme="light"] .form-table thead th.month-may-h.h-group { background: #DBEAFE !important; color: #2563EB !important; }
+:root[data-theme="light"] .form-table thead th.month-jun-h.h-group { background: #FEF3C7 !important; color: #D97706 !important; }
+:root[data-theme="light"] .form-table thead th.month-jul-h.h-group { background: #D1FAE5 !important; color: #059669 !important; }
+:root[data-theme="light"] .form-table thead th.month-aug-h.h-group { background: #EDE9FE !important; color: #7C3AED !important; }
+:root[data-theme="light"] .form-table thead th.month-may-h.h-sub { background: #EFF6FF !important; color: #2563EB !important; }
+:root[data-theme="light"] .form-table thead th.month-jun-h.h-sub { background: #FFFBEB !important; color: #D97706 !important; }
+:root[data-theme="light"] .form-table thead th.month-jul-h.h-sub { background: #ECFDF5 !important; color: #059669 !important; }
+:root[data-theme="light"] .form-table thead th.month-aug-h.h-sub { background: #F5F3FF !important; color: #7C3AED !important; }
+/* 월별 셀 배경 */
+:root[data-theme="light"] .form-table td.month-may-bg { background: #F0F7FF !important; }
+:root[data-theme="light"] .form-table td.month-jun-bg { background: #FFFBEE !important; }
+:root[data-theme="light"] .form-table td.month-jul-bg { background: #F0FBF5 !important; }
+:root[data-theme="light"] .form-table td.month-aug-bg { background: #F7F5FE !important; }
+/* summary-row 배경 */
+:root[data-theme="light"] .form-table .summary-row td { background: #F8FAFC !important; color: var(--t1) !important; font-weight: 700; }
+:root[data-theme="light"] .form-table .summary-row.grand-total td { background: #EEF3F8 !important; }
+/* 테이블 hover */
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td { background: #EEF5FC !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col { background: #E9F1FB !important; }
+/* 테이블 셀 텍스트 - 다크에서 var(--t1)로 밝게 되어있던 부분 확실히 */
+:root[data-theme="light"] .form-table tbody td,
+:root[data-theme="light"] .form-table tbody td.sticky-col { color: var(--t1); }
+:root[data-theme="light"] .form-table thead th { color: var(--t2); }
+:root[data-theme="light"] .form-table thead tr.h-row2 th { color: var(--t3); }
+/* 재고 부족 강조 */
+:root[data-theme="light"] .cell-num--alert { color: var(--red) !important; font-weight: 700; }
+/* 입력 폼 배경 */
+:root[data-theme="light"] .form-input,
+:root[data-theme="light"] .filter-input,
+:root[data-theme="light"] .filter-select {
+  background: #FFFFFF !important;
+  border: 1px solid var(--border) !important;
+  color: var(--t1) !important;
+}
+:root[data-theme="light"] .form-input:focus,
+:root[data-theme="light"] .filter-input:focus,
+:root[data-theme="light"] .filter-select:focus {
+  border-color: var(--sky) !important;
+  box-shadow: 0 0 0 3px rgba(49,130,246,0.15) !important;
+}
+:root[data-theme="light"] .form-input:hover { background: #F7F8FA !important; border-color: var(--border) !important; }
+:root[data-theme="light"] .model-header-input { background: #FFFFFF !important; color: var(--sky) !important; font-weight: 800; }
+/* 모델 셀 병합 배경 */
+:root[data-theme="light"] .cell-model-merged { background: #F7F8FA !important; color: var(--t1); font-weight: 600; }
+:root[data-theme="light"] .cell-name { color: var(--t1); }
+:root[data-theme="light"] .cell-detail { color: var(--t3); }
+:root[data-theme="light"] .cell-meta { color: var(--t2); }
+:root[data-theme="light"] .cell-num--readonly { background: #FAFBFC !important; color: var(--t2) !important; }
+:root[data-theme="light"] .cell-num--qty-merged { background: rgba(49,130,246,0.05) !important; }
+:root[data-theme="light"] .cell-pn { color: var(--t1); font-family: var(--mono); }
+/* 뱃지 (공용 부품 표시 등) */
+:root[data-theme="light"] .badge-shared { background: #DBEAFE !important; color: var(--sky) !important; border-color: var(--sky-b) !important; }
+/* order-table hover */
+:root[data-theme="light"] .order-table thead th { background: #F5F6F8 !important; color: var(--t2) !important; }
+:root[data-theme="light"] .order-table tbody td { color: var(--t1); }
+/* 알람 등 특정 클래스 */
+:root[data-theme="light"] .badge--info { background: #DBEAFE !important; color: var(--sky) !important; }
+:root[data-theme="light"] .badge--neutral { background: #F5F6F8 !important; color: var(--t2) !important; border-color: var(--border) !important; }
+/* 버튼 */
+:root[data-theme="light"] .btn { background: #FFFFFF; border-color: var(--border); color: var(--t1); }
+:root[data-theme="light"] .btn:hover { background: #F7F8FA; }
+:root[data-theme="light"] .btn--ghost { background: transparent; color: var(--t2); border-color: var(--border); }
+:root[data-theme="light"] .btn--ghost:hover { background: #F5F6F8; color: var(--t1); }
+:root[data-theme="light"] .btn--teal { background: var(--teal); color: #FFFFFF; border-color: var(--teal); }
+:root[data-theme="light"] .btn--teal:hover { background: #0E7A5E; }
+:root[data-theme="light"] .btn-reset { color: var(--t2); border-color: var(--border); }
+/* 히어로 대시보드 상세 카드 컴포넌트들 */
+:root[data-theme="light"] .upcoming-item { background: #FFFFFF; border-color: var(--border); }
+:root[data-theme="light"] .upcoming-item:hover { background: #F5F9FE; border-color: var(--sky); }
+:root[data-theme="light"] .alert-list-hero-item { background: #FFFFFF; border-color: var(--border); }
+:root[data-theme="light"] .alert-list-hero-item:hover { background: #F5F9FE; }
+:root[data-theme="light"] .kanban-col { background: #FFFFFF; border-color: var(--border); }
+:root[data-theme="light"] .kanban-item { background: #F7F8FA !important; color: var(--t1); }
+:root[data-theme="light"] .reminder-item { background: #FFFFFF; border-color: var(--border); }
+/* stock-health rows */
+:root[data-theme="light"] .stock-health-row { border-bottom-color: var(--border); }
+:root[data-theme="light"] .stock-health-row__label { color: var(--t2); }
+:root[data-theme="light"] .stock-health-row__value { color: var(--t1); }
+/* .filters 배경 */
+:root[data-theme="light"] .filters { background: #FFFFFF; border: 1px solid var(--border); }
+/* 헤더 상단 이전 사이클/도움말/더보기 등의 버튼 색상 */
+:root[data-theme="light"] .app-header .btn,
+:root[data-theme="light"] .app-header .btn--ghost { color: var(--t2); }
+:root[data-theme="light"] .app-header .btn:hover,
+:root[data-theme="light"] .app-header .btn--ghost:hover { background: #F5F6F8; color: var(--t1); }
+/* 태블릿·복제 뱃지 등 인라인 style 오버라이드 어려운 곳 */
+:root[data-theme="light"] .dl-overdue { color: var(--red) !important; font-weight: 700; }
+:root[data-theme="light"] .dl-urgent { color: var(--red) !important; font-weight: 700; }
+:root[data-theme="light"] .dl-warning { color: var(--amb) !important; }
+:root[data-theme="light"] .dl-ok { color: var(--teal) !important; }
+:root[data-theme="light"] .dl-none { color: var(--t3) !important; }
 /* rgba(255,255,255,X) 하드코딩 hover/미묘한 배경 → 라이트에서는 옅은 그레이 */
 :root[data-theme="light"] .cell-num--readonly { background: #F7F8FA !important; color: var(--t2); }
 :root[data-theme="light"] .form-input.cell-num--start { background: #FDFDFE !important; }
