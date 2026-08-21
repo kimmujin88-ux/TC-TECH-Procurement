@@ -38,6 +38,52 @@
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
   --sans: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
 }
+/* ───── LIGHT THEME (토스 스타일) — [data-theme="light"] on html 트리거 ───── */
+:root[data-theme="light"] {
+  --bg: #F5F6F8;
+  --bg-card: #FFFFFF;
+  --bg-card2: #FAFBFC;
+  --border: #E4E7EC;
+  --border2: #E4E7EC;
+  --t1: #1A2233;
+  --t2: #4A5568;
+  --t3: #8B95A1;
+  --proc-txt: #6B7280;
+  --teal: #0F8A6A;
+  --teal-d: #D1FAE5;
+  --teal-b: #10B981;
+  --sky: #3182F6;
+  --sky-d: #DBEAFE;
+  --sky-b: #60A5FA;
+  --red: #E11D48;
+  --red-d: #FEE2E2;
+  --red-b: #F87171;
+  --amb: #D97706;
+  --amb-d: #FEF3C7;
+  --amb-b: #F59E0B;
+  --purple: #7C3AED;
+  --purple-d: #EDE9FE;
+  --purple-b: #A78BFA;
+}
+:root[data-theme="light"] body {
+  color: var(--t1);
+}
+:root[data-theme="light"] .app-header,
+:root[data-theme="light"] .card,
+:root[data-theme="light"] .form-input,
+:root[data-theme="light"] .filter-input,
+:root[data-theme="light"] .filter-select,
+:root[data-theme="light"] input[type="date"],
+:root[data-theme="light"] input[type="number"],
+:root[data-theme="light"] input[type="text"],
+:root[data-theme="light"] input[type="password"],
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea {
+  color: var(--t1);
+}
+:root[data-theme="light"] .card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+}
 
 html, body {
   background: var(--bg);
@@ -1135,6 +1181,7 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       </div>
       <span class="header-divider" aria-hidden="true"></span>
       <!-- 그룹 3: 정보·보고 + 더보기 -->
+      <button class="btn btn--ghost btn--sm" id="btn-theme-toggle" title="다크/라이트 테마 전환">🌓 테마</button>
       <button class="btn btn--ghost btn--sm" id="btn-help" title="도움말 / 첫 사용 안내">❓ 도움말</button>
       <button class="btn btn--ghost btn--sm" id="btn-exec-summary">📋 임원 요약</button>
       <div class="more-menu" style="position:relative;">
@@ -2113,6 +2160,9 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 
   <!-- 필터 -->
   <div class="card" style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+    <select id="rcp-filter-due-month" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;background:rgba(56,201,160,0.08);border:0.5px solid var(--teal-b);color:var(--teal);font-weight:700;" title="입고 예정월 (dueDate 기준)">
+      <option value="">🚚 전체 입고월</option>
+    </select>
     <select id="rcp-filter-status" class="filter-select" style="font-size:11px;padding:5px 8px;width:auto;">
       <option value="all">전체 (미입고+부분)</option>
       <option value="pending">🔵 미입고만</option>
@@ -8748,22 +8798,31 @@ function renderOrderKanban() {
   const hist = typeof orderHistory !== 'undefined' ? orderHistory : [];
   const active = hist.filter(e => e.type === 'order' && !e.cancelled && !e.received && !e.partialReceived).slice(0, 5);
   const partial = hist.filter(e => e.type === 'order' && !e.cancelled && e.partialReceived).slice(0, 5);
-  const done = hist.filter(e => e.type === 'order' && !e.cancelled && e.received).slice(0, 5);
-  const col = (title, items, color, count) => `
+  // 입고완료는 최근 입고일자순 (실입고일 receivedAt 기준)
+  const doneAll = hist.filter(e => e.type === 'order' && !e.cancelled && e.received);
+  const done = [...doneAll].sort((a, b) => new Date(b.receivedAt || b.date) - new Date(a.receivedAt || a.date)).slice(0, 5);
+  // dateType: 'due' = 납기(예정), 'received' = 입고일(완료), 'order' = 발주일
+  const col = (title, items, color, count, dateType, dateLabel) => `
     <div class="kanban-col">
       <div class="kanban-col__head"><span>${title}</span><span style="font-family:var(--mono); color:${color}; font-weight:700;">${count}</span></div>
-      ${items.length === 0 ? '<div style="font-size:10.5px; color:var(--t3); text-align:center; padding:16px 0;">없음</div>' : items.map(e => `
+      ${items.length === 0 ? '<div style="font-size:10.5px; color:var(--t3); text-align:center; padding:16px 0;">없음</div>' : items.map(e => {
+        let dateVal = null;
+        if (dateType === 'received') dateVal = e.receivedAt || e.lastReceivedAt || null;
+        else if (dateType === 'due') dateVal = e.dueDate || null;
+        else if (dateType === 'order') dateVal = e.date || null;
+        const dateTxt = dateVal ? new Date(dateVal).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'}) : '';
+        return `
         <div class="kanban-item" onclick="setActiveTab('receipts')" style="cursor:pointer;">
           <div class="kanban-item__supplier">${sanitize(e.supplier)}</div>
-          <div class="kanban-item__meta">${e.items.length}품목 · ${fmt(e.totalQty)}EA${e.dueDate ? ' · ' + new Date(e.dueDate).toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'}) : ''}</div>
-        </div>
-      `).join('')}
+          <div class="kanban-item__meta">${e.items.length}품목 · ${fmt(e.totalQty)}EA${dateTxt ? ` · <span style="color:${color};">${dateLabel} ${dateTxt}</span>` : ''}</div>
+        </div>`;
+      }).join('')}
     </div>
   `;
   body.innerHTML =
-    col('🔵 발주 확정', active, 'var(--sky)', hist.filter(e => e.type === 'order' && !e.cancelled && !e.received && !e.partialReceived).length) +
-    col('⚠ 부분 입고', partial, 'var(--amb)', hist.filter(e => e.type === 'order' && !e.cancelled && e.partialReceived).length) +
-    col('✅ 입고 완료', done, 'var(--teal)', hist.filter(e => e.type === 'order' && !e.cancelled && e.received).length);
+    col('🔵 발주 확정 (예정)', active, 'var(--sky)', hist.filter(e => e.type === 'order' && !e.cancelled && !e.received && !e.partialReceived).length, 'due', '납기') +
+    col('⚠ 부분 입고 (예정)', partial, 'var(--amb)', hist.filter(e => e.type === 'order' && !e.cancelled && e.partialReceived).length, 'due', '납기') +
+    col('✅ 입고 완료 (실입고)', done, 'var(--teal)', doneAll.length, 'received', '입고');
 }
 
 // 리마인더 (백업·이월 등)
@@ -10611,6 +10670,7 @@ function isOverdue(entry) {
 
 function renderReceiptsPanel() {
   populateReceiptSupplierSelect();
+  if (typeof populateReceiptDueMonthSelect === 'function') populateReceiptDueMonthSelect();
   updateReceiptsCount();
   const container = document.getElementById('receipts-list');
   if (!container) return;
@@ -10629,6 +10689,7 @@ function renderReceiptsPanel() {
   // 필터 적용
   const statusF = document.getElementById('rcp-filter-status')?.value || 'all';
   const supF = document.getElementById('rcp-filter-supplier')?.value || '';
+  const dueMonthF = document.getElementById('rcp-filter-due-month')?.value || '';
   const searchF = (document.getElementById('rcp-filter-search')?.value || '').toLowerCase().trim();
 
   let filtered = list;
@@ -10636,6 +10697,7 @@ function renderReceiptsPanel() {
   else if (statusF === 'partial') filtered = filtered.filter(e => e.partialReceived);
   else if (statusF === 'overdue') filtered = filtered.filter(isOverdue);
   if (supF) filtered = filtered.filter(e => e.supplier === supF);
+  if (dueMonthF) filtered = filtered.filter(e => (e.dueDate || '').slice(0, 7) === dueMonthF);
   if (searchF) filtered = filtered.filter(e => (e.items || []).some(it => (`${it.pn} ${it.name}`).toLowerCase().includes(searchF)));
 
   // 정렬: 납기 초과 → 납기 임박 → 나머지
@@ -10722,13 +10784,41 @@ function populateReceiptSupplierSelect() {
   sel.value = current;
 }
 
+function populateReceiptDueMonthSelect() {
+  const sel = document.getElementById('rcp-filter-due-month');
+  if (!sel) return;
+  const current = sel.value;
+  const list = getReceiptsList();
+  const months = new Set();
+  list.forEach(e => { if (e.dueDate) months.add((e.dueDate || '').slice(0, 7)); });
+  const fmtMonth = (ym) => {
+    const [y, m] = ym.split('-');
+    return `${y}년 ${parseInt(m, 10)}월`;
+  };
+  sel.innerHTML = '<option value="">🚚 전체 입고월</option>' +
+    [...months].sort().map(ym => `<option value="${ym}">🚚 ${fmtMonth(ym)} 입고예정</option>`).join('');
+  // 기본값: 이번 달 (있으면), 없으면 첫 옵션
+  if (!current) {
+    const todayYM = new Date().toISOString().slice(0, 7);
+    const opt = Array.from(sel.options).find(o => o.value === todayYM);
+    if (opt) sel.value = todayYM;
+  } else {
+    sel.value = current;
+  }
+}
+
+// renderReceiptsPanel 안에 통합 (populate 후 정렬)
+const _origRenderReceiptsPanel = typeof renderReceiptsPanel === 'function' ? renderReceiptsPanel : null;
+
 // 필터 이벤트
 document.getElementById('rcp-filter-status')?.addEventListener('change', () => renderReceiptsPanel());
 document.getElementById('rcp-filter-supplier')?.addEventListener('change', () => renderReceiptsPanel());
+document.getElementById('rcp-filter-due-month')?.addEventListener('change', () => renderReceiptsPanel());
 document.getElementById('rcp-filter-search')?.addEventListener('input', () => renderReceiptsPanel());
 document.getElementById('rcp-filter-reset')?.addEventListener('click', () => {
   const s = document.getElementById('rcp-filter-status'); if (s) s.value = 'all';
   const sup = document.getElementById('rcp-filter-supplier'); if (sup) sup.value = '';
+  const dm = document.getElementById('rcp-filter-due-month'); if (dm) dm.value = '';
   const sr = document.getElementById('rcp-filter-search'); if (sr) sr.value = '';
   renderReceiptsPanel();
 });
@@ -11352,6 +11442,33 @@ document.getElementById('btn-erp-reset').addEventListener('click', () => {
   renderForm();
   updateERPImportUI();
 });
+
+// ── 테마 토글 (다크/라이트) ──
+(function initTheme() {
+  const KEY = 'tctech_theme';
+  const saved = localStorage.getItem(KEY);
+  if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  const btn = document.getElementById('btn-theme-toggle');
+  if (btn) {
+    const updateLabel = () => {
+      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      btn.textContent = cur === 'light' ? '🌙 다크로' : '☀ 라이트로';
+      btn.title = cur === 'light' ? '다크 테마로 전환' : '라이트 테마로 전환';
+    };
+    updateLabel();
+    btn.addEventListener('click', () => {
+      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      if (cur === 'light') {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem(KEY, 'dark');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        localStorage.setItem(KEY, 'light');
+      }
+      updateLabel();
+    });
+  }
+})();
 
 // 발주 이력 로드
 orderHistory = loadHistory();
