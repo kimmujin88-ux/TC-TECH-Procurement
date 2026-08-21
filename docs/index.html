@@ -11038,7 +11038,7 @@ function openBulkImportOrdersModal() {
       ]
     },
     {
-      supplier: 'POLYGON', orderDate: '2026-08-18', dueDate: '2026-09-05',
+      supplier: 'POLYGON', orderDate: '2026-08-18', dueDate: '2026-08-31',
       items: [
         {pn:'119619', qty:2232, model:'GS1930E Drive Chassis'},
         {pn:'36369',  qty:2450, model:'GS1930E Drive Chassis'},
@@ -11395,6 +11395,33 @@ if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
       field: `count.${changed}`,
       before: '',
       after: changeLog.join(' / ')
+    });
+    if (typeof saveInputs === 'function') saveInputs();
+  }
+})();
+
+// ── POLYGON 발주 dueDate 마이그레이션 (2026-09-05 → 2026-08-31) ──
+// 8월 말 도착으로 실제 일정 확정 → 발주이력 소급 반영
+(function migratePolygonDueDate() {
+  if (!Array.isArray(orderHistory)) return;
+  let changed = 0;
+  orderHistory.forEach(e => {
+    if (e.type === 'order' && e.supplier === 'POLYGON' && e.dueDate === '2026-09-05') {
+      e.dueDate = '2026-08-31';
+      changed++;
+    }
+  });
+  if (changed > 0) {
+    console.info(`[POLYGON dueDate 마이그레이션] ${changed}건 이력 → 2026-08-31 갱신`);
+    saveHistory();
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: 'system',
+      action: 'polygon_duedate_migration',
+      field: `count.${changed}`,
+      before: '2026-09-05',
+      after: '2026-08-31'
     });
     if (typeof saveInputs === 'function') saveInputs();
   }
