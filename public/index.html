@@ -152,13 +152,19 @@
 /* 대당소요·전월말 현물재고 열도 옅은 회색 tint */
 :root[data-theme="light"] .form-table tbody td.cell-meta,
 :root[data-theme="light"] .form-table tbody td.has-input:not([class*="month-"]) { background: #F8FAFC !important; }
-/* hover - 각 월별 컬러 대응 진한 tint */
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td { background: #E1EEFB !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col { background: #E5EDF5 !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-may-bg { background: #BFDBFE !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jun-bg { background: #FDE68A !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jul-bg { background: #A7F3D0 !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-aug-bg { background: #FBCFE8 !important; }
+/* hover - 각 월별 컬러 대응 진한 tint (개별 row hover + 같은 모델 그룹 전체 hover) */
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td,
+:root[data-theme="light"] .form-table tbody tr.item-row.group-hover td { background: #E1EEFB !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col,
+:root[data-theme="light"] .form-table tbody tr.item-row.group-hover td.sticky-col { background: #E5EDF5 !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-may-bg,
+:root[data-theme="light"] .form-table tbody tr.item-row.group-hover td.month-may-bg { background: #BFDBFE !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jun-bg,
+:root[data-theme="light"] .form-table tbody tr.item-row.group-hover td.month-jun-bg { background: #FDE68A !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jul-bg,
+:root[data-theme="light"] .form-table tbody tr.item-row.group-hover td.month-jul-bg { background: #A7F3D0 !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-aug-bg,
+:root[data-theme="light"] .form-table tbody tr.item-row.group-hover td.month-aug-bg { background: #FBCFE8 !important; }
 /* summary·grand-total row */
 :root[data-theme="light"] .form-table .summary-row td { background: #F1F5F9 !important; color: var(--t1) !important; font-weight: 700; border-top: 1px solid var(--border); }
 :root[data-theme="light"] .form-table .summary-row.grand-total td { background: #E2E8F0 !important; font-weight: 800; }
@@ -4444,6 +4450,19 @@ function renderForm() {
     input.addEventListener('input', onItemInputChange);
     input.addEventListener('focus', e => e.target.select());
   });
+  // 그룹 hover: 같은 모델(data-group-key)의 모든 row 동시 강조 (병합 셀 시각 일치)
+  tbody.querySelectorAll('tr.item-row').forEach(row => {
+    row.addEventListener('mouseenter', () => {
+      const gk = row.dataset.groupKey;
+      if (!gk) return;
+      tbody.querySelectorAll(`tr.item-row[data-group-key="${CSS.escape(gk)}"]`).forEach(r => r.classList.add('group-hover'));
+    });
+    row.addEventListener('mouseleave', () => {
+      const gk = row.dataset.groupKey;
+      if (!gk) return;
+      tbody.querySelectorAll(`tr.item-row[data-group-key="${CSS.escape(gk)}"]`).forEach(r => r.classList.remove('group-hover'));
+    });
+  });
 }
 
 // modelHeaderRowHtml 함수는 더 이상 사용되지 않으므로 제거합니다.
@@ -4539,7 +4558,7 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
     : '';
   
   return `
-    <tr class="item-row" data-pn="${sanitize(m.part_no)}" data-mkey="${sanitize(masterInputKey(m))}" data-first="${isFirst ? '1' : '0'}">
+    <tr class="item-row" data-pn="${sanitize(m.part_no)}" data-mkey="${sanitize(masterInputKey(m))}" data-first="${isFirst ? '1' : '0'}" data-group-key="${dnAttr}">
       ${customerCell}
       ${modelCell}
       <td class="sticky-col sticky-col-2 cell-pn" style="white-space:nowrap;">
