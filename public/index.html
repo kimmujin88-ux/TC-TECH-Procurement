@@ -6958,11 +6958,17 @@ function logOrderConfirm(supplier, items) {
   if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
 }
 
-// ── 발주 마감일 역산 ──
+// ── 발주 마감일 역산 (동적: 현재 윈도우 기준) ──
 function orderDeadline(master, firstShort) {
   if (!firstShort || !master.lead_time_days) return null;
-  const shortEnd = { may: new Date(2026,4,31), jun: new Date(2026,5,30), jul: new Date(2026,6,31), aug: new Date(2026,7,31) }[firstShort];
-  if (!shortEnd) return null;
+  const offset = { may: 0, jun: 1, jul: 2, aug: 3 }[firstShort];
+  if (offset === undefined) return null;
+  const sm = (state && state.periodStartMonth) || 5;
+  const sy = (state && state.periodYear) || 2026;
+  let m = sm + offset, y = sy;
+  while (m > 12) { m -= 12; y += 1; }
+  // 해당 월의 마지막 날 (첫 다음달 - 1일)
+  const shortEnd = new Date(y, m, 0);
   return new Date(shortEnd.getTime() - master.lead_time_days * 86400000);
 }
 
