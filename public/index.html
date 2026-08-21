@@ -40,30 +40,30 @@
 }
 /* ───── LIGHT THEME (토스 스타일) — [data-theme="light"] on html 트리거 ───── */
 :root[data-theme="light"] {
-  --bg: #F5F6F8;
+  --bg: #EEF1F5;
   --bg-card: #FFFFFF;
-  --bg-card2: #FAFBFC;
-  --border: #E4E7EC;
-  --border2: #E4E7EC;
-  --t1: #1A2233;
-  --t2: #4A5568;
-  --t3: #8B95A1;
-  --proc-txt: #6B7280;
-  --teal: #0F8A6A;
+  --bg-card2: #F5F7FA;
+  --border: #CBD2D9;
+  --border2: #D6DCE3;
+  --t1: #111827;
+  --t2: #2D3748;
+  --t3: #4A5568;
+  --proc-txt: #374151;
+  --teal: #047857;
   --teal-d: #D1FAE5;
-  --teal-b: #10B981;
-  --sky: #3182F6;
+  --teal-b: #059669;
+  --sky: #1D4ED8;
   --sky-d: #DBEAFE;
-  --sky-b: #60A5FA;
-  --red: #E11D48;
+  --sky-b: #3B82F6;
+  --red: #B91C1C;
   --red-d: #FEE2E2;
-  --red-b: #F87171;
-  --amb: #D97706;
+  --red-b: #DC2626;
+  --amb: #B45309;
   --amb-d: #FEF3C7;
-  --amb-b: #F59E0B;
-  --purple: #7C3AED;
+  --amb-b: #D97706;
+  --purple: #6D28D9;
   --purple-d: #EDE9FE;
-  --purple-b: #A78BFA;
+  --purple-b: #7C3AED;
 }
 :root[data-theme="light"] body {
   color: var(--t1);
@@ -255,6 +255,62 @@
 :root[data-theme="light"] .dl-warning { color: var(--amb) !important; }
 :root[data-theme="light"] .dl-ok { color: var(--teal) !important; }
 :root[data-theme="light"] .dl-none { color: var(--t3) !important; }
+/* ── 캡쳐 대비 강화 추가 오버라이드 ── */
+:root[data-theme="light"] .card__hint,
+:root[data-theme="light"] .section-title__hint,
+:root[data-theme="light"] .kpi__delta { color: var(--t2) !important; font-weight: 500; }
+:root[data-theme="light"] .card__title { color: var(--t1) !important; font-weight: 800; }
+:root[data-theme="light"] .section-title__label { color: var(--t1) !important; font-weight: 800; font-size: 14px; }
+/* 히어로 카드 스타일 */
+:root[data-theme="light"] .hero-progress-text { color: var(--t1) !important; }
+/* 히어로 KPI 3개 (즉시 처리/임박/계획) 숫자·라벨 */
+:root[data-theme="light"] [id^="hero-stat"] { color: var(--t1) !important; font-weight: 800; }
+/* 대시보드 카드 헤더 좌측 UPPERCASE 라벨 */
+:root[data-theme="light"] .dash-grid-hero div[style*="letter-spacing"] { color: var(--t2) !important; font-weight: 700; }
+/* 상단 오른쪽 갱신 정보 */
+:root[data-theme="light"] #dash-updated,
+:root[data-theme="light"] #hero-updated { color: var(--t2) !important; }
+/* 탭 라벨 강조 */
+:root[data-theme="light"] .tab { color: var(--t2) !important; font-weight: 700; }
+:root[data-theme="light"] .tab--active { color: var(--sky) !important; font-weight: 800; }
+:root[data-theme="light"] .tab--active::after { background: var(--sky); height: 3px; }
+:root[data-theme="light"] .tab__count { background: #FFFFFF; border-color: var(--border); color: var(--t1); font-weight: 700; }
+/* 브랜드명 강조 */
+:root[data-theme="light"] .brand__name { color: var(--t1) !important; font-weight: 800; }
+:root[data-theme="light"] .brand__meta { color: var(--t2) !important; }
+/* 필터 라벨 */
+:root[data-theme="light"] .filter-label { color: var(--t2); font-weight: 600; }
+/* 대시보드 KPI 대형 숫자 */
+:root[data-theme="light"] .kpi__value { font-weight: 800 !important; }
+:root[data-theme="light"] .kpi__label { color: var(--t1) !important; opacity: 1 !important; font-weight: 700; }
+/* 재고 상태(STOCK HEALTH) 등 대시보드 우측 카드 라벨 */
+:root[data-theme="light"] .stock-health-row__label { color: var(--t2) !important; font-weight: 600; }
+:root[data-theme="light"] .stock-health-row__value { color: var(--t1) !important; }
+/* 다가오는 입고 리스트 */
+:root[data-theme="light"] .upcoming-item__date { color: var(--sky) !important; font-weight: 800; }
+:root[data-theme="light"] .upcoming-item__supplier { color: var(--t1) !important; font-weight: 600; }
+:root[data-theme="light"] .upcoming-item__supplier small { color: var(--t2) !important; }
+/* 알람 항목 */
+:root[data-theme="light"] .alert-item__title strong { color: var(--t1) !important; }
+:root[data-theme="light"] .alert-item__meta { color: var(--t2) !important; }
+/* 히어로 대시보드 카드들에 shadow 강화 (경계 명확) */
+:root[data-theme="light"] .dash-grid-hero .card,
+:root[data-theme="light"] .kpi {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  border: 1px solid var(--border);
+}
+/* 리마인더 아이템 */
+:root[data-theme="light"] .reminder-item__body { color: var(--t1) !important; }
+:root[data-theme="light"] .reminder-item__body strong { color: var(--t1) !important; font-weight: 700; }
+:root[data-theme="light"] .reminder-item__body small { color: var(--t2) !important; }
+/* 칸반 아이템 */
+:root[data-theme="light"] .kanban-col__head { color: var(--t2) !important; font-weight: 700; }
+:root[data-theme="light"] .kanban-item__supplier { color: var(--t1) !important; }
+:root[data-theme="light"] .kanban-item__meta { color: var(--t2) !important; }
+/* 배경 강도 upgrade */
+:root[data-theme="light"] body { background: var(--bg); }
+/* 태블릿 배지 등 색상 */
+:root[data-theme="light"] .badge { color: var(--t1); background: var(--bg-card2); border-color: var(--border); }
 /* rgba(255,255,255,X) 하드코딩 hover/미묘한 배경 → 라이트에서는 옅은 그레이 */
 :root[data-theme="light"] .cell-num--readonly { background: #F7F8FA !important; color: var(--t2); }
 :root[data-theme="light"] .form-input.cell-num--start { background: #FDFDFE !important; }
