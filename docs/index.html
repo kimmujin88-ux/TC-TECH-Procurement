@@ -39,329 +39,278 @@
   --sans: 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
 }
 /* ───── LIGHT THEME (토스 스타일) — [data-theme="light"] on html 트리거 ───── */
+/* ═════════════════════════════════════════════════════════
+   LIGHT THEME (전면 재설계 · 화이트 기반 클린)
+   ═════════════════════════════════════════════════════════ */
 :root[data-theme="light"] {
-  --bg: #EEF1F5;
+  --bg: #F3F5F8;
   --bg-card: #FFFFFF;
-  --bg-card2: #F5F7FA;
-  --border: #CBD2D9;
-  --border2: #D6DCE3;
-  --t1: #111827;
-  --t2: #2D3748;
-  --t3: #4A5568;
-  --proc-txt: #374151;
+  --bg-card2: #F8FAFC;
+  --border: #D1D5DB;
+  --border2: #E5E7EB;
+  --t1: #0F172A;
+  --t2: #334155;
+  --t3: #64748B;
+  --proc-txt: #475569;
   --teal: #047857;
-  --teal-d: #D1FAE5;
-  --teal-b: #059669;
+  --teal-d: #ECFDF5;
+  --teal-b: #10B981;
   --sky: #1D4ED8;
-  --sky-d: #DBEAFE;
+  --sky-d: #EFF6FF;
   --sky-b: #3B82F6;
   --red: #B91C1C;
-  --red-d: #FEE2E2;
-  --red-b: #DC2626;
+  --red-d: #FEF2F2;
+  --red-b: #EF4444;
   --amb: #B45309;
-  --amb-d: #FEF3C7;
-  --amb-b: #D97706;
+  --amb-d: #FFFBEB;
+  --amb-b: #F59E0B;
   --purple: #6D28D9;
-  --purple-d: #EDE9FE;
-  --purple-b: #7C3AED;
+  --purple-d: #F5F3FF;
+  --purple-b: #8B5CF6;
 }
-:root[data-theme="light"] body {
-  color: var(--t1);
-}
-:root[data-theme="light"] .app-header,
-:root[data-theme="light"] .card,
-:root[data-theme="light"] .form-input,
-:root[data-theme="light"] .filter-input,
-:root[data-theme="light"] .filter-select,
-:root[data-theme="light"] input[type="date"],
-:root[data-theme="light"] input[type="number"],
-:root[data-theme="light"] input[type="text"],
-:root[data-theme="light"] input[type="password"],
-:root[data-theme="light"] select,
-:root[data-theme="light"] textarea {
-  color: var(--t1);
-}
-:root[data-theme="light"] .card {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
-}
-/* 하드코딩된 #fff / white 텍스트 라이트 테마 오버라이드 */
-:root[data-theme="light"] .brand__name,
-:root[data-theme="light"] .card__title,
-:root[data-theme="light"] .supplier-name,
-:root[data-theme="light"] .modal__title,
-:root[data-theme="light"] .alert-item__title strong,
-:root[data-theme="light"] .section-title__label {
-  color: var(--t1) !important;
-}
-:root[data-theme="light"] .tab--active { color: var(--sky) !important; }
-:root[data-theme="light"] .tab { color: var(--t2); }
-:root[data-theme="light"] .tab:hover { color: var(--t1); }
-:root[data-theme="light"] .modal__close { color: var(--t2); }
-:root[data-theme="light"] .modal__close:hover { color: var(--t1); }
-:root[data-theme="light"] .btn-reset:hover { color: var(--t1); background: var(--bg-card2); }
-/* 대시보드 히어로 카드 내부 흰색 텍스트 */
-:root[data-theme="light"] [style*="color:#fff"],
-:root[data-theme="light"] [style*="color: #fff"],
-:root[data-theme="light"] [style*="color:white"],
-:root[data-theme="light"] [style*="color: white"] {
-  color: var(--t1) !important;
-}
-:root[data-theme="light"] .modal__body [style*="color:var(--t1)"],
-:root[data-theme="light"] .modal__body [style*="color: var(--t1)"] {
-  color: var(--t1) !important;
-}
-/* 배지·태그 - 다크 배경 위 흰색을 유지해야 하는 경우도 있으니 상황별 조정 */
-:root[data-theme="light"] .badge--info,
-:root[data-theme="light"] .badge {
-  background: var(--sky-d);
-  color: var(--sky);
-  border-color: var(--sky-b);
-}
-/* 폼 input placeholder 색 */
+/* 전역 텍스트·배경 기본 */
+:root[data-theme="light"] body { background: var(--bg); color: var(--t1); }
 :root[data-theme="light"] input::placeholder,
-:root[data-theme="light"] textarea::placeholder,
-:root[data-theme="light"] select {
-  color: var(--t3);
-}
-/* 테이블 hover 시 배경 대비 */
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td,
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col {
-  background: #F0F4F8 !important;
-}
-:root[data-theme="light"] .order-table tbody tr:hover {
-  background: rgba(49,130,246,0.05);
-}
-/* 모달·팝오버 그림자 강화 */
-:root[data-theme="light"] .modal {
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 8px 25px rgba(0,0,0,0.08);
-}
-/* 헤더 - 상단 sticky 배경 확실히 */
+:root[data-theme="light"] textarea::placeholder { color: var(--t3); }
+:root[data-theme="light"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+:root[data-theme="light"] ::-webkit-scrollbar-track { background: #EDF0F3; }
+:root[data-theme="light"] ::-webkit-scrollbar-thumb { background: #C1C7CE; border-radius: 5px; }
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #9BA1A8; }
+
+/* 헤더 */
 :root[data-theme="light"] .app-header {
   background: #FFFFFF;
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
 }
-/* Sticky 컬럼 배경 */
-:root[data-theme="light"] .form-table thead .sticky-col,
-:root[data-theme="light"] .form-table tbody .sticky-col {
-  background: var(--bg-card) !important;
+:root[data-theme="light"] .brand__name { color: var(--t1) !important; font-weight: 800; }
+:root[data-theme="light"] .brand__sub, :root[data-theme="light"] .brand__meta { color: var(--t2) !important; font-weight: 500; }
+:root[data-theme="light"] .app-header .btn,
+:root[data-theme="light"] .app-header .btn--ghost { color: var(--t2); }
+:root[data-theme="light"] .app-header .btn:hover,
+:root[data-theme="light"] .app-header .btn--ghost:hover { background: #F1F5F9; color: var(--t1); }
+
+/* 탭 */
+:root[data-theme="light"] .tab { color: var(--t2) !important; font-weight: 700; }
+:root[data-theme="light"] .tab:hover { color: var(--t1) !important; }
+:root[data-theme="light"] .tab--active { color: var(--sky) !important; font-weight: 800; }
+:root[data-theme="light"] .tab--active::after { background: var(--sky); height: 3px; }
+:root[data-theme="light"] .tab__count { background: #F1F5F9; border-color: var(--border); color: var(--t1); font-weight: 700; }
+:root[data-theme="light"] .tab__count--alert { background: var(--red-d); color: var(--red); border-color: var(--red-b); }
+
+/* 카드 */
+:root[data-theme="light"] .card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04);
 }
-/* 대시보드 히어로 카드 - 원형 프로그레스 배경 및 색 */
-:root[data-theme="light"] .hero-progress { color: var(--t1); }
-/* KPI 카드 - 하드코딩 #fff 텍스트 오버라이드 */
-:root[data-theme="light"] .kpi__label,
-:root[data-theme="light"] .kpi__value,
-:root[data-theme="light"] .kpi__unit {
-  color: var(--t1) !important;
-}
+:root[data-theme="light"] .card__title { color: var(--t1) !important; font-weight: 800; }
+:root[data-theme="light"] .card__hint { color: var(--t2) !important; font-weight: 500; }
+
+/* 섹션 타이틀 */
+:root[data-theme="light"] .section-title__label { color: var(--t1) !important; font-weight: 800; font-size: 14px; }
+:root[data-theme="light"] .section-title__hint { color: var(--t2) !important; font-weight: 500; }
+
+/* KPI 카드 */
+:root[data-theme="light"] .kpi { background: #FFFFFF; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+:root[data-theme="light"] .kpi--sky { background: linear-gradient(180deg, #FFFFFF 0%, #F7FAFF 100%); border-color: var(--sky-b); }
+:root[data-theme="light"] .kpi--teal { background: linear-gradient(180deg, #FFFFFF 0%, #F5FDF9 100%); border-color: var(--teal-b); }
+:root[data-theme="light"] .kpi--amb { background: linear-gradient(180deg, #FFFFFF 0%, #FFFAEF 100%); border-color: var(--amb-b); }
+:root[data-theme="light"] .kpi--red { background: linear-gradient(180deg, #FFFFFF 0%, #FEF6F6 100%); border-color: var(--red-b); }
+:root[data-theme="light"] .kpi__label { color: var(--t1) !important; opacity: 1 !important; font-weight: 700; }
+:root[data-theme="light"] .kpi__value { color: var(--t1) !important; font-weight: 800 !important; }
 :root[data-theme="light"] .kpi__value--red { color: var(--red) !important; }
-:root[data-theme="light"] .kpi__label { opacity: 0.75; }
-:root[data-theme="light"] .kpi__unit { opacity: 0.65; }
-/* KPI 컬러 카드 배경·테두리 (다크에서 var(--sky-d)=진한 남색이던 것을 라이트에선 옅은 파란 tint로 이미 재정의) */
-:root[data-theme="light"] .kpi--sky { background: var(--sky-d); border-color: var(--sky-b); }
-:root[data-theme="light"] .kpi--red { background: var(--red-d); border-color: var(--red-b); }
-:root[data-theme="light"] .kpi--teal { background: var(--teal-d); border-color: var(--teal-b); }
-:root[data-theme="light"] .kpi--amb { background: var(--amb-d); border-color: var(--amb-b); }
-:root[data-theme="light"] .kpi[onclick]:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
-/* 수급 운영 계획 테이블 - 월별 헤더 하드코딩 다크 배경 오버라이드 */
-:root[data-theme="light"] .form-table thead th.month-may-h.h-group { background: #DBEAFE !important; color: #2563EB !important; }
-:root[data-theme="light"] .form-table thead th.month-jun-h.h-group { background: #FEF3C7 !important; color: #D97706 !important; }
-:root[data-theme="light"] .form-table thead th.month-jul-h.h-group { background: #D1FAE5 !important; color: #059669 !important; }
-:root[data-theme="light"] .form-table thead th.month-aug-h.h-group { background: #EDE9FE !important; color: #7C3AED !important; }
-:root[data-theme="light"] .form-table thead th.month-may-h.h-sub { background: #EFF6FF !important; color: #2563EB !important; }
-:root[data-theme="light"] .form-table thead th.month-jun-h.h-sub { background: #FFFBEB !important; color: #D97706 !important; }
-:root[data-theme="light"] .form-table thead th.month-jul-h.h-sub { background: #ECFDF5 !important; color: #059669 !important; }
-:root[data-theme="light"] .form-table thead th.month-aug-h.h-sub { background: #F5F3FF !important; color: #7C3AED !important; }
-/* 월별 셀 배경 */
-:root[data-theme="light"] .form-table td.month-may-bg { background: #F0F7FF !important; }
-:root[data-theme="light"] .form-table td.month-jun-bg { background: #FFFBEE !important; }
-:root[data-theme="light"] .form-table td.month-jul-bg { background: #F0FBF5 !important; }
-:root[data-theme="light"] .form-table td.month-aug-bg { background: #F7F5FE !important; }
-/* summary-row 배경 */
-:root[data-theme="light"] .form-table .summary-row td { background: #F8FAFC !important; color: var(--t1) !important; font-weight: 700; }
-:root[data-theme="light"] .form-table .summary-row.grand-total td { background: #EEF3F8 !important; }
-/* 테이블 hover */
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td { background: #EEF5FC !important; }
-:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col { background: #E9F1FB !important; }
-/* 테이블 셀 텍스트 - 다크에서 var(--t1)로 밝게 되어있던 부분 확실히 */
-:root[data-theme="light"] .form-table tbody td,
-:root[data-theme="light"] .form-table tbody td.sticky-col { color: var(--t1); }
-:root[data-theme="light"] .form-table thead th { color: var(--t2); background: #E5E9EE !important; }
-:root[data-theme="light"] .form-table thead th.h-merged { background: #E5E9EE !important; color: var(--t1); font-weight: 700; }
-:root[data-theme="light"] .form-table thead tr.h-row1 th { background: #E5E9EE !important; color: var(--t2); }
-:root[data-theme="light"] .form-table thead tr.h-row2 th { color: var(--t2); background: #E5E9EE !important; font-weight: 600; }
+:root[data-theme="light"] .kpi__unit { color: var(--t2) !important; opacity: 1 !important; }
+:root[data-theme="light"] .kpi__delta { color: var(--t2) !important; opacity: 1 !important; font-weight: 500; }
+:root[data-theme="light"] .kpi__delta--alert { color: var(--red) !important; }
+:root[data-theme="light"] .kpi__delta--good { color: var(--teal) !important; }
+:root[data-theme="light"] .kpi__corner { color: var(--t3); }
+:root[data-theme="light"] .kpi[onclick]:hover { box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+
+/* 수급 운영 계획 테이블 */
+:root[data-theme="light"] .form-table thead th { background: #E5E9EE !important; color: var(--t2) !important; }
+:root[data-theme="light"] .form-table thead th.h-merged { background: #E5E9EE !important; color: var(--t1) !important; font-weight: 700; }
+:root[data-theme="light"] .form-table thead tr.h-row1 th { background: #E5E9EE !important; color: var(--t2) !important; }
+:root[data-theme="light"] .form-table thead tr.h-row2 th { background: #E5E9EE !important; color: var(--t2) !important; font-weight: 600; }
 :root[data-theme="light"] .form-table thead .sticky-col { background: #E5E9EE !important; }
-/* 재고 부족 강조 */
+/* 월별 헤더는 pale tint만 유지 (컬러 액센트) */
+:root[data-theme="light"] .form-table thead th.month-may-h.h-group { background: #DBEAFE !important; color: var(--sky) !important; }
+:root[data-theme="light"] .form-table thead th.month-jun-h.h-group { background: #FEF3C7 !important; color: var(--amb) !important; }
+:root[data-theme="light"] .form-table thead th.month-jul-h.h-group { background: #D1FAE5 !important; color: var(--teal) !important; }
+:root[data-theme="light"] .form-table thead th.month-aug-h.h-group { background: #EDE9FE !important; color: var(--purple) !important; }
+:root[data-theme="light"] .form-table thead th.month-may-h.h-sub { background: #EFF6FF !important; color: var(--sky) !important; }
+:root[data-theme="light"] .form-table thead th.month-jun-h.h-sub { background: #FFFBEB !important; color: var(--amb) !important; }
+:root[data-theme="light"] .form-table thead th.month-jul-h.h-sub { background: #ECFDF5 !important; color: var(--teal) !important; }
+:root[data-theme="light"] .form-table thead th.month-aug-h.h-sub { background: #F5F3FF !important; color: var(--purple) !important; }
+/* 월별 셀 배경 (아주 옅음) */
+:root[data-theme="light"] .form-table td.month-may-bg { background: #F8FAFF !important; }
+:root[data-theme="light"] .form-table td.month-jun-bg { background: #FFFDF5 !important; }
+:root[data-theme="light"] .form-table td.month-jul-bg { background: #F8FCFA !important; }
+:root[data-theme="light"] .form-table td.month-aug-bg { background: #FAF9FF !important; }
+/* 본문 셀 */
+:root[data-theme="light"] .form-table tbody td { color: var(--t1); background: #FFFFFF; }
+:root[data-theme="light"] .form-table tbody td.sticky-col { background: #FFFFFF; color: var(--t1); }
+/* 짝수행 zebra */
+:root[data-theme="light"] .form-table tbody tr.item-row:nth-child(even) td:not(.sticky-col):not([class*="month-"]) { background: #FAFBFC; }
+/* hover */
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td { background: #E8F0FA !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.sticky-col { background: #DFEAF7 !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-may-bg { background: #DCE9FA !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jun-bg { background: #FAF3DB !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-jul-bg { background: #DAF3E5 !important; }
+:root[data-theme="light"] .form-table tbody tr.item-row:hover td.month-aug-bg { background: #E9E1FA !important; }
+/* summary·grand-total row */
+:root[data-theme="light"] .form-table .summary-row td { background: #F1F5F9 !important; color: var(--t1) !important; font-weight: 700; border-top: 1px solid var(--border); }
+:root[data-theme="light"] .form-table .summary-row.grand-total td { background: #E2E8F0 !important; font-weight: 800; }
+/* 셀 스타일 */
+:root[data-theme="light"] .cell-model-merged { background: #F1F5F9 !important; color: var(--t1); font-weight: 600; }
+:root[data-theme="light"] .cell-name { color: var(--t1); }
+:root[data-theme="light"] .cell-detail { color: var(--t3); }
+:root[data-theme="light"] .cell-meta { color: var(--t2); }
+:root[data-theme="light"] .cell-pn { color: var(--t1); font-family: var(--mono); }
+:root[data-theme="light"] .cell-num--readonly { background: #F8FAFC !important; color: var(--t2) !important; }
+:root[data-theme="light"] .cell-num--qty-merged { background: #EFF6FF !important; }
 :root[data-theme="light"] .cell-num--alert { color: var(--red) !important; font-weight: 700; }
-/* 입력 폼 배경 */
+
+/* 입력 폼 */
 :root[data-theme="light"] .form-input,
 :root[data-theme="light"] .filter-input,
-:root[data-theme="light"] .filter-select {
+:root[data-theme="light"] .filter-select,
+:root[data-theme="light"] input[type="text"],
+:root[data-theme="light"] input[type="number"],
+:root[data-theme="light"] input[type="date"],
+:root[data-theme="light"] input[type="password"],
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea {
   background: #FFFFFF !important;
   border: 1px solid var(--border) !important;
   color: var(--t1) !important;
 }
 :root[data-theme="light"] .form-input:focus,
 :root[data-theme="light"] .filter-input:focus,
-:root[data-theme="light"] .filter-select:focus {
+:root[data-theme="light"] .filter-select:focus,
+:root[data-theme="light"] input:focus,
+:root[data-theme="light"] select:focus,
+:root[data-theme="light"] textarea:focus {
   border-color: var(--sky) !important;
-  box-shadow: 0 0 0 3px rgba(49,130,246,0.15) !important;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.15) !important;
+  outline: none;
 }
-:root[data-theme="light"] .form-input:hover { background: #F7F8FA !important; border-color: var(--border) !important; }
-:root[data-theme="light"] .model-header-input { background: #FFFFFF !important; color: var(--sky) !important; font-weight: 800; }
-/* 모델 셀 병합 배경 */
-:root[data-theme="light"] .cell-model-merged { background: #F7F8FA !important; color: var(--t1); font-weight: 600; }
-:root[data-theme="light"] .cell-name { color: var(--t1); }
-:root[data-theme="light"] .cell-detail { color: var(--t3); }
-:root[data-theme="light"] .cell-meta { color: var(--t2); }
-:root[data-theme="light"] .cell-num--readonly { background: #FAFBFC !important; color: var(--t2) !important; }
-:root[data-theme="light"] .cell-num--qty-merged { background: rgba(49,130,246,0.05) !important; }
-:root[data-theme="light"] .cell-pn { color: var(--t1); font-family: var(--mono); }
-/* 뱃지 (공용 부품 표시 등) */
-:root[data-theme="light"] .badge-shared { background: #DBEAFE !important; color: var(--sky) !important; border-color: var(--sky-b) !important; }
-/* order-table hover */
-:root[data-theme="light"] .order-table thead th { background: #F5F6F8 !important; color: var(--t2) !important; }
-:root[data-theme="light"] .order-table tbody td { color: var(--t1); }
-/* 알람 등 특정 클래스 */
-:root[data-theme="light"] .badge--info { background: #DBEAFE !important; color: var(--sky) !important; }
-:root[data-theme="light"] .badge--neutral { background: #F5F6F8 !important; color: var(--t2) !important; border-color: var(--border) !important; }
-/* 버튼 */
-:root[data-theme="light"] .btn { background: #FFFFFF; border-color: var(--border); color: var(--t1); }
-:root[data-theme="light"] .btn:hover { background: #F7F8FA; }
-:root[data-theme="light"] .btn--ghost { background: transparent; color: var(--t2); border-color: var(--border); }
-:root[data-theme="light"] .btn--ghost:hover { background: #F5F6F8; color: var(--t1); }
-:root[data-theme="light"] .btn--teal { background: var(--teal); color: #FFFFFF; border-color: var(--teal); }
-:root[data-theme="light"] .btn--teal:hover { background: #0E7A5E; }
-:root[data-theme="light"] .btn-reset { color: var(--t2); border-color: var(--border); }
-/* 히어로 대시보드 상세 카드 컴포넌트들 */
-:root[data-theme="light"] .upcoming-item { background: #FFFFFF; border-color: var(--border); }
-:root[data-theme="light"] .upcoming-item:hover { background: #F5F9FE; border-color: var(--sky); }
-:root[data-theme="light"] .alert-list-hero-item { background: #FFFFFF; border-color: var(--border); }
-:root[data-theme="light"] .alert-list-hero-item:hover { background: #F5F9FE; }
-:root[data-theme="light"] .kanban-col { background: #FFFFFF; border-color: var(--border); }
-:root[data-theme="light"] .kanban-item { background: #F7F8FA !important; color: var(--t1); }
-:root[data-theme="light"] .reminder-item { background: #FFFFFF; border-color: var(--border); }
-/* stock-health rows */
-:root[data-theme="light"] .stock-health-row { border-bottom-color: var(--border); }
-:root[data-theme="light"] .stock-health-row__label { color: var(--t2); }
-:root[data-theme="light"] .stock-health-row__value { color: var(--t1); }
-/* .filters 배경 */
-:root[data-theme="light"] .filters { background: #FFFFFF; border: 1px solid var(--border); }
-/* 헤더 상단 이전 사이클/도움말/더보기 등의 버튼 색상 */
-:root[data-theme="light"] .app-header .btn,
-:root[data-theme="light"] .app-header .btn--ghost { color: var(--t2); }
-:root[data-theme="light"] .app-header .btn:hover,
-:root[data-theme="light"] .app-header .btn--ghost:hover { background: #F5F6F8; color: var(--t1); }
-/* 태블릿·복제 뱃지 등 인라인 style 오버라이드 어려운 곳 */
-:root[data-theme="light"] .dl-overdue { color: var(--red) !important; font-weight: 700; }
-:root[data-theme="light"] .dl-urgent { color: var(--red) !important; font-weight: 700; }
-:root[data-theme="light"] .dl-warning { color: var(--amb) !important; }
-:root[data-theme="light"] .dl-ok { color: var(--teal) !important; }
-:root[data-theme="light"] .dl-none { color: var(--t3) !important; }
-/* ── 캡쳐 대비 강화 추가 오버라이드 ── */
-:root[data-theme="light"] .card__hint,
-:root[data-theme="light"] .section-title__hint,
-:root[data-theme="light"] .kpi__delta { color: var(--t2) !important; font-weight: 500; }
-:root[data-theme="light"] .card__title { color: var(--t1) !important; font-weight: 800; }
-:root[data-theme="light"] .section-title__label { color: var(--t1) !important; font-weight: 800; font-size: 14px; }
-/* 히어로 카드 스타일 */
-:root[data-theme="light"] .hero-progress-text { color: var(--t1) !important; }
-/* 히어로 KPI 3개 (즉시 처리/임박/계획) 숫자·라벨 */
-:root[data-theme="light"] [id^="hero-stat"] { color: var(--t1) !important; font-weight: 800; }
-/* 대시보드 카드 헤더 좌측 UPPERCASE 라벨 */
-:root[data-theme="light"] .dash-grid-hero div[style*="letter-spacing"] { color: var(--t2) !important; font-weight: 700; }
-/* 상단 오른쪽 갱신 정보 */
-:root[data-theme="light"] #dash-updated,
-:root[data-theme="light"] #hero-updated { color: var(--t2) !important; }
-/* 탭 라벨 강조 */
-:root[data-theme="light"] .tab { color: var(--t2) !important; font-weight: 700; }
-:root[data-theme="light"] .tab--active { color: var(--sky) !important; font-weight: 800; }
-:root[data-theme="light"] .tab--active::after { background: var(--sky); height: 3px; }
-:root[data-theme="light"] .tab__count { background: #FFFFFF; border-color: var(--border); color: var(--t1); font-weight: 700; }
-/* 브랜드명 강조 */
-:root[data-theme="light"] .brand__name { color: var(--t1) !important; font-weight: 800; }
-:root[data-theme="light"] .brand__meta { color: var(--t2) !important; }
-/* 필터 라벨 */
+:root[data-theme="light"] .form-input:hover { background: #F8FAFC !important; }
 :root[data-theme="light"] .filter-label { color: var(--t2); font-weight: 600; }
-/* 대시보드 KPI 대형 숫자 */
-:root[data-theme="light"] .kpi__value { font-weight: 800 !important; }
-:root[data-theme="light"] .kpi__label { color: var(--t1) !important; opacity: 1 !important; font-weight: 700; }
-/* 재고 상태(STOCK HEALTH) 등 대시보드 우측 카드 라벨 */
-:root[data-theme="light"] .stock-health-row__label { color: var(--t2) !important; font-weight: 600; }
-:root[data-theme="light"] .stock-health-row__value { color: var(--t1) !important; }
-/* 다가오는 입고 리스트 */
-:root[data-theme="light"] .upcoming-item__date { color: var(--sky) !important; font-weight: 800; }
-:root[data-theme="light"] .upcoming-item__supplier { color: var(--t1) !important; font-weight: 600; }
-:root[data-theme="light"] .upcoming-item__supplier small { color: var(--t2) !important; }
-/* 알람 항목 */
-:root[data-theme="light"] .alert-item__title strong { color: var(--t1) !important; }
-:root[data-theme="light"] .alert-item__meta { color: var(--t2) !important; }
-/* 히어로 대시보드 카드들에 shadow 강화 (경계 명확) */
-:root[data-theme="light"] .dash-grid-hero .card,
-:root[data-theme="light"] .kpi {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  border: 1px solid var(--border);
-}
-/* 리마인더 아이템 */
-:root[data-theme="light"] .reminder-item__body { color: var(--t1) !important; }
-:root[data-theme="light"] .reminder-item__body strong { color: var(--t1) !important; font-weight: 700; }
-:root[data-theme="light"] .reminder-item__body small { color: var(--t2) !important; }
-/* 칸반 아이템 */
-:root[data-theme="light"] .kanban-col__head { color: var(--t2) !important; font-weight: 700; }
-:root[data-theme="light"] .kanban-item__supplier { color: var(--t1) !important; }
-:root[data-theme="light"] .kanban-item__meta { color: var(--t2) !important; }
-/* 배경 강도 upgrade */
-:root[data-theme="light"] body { background: var(--bg); }
-/* 태블릿 배지 등 색상 */
-:root[data-theme="light"] .badge { color: var(--t1); background: var(--bg-card2); border-color: var(--border); }
-/* rgba(255,255,255,X) 하드코딩 hover/미묘한 배경 → 라이트에서는 옅은 그레이 */
-:root[data-theme="light"] .cell-num--readonly { background: #F7F8FA !important; color: var(--t2); }
-:root[data-theme="light"] .form-input.cell-num--start { background: #FDFDFE !important; }
-:root[data-theme="light"] tbody tr[data-part-no]:hover,
-:root[data-theme="light"] tbody tr[data-supplier]:hover,
-:root[data-theme="light"] .chart-row:hover,
-:root[data-theme="light"] .alert-item:hover,
-:root[data-theme="light"] .order-table tr:hover td {
-  background: rgba(49,130,246,0.06) !important;
-}
-/* MORE MENU 드롭다운 */
+:root[data-theme="light"] .filters { background: #FFFFFF; border: 1px solid var(--border); }
+:root[data-theme="light"] .model-header-input { background: #F0F6FF !important; color: var(--sky) !important; font-weight: 800; border-color: var(--sky-b) !important; }
+
+/* 버튼 */
+:root[data-theme="light"] .btn { background: #FFFFFF; border: 1px solid var(--border); color: var(--t1); }
+:root[data-theme="light"] .btn:hover { background: #F1F5F9; }
+:root[data-theme="light"] .btn--ghost { background: transparent; color: var(--t2); border-color: var(--border); }
+:root[data-theme="light"] .btn--ghost:hover { background: #F1F5F9; color: var(--t1); }
+:root[data-theme="light"] .btn--teal { background: var(--teal); color: #FFFFFF !important; border-color: var(--teal); }
+:root[data-theme="light"] .btn--teal:hover { background: #036049; }
+:root[data-theme="light"] .btn-reset { color: var(--t2); border-color: var(--border); }
+:root[data-theme="light"] .btn-reset:hover { color: var(--t1); background: #F1F5F9; }
+
+/* 뱃지 */
+:root[data-theme="light"] .badge { color: var(--t1); background: #F1F5F9; border: 1px solid var(--border); }
+:root[data-theme="light"] .badge--info { background: var(--sky-d); color: var(--sky); border-color: var(--sky-b); }
+:root[data-theme="light"] .badge--neutral { background: #F1F5F9; color: var(--t2); border-color: var(--border); }
+:root[data-theme="light"] .badge-shared { background: var(--sky-d) !important; color: var(--sky) !important; border-color: var(--sky-b) !important; }
+
+/* 모달 */
+:root[data-theme="light"] .modal { box-shadow: 0 25px 60px rgba(15,23,42,0.20), 0 8px 25px rgba(15,23,42,0.10); }
+:root[data-theme="light"] .modal__title { color: var(--t1) !important; font-weight: 800; }
+:root[data-theme="light"] .modal__close { color: var(--t2); }
+:root[data-theme="light"] .modal__close:hover { color: var(--t1); }
+
+/* 드롭다운 */
 :root[data-theme="light"] #more-dropdown,
 :root[data-theme="light"] [id$="-dropdown"] {
   background: #FFFFFF !important;
-  border-color: var(--border) !important;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.15) !important;
 }
-/* Login 화면 */
-:root[data-theme="light"] .login-input {
-  background: #F7F8FA;
-  border-color: var(--border);
-  color: var(--t1);
+
+/* order-table */
+:root[data-theme="light"] .order-table thead th { background: #F1F5F9 !important; color: var(--t2) !important; border-color: var(--border); }
+:root[data-theme="light"] .order-table tbody td { color: var(--t1); border-color: var(--border2); }
+:root[data-theme="light"] .order-table tr:hover td { background: #F0F7FF !important; }
+
+/* 발주 마감일 뱃지 */
+:root[data-theme="light"] .dl-overdue { color: var(--red) !important; font-weight: 700; }
+:root[data-theme="light"] .dl-urgent { color: var(--red) !important; font-weight: 700; }
+:root[data-theme="light"] .dl-warning { color: var(--amb) !important; font-weight: 700; }
+:root[data-theme="light"] .dl-ok { color: var(--teal) !important; font-weight: 700; }
+:root[data-theme="light"] .dl-none { color: var(--t3) !important; }
+
+/* 히어로 대시보드 카드 */
+:root[data-theme="light"] .dash-grid-hero .card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(15,23,42,0.05);
 }
-/* Viewer 배너 */
-:root[data-theme="light"] .viewer-banner {
-  background: #FEF3C7;
-  color: #92400E;
-  border-color: #F59E0B;
+:root[data-theme="light"] .dash-grid-hero div[style*="letter-spacing"] { color: var(--t2) !important; font-weight: 700; }
+:root[data-theme="light"] .hero-progress-text { color: var(--t1) !important; }
+:root[data-theme="light"] .hero-progress svg circle:first-child { stroke: #E5E7EB !important; }
+:root[data-theme="light"] [id^="hero-stat"] { color: var(--t1) !important; font-weight: 800; }
+:root[data-theme="light"] #dash-updated,
+:root[data-theme="light"] #hero-updated { color: var(--t2) !important; }
+
+/* 다가오는 입고 */
+:root[data-theme="light"] .upcoming-item { background: #FFFFFF; border: 1px solid var(--border); }
+:root[data-theme="light"] .upcoming-item:hover { background: #F0F7FF; border-color: var(--sky-b); }
+:root[data-theme="light"] .upcoming-item__date { color: var(--sky) !important; font-weight: 800; }
+:root[data-theme="light"] .upcoming-item__supplier { color: var(--t1) !important; font-weight: 600; }
+:root[data-theme="light"] .upcoming-item__supplier small { color: var(--t2) !important; }
+:root[data-theme="light"] .upcoming-item__qty { color: var(--t2) !important; }
+
+/* 재고 상태 (STOCK HEALTH) */
+:root[data-theme="light"] .stock-health-row { border-bottom: 1px solid var(--border2); }
+:root[data-theme="light"] .stock-health-row__label { color: var(--t2) !important; font-weight: 600; }
+:root[data-theme="light"] .stock-health-row__value { color: var(--t1) !important; font-weight: 700; }
+
+/* 알람 리스트 */
+:root[data-theme="light"] .alert-list-hero-item { background: #FFFFFF; border: 1px solid var(--border); border-left-width: 3px; }
+:root[data-theme="light"] .alert-list-hero-item:hover { background: #F0F7FF; }
+:root[data-theme="light"] .alert-list-hero-item--overdue { border-left-color: var(--red) !important; }
+:root[data-theme="light"] .alert-list-hero-item--urgent { border-left-color: var(--red) !important; }
+:root[data-theme="light"] .alert-list-hero-item--soon { border-left-color: var(--amb) !important; }
+:root[data-theme="light"] .alert-list-hero-item--plan { border-left-color: var(--teal) !important; }
+:root[data-theme="light"] .alert-item__title strong { color: var(--t1) !important; }
+:root[data-theme="light"] .alert-item__meta { color: var(--t2) !important; }
+:root[data-theme="light"] .alert-item:hover { background: #F0F7FF !important; }
+
+/* 칸반 */
+:root[data-theme="light"] .kanban-col { background: #FFFFFF; border: 1px solid var(--border); }
+:root[data-theme="light"] .kanban-col__head { color: var(--t2) !important; font-weight: 700; border-bottom: 1px solid var(--border2); }
+:root[data-theme="light"] .kanban-item { background: #F1F5F9 !important; color: var(--t1); }
+:root[data-theme="light"] .kanban-item__supplier { color: var(--t1) !important; font-weight: 700; }
+:root[data-theme="light"] .kanban-item__meta { color: var(--t2) !important; }
+
+/* 리마인더 */
+:root[data-theme="light"] .reminder-item { background: #FFFFFF; border: 1px solid var(--border); }
+:root[data-theme="light"] .reminder-item__body { color: var(--t1) !important; }
+:root[data-theme="light"] .reminder-item__body strong { color: var(--t1) !important; font-weight: 700; }
+:root[data-theme="light"] .reminder-item__body small { color: var(--t2) !important; }
+
+/* 공용사 이름 (도넛 차트 좌측 리스트) */
+:root[data-theme="light"] .supplier-name { color: var(--t1) !important; }
+:root[data-theme="light"] .chart-row:hover { background: #F0F7FF !important; }
+
+/* 인라인 #fff / white 강제 오버라이드 */
+:root[data-theme="light"] [style*="color:#fff"],
+:root[data-theme="light"] [style*="color: #fff"],
+:root[data-theme="light"] [style*="color:white"],
+:root[data-theme="light"] [style*="color: white"] {
+  color: var(--t1) !important;
 }
-/* 히어로 통계 3개 (즉시/임박/계획) 색상 그대로 두되 배경 옅게 */
-:root[data-theme="light"] .kanban-item {
-  background: #F7F8FA !important;
-  color: var(--t1);
-}
-/* 스크롤바 (선택적) */
-:root[data-theme="light"] ::-webkit-scrollbar {
-  width: 10px; height: 10px;
-}
-:root[data-theme="light"] ::-webkit-scrollbar-track {
-  background: #F1F3F5;
-}
-:root[data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: #C7CDD3;
-  border-radius: 5px;
-}
-:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: #9DA5AD;
-}
+/* Table striped hover 하드코딩 */
+:root[data-theme="light"] tbody tr[data-part-no]:hover,
+:root[data-theme="light"] tbody tr[data-supplier]:hover { background: #F0F7FF !important; }
+
+/* Login / Viewer 배너 */
+:root[data-theme="light"] .login-input { background: #F8FAFC; border: 1px solid var(--border); color: var(--t1); }
+:root[data-theme="light"] .viewer-banner { background: var(--amb-d); color: var(--amb); border-color: var(--amb-b); }
+/* END LIGHT THEME */
 
 html, body {
   background: var(--bg);
