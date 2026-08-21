@@ -2169,6 +2169,13 @@ html.login-locked, html.login-locked body { overflow: hidden; }
       <button class="btn btn--sm" id="btn-sync-orders-to-incoming" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">📤 발주 이력 → 수급 운영 계획 입고계획 반영</button>
     </div>
   </div>
+  <!-- 중복 발주 감지·정리 카드 -->
+  <div class="card" id="history-dup-card" style="padding:8px 12px;display:none;background:rgba(255,90,90,0.06);border-left:3px solid var(--red);margin-bottom:12px;font-size:11px;color:var(--t2);">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <div><span style="color:var(--red);font-weight:700;">🚨 중복 발주 감지</span> — <span id="history-dup-info"></span></div>
+      <button class="btn btn--sm" id="btn-remove-duplicate-orders" style="background:rgba(255,90,90,0.15);color:var(--red);border:0.5px solid var(--red-b);font-weight:700;">🧹 중복 정리 (오래된 것만 유지)</button>
+    </div>
+  </div>
 
   <div id="history-list"></div>
 </section>
@@ -6473,6 +6480,76 @@ function syncOrdersToIncoming() {
 }
 document.getElementById('btn-sync-orders-to-incoming')?.addEventListener('click', syncOrdersToIncoming);
 
+// 중복 발주 감지 — supplier + orderDate(YYYY-MM-DD) + totalQty + totalAmt 같으면 중복
+function detectDuplicateOrders() {
+  const groups = {};
+  (orderHistory || []).forEach((e, idx) => {
+    if (e.type !== 'order' || e.cancelled) return;
+    const key = `${e.supplier}|${(e.date || '').slice(0, 10)}|${e.totalQty}|${e.totalAmt}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push({ entry: e, idx });
+  });
+  const dups = [];
+  Object.values(groups).forEach(g => {
+    if (g.length > 1) dups.push(g);
+  });
+  return dups;
+}
+
+function updateHistoryDupCard() {
+  const card = document.getElementById('history-dup-card');
+  const info = document.getElementById('history-dup-info');
+  if (!card || !info) return;
+  const dups = detectDuplicateOrders();
+  if (dups.length === 0) { card.style.display = 'none'; return; }
+  const totalDupEntries = dups.reduce((s, g) => s + (g.length - 1), 0); // 각 그룹에서 1개만 유지, 나머지 중복
+  const groupSummary = dups.slice(0, 3).map(g => {
+    const e = g[0].entry;
+    return `${e.supplier} ${(e.date||'').slice(0,10)} × ${g.length}회`;
+  }).join(', ');
+  info.innerHTML = `<strong>${dups.length}개 그룹</strong>에서 <strong style="color:var(--red);">${totalDupEntries}건의 중복</strong> 발견 (${sanitize(groupSummary)}${dups.length > 3 ? ` 외 ${dups.length - 3}그룹` : ''})<br><span style="font-size:10px;color:var(--t3);">→ 각 그룹에서 가장 오래된 이력 1건만 유지, 나머지 삭제</span>`;
+  card.style.display = '';
+}
+
+function removeDuplicateOrders() {
+  if (window.guardAdmin && !window.guardAdmin('중복 발주 정리')) return;
+  const dups = detectDuplicateOrders();
+  if (dups.length === 0) { alert('중복 발주 없음.'); return; }
+  const totalToRemove = dups.reduce((s, g) => s + (g.length - 1), 0);
+  const preview = dups.slice(0, 5).map(g => {
+    const e = g[0].entry;
+    return `• ${e.supplier} ${(e.date||'').slice(0,10)} · ${fmt(e.totalQty)}EA · ₩${fmt(e.totalAmt)} — ${g.length}건 중 ${g.length-1}건 삭제`;
+  }).join('\n');
+  if (!confirm(`🧹 중복 발주 정리\n\n${dups.length}개 그룹 · 총 ${totalToRemove}건 삭제 예정\n\n${preview}${dups.length > 5 ? `\n... 외 ${dups.length - 5}그룹` : ''}\n\n각 그룹에서 가장 오래된 이력 1건만 유지됩니다.\n삭제된 이력은 데이터 점검 → 백업으로 복원 가능합니다.\n\n진행하시겠습니까?`)) return;
+
+  // 각 그룹 date 오름차순 정렬 후 첫 항목 제외한 나머지의 idx 수집
+  const toDeleteIdxs = new Set();
+  dups.forEach(g => {
+    g.sort((a, b) => (a.entry.date || '').localeCompare(b.entry.date || ''));
+    g.slice(1).forEach(x => toDeleteIdxs.add(x.idx));
+  });
+  // 큰 idx부터 삭제
+  const sortedIdxs = [...toDeleteIdxs].sort((a, b) => b - a);
+  sortedIdxs.forEach(i => orderHistory.splice(i, 1));
+
+  saveHistory();
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'dedup_orders',
+    field: `count.${sortedIdxs.length}`,
+    before: '',
+    after: `${dups.length}개 그룹 · ${sortedIdxs.length}건 삭제`
+  });
+  saveInputs();
+  updateHistoryCount();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+  renderHistory();
+  alert(`✅ ${sortedIdxs.length}건 중복 이력 삭제 완료.\n\n입고계획도 이력 기준으로 재계산이 필요하면 [발주 이력 → 수급 운영 계획 입고계획 반영] 버튼을 다시 사용하세요 (현재 값은 유지됨).`);
+}
+document.getElementById('btn-remove-duplicate-orders')?.addEventListener('click', removeDuplicateOrders);
+
 function renderHistory() {
   const container = document.getElementById('history-list');
   if (!container) return;
@@ -6482,6 +6559,7 @@ function renderHistory() {
   if (typeof populateHistoryMonthSelects === 'function') populateHistoryMonthSelects();
   if (typeof setDefaultHistoryDueMonth === 'function') setDefaultHistoryDueMonth();
   if (typeof updateHistorySyncCard === 'function') updateHistorySyncCard();
+  if (typeof updateHistoryDupCard === 'function') updateHistoryDupCard();
   const filtered = applyHistoryFilters(orderHistory);
   const summary = document.getElementById('history-summary');
   if (summary) summary.textContent = filtered.length === orderHistory.length
