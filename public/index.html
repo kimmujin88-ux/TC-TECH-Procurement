@@ -10192,11 +10192,18 @@ function initAutoPOSection() {
   const currentVal = sel.value || '';
   const months = ['may', 'jun', 'jul', 'aug'];
   sel.innerHTML = months.map(mo => `<option value="${mo}">${monthLabel(mo)} 입고계획 기준</option>`).join('');
-  // 기본값: 아직 발주 안 된 첫 월 (aug 우선 — 첨부 PDF들이 8월 발주분)
+  // 기본값: 오늘 기준 익월(+1)에 해당하는 슬롯 (예: 오늘 8월 → 9월 · 9월 → 10월 · 10월 → 11월)
+  // 월이 바뀔 때마다 자동으로 다음 달 입고계획이 선택됨
   if (currentVal && months.includes(currentVal)) {
     sel.value = currentVal;
   } else {
-    sel.value = 'aug';
+    const today = new Date();
+    const nextMonthY = today.getMonth() === 11 ? today.getFullYear() + 1 : today.getFullYear();
+    const nextMonthM = today.getMonth() === 11 ? 1 : today.getMonth() + 2; // 1-12
+    const sm = state.periodStartMonth || 5;
+    const sy = state.periodYear || 2026;
+    const offset = (nextMonthY - sy) * 12 + (nextMonthM - sm);
+    sel.value = (offset >= 0 && offset < 4) ? months[offset] : 'aug';
   }
 
   // 기본 발주일 = 오늘, 납기일 = 대상 월 15일
