@@ -186,8 +186,11 @@
 /* 테이블 셀 텍스트 - 다크에서 var(--t1)로 밝게 되어있던 부분 확실히 */
 :root[data-theme="light"] .form-table tbody td,
 :root[data-theme="light"] .form-table tbody td.sticky-col { color: var(--t1); }
-:root[data-theme="light"] .form-table thead th { color: var(--t2); }
-:root[data-theme="light"] .form-table thead tr.h-row2 th { color: var(--t3); }
+:root[data-theme="light"] .form-table thead th { color: var(--t2); background: #E5E9EE !important; }
+:root[data-theme="light"] .form-table thead th.h-merged { background: #E5E9EE !important; color: var(--t1); font-weight: 700; }
+:root[data-theme="light"] .form-table thead tr.h-row1 th { background: #E5E9EE !important; color: var(--t2); }
+:root[data-theme="light"] .form-table thead tr.h-row2 th { color: var(--t2); background: #E5E9EE !important; font-weight: 600; }
+:root[data-theme="light"] .form-table thead .sticky-col { background: #E5E9EE !important; }
 /* 재고 부족 강조 */
 :root[data-theme="light"] .cell-num--alert { color: var(--red) !important; font-weight: 700; }
 /* 입력 폼 배경 */
