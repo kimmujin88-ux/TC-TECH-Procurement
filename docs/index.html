@@ -6998,6 +6998,11 @@ function confirmReceipt(dateStr) {
       <button class="btn btn--ghost btn--sm" id="recv-clear" type="button">전부 0</button>
       <span style="margin-left:auto;color:var(--t3);">단축키 입력 후 Tab으로 다음 칸 이동</span>
     </div>
+    <div style="margin-top:12px;padding:10px 14px;background:rgba(56,201,160,0.05);border:0.5px solid var(--teal-b);border-radius:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:11px;color:var(--t2);font-weight:600;">📅 실 입고 일자</label>
+      <input type="date" id="recv-actual-date" value="${new Date().toISOString().slice(0,10)}" style="font-size:12px;padding:6px 10px;background:var(--bg-card);border:0.5px solid var(--border2);color:var(--t1);border-radius:4px;">
+      <span style="font-size:10.5px;color:var(--t3);">기본값: 오늘 · 실제 입고 날짜와 다르면 수정 (예: 2026-08-27)</span>
+    </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
       <button class="btn btn--ghost" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">취소</button>
       <button class="btn btn--teal" id="btn-recv-apply">입고 처리</button>
@@ -7028,11 +7033,17 @@ function applyReceipt(dateStr) {
     totalReceived += v;
   });
   if (totalReceived === 0) { alert('이번 입고 수량이 0입니다. 1 이상 입력 후 처리하세요.'); return; }
+  // 사용자가 입력한 실 입고 일자 사용 (기본: 오늘)
+  const actualDateInput = document.getElementById('recv-actual-date');
+  const actualDateStr = actualDateInput?.value || new Date().toISOString().slice(0, 10);
+  const actualDateIso = new Date(actualDateStr + 'T12:00:00').toISOString();
   const allDone = entry.items.every(it => (it.receivedQty || 0) >= it.qty);
   entry.received = allDone;
   entry.partialReceived = !allDone;
-  if (!entry.receivedAt) entry.receivedAt = new Date().toISOString();
-  entry.lastReceivedAt = new Date().toISOString();
+  // 첫 입고 시점(receivedAt)은 최초 입고 일자로 설정 (아직 없을 때만)
+  if (!entry.receivedAt) entry.receivedAt = actualDateIso;
+  // 마지막 입고 시점은 항상 이번 입고 일자로 갱신
+  entry.lastReceivedAt = actualDateIso;
   entry.receivedBy = sessionStorage.getItem('tctech_auth_user') || 'unknown';
   saveHistory();
 
@@ -7045,8 +7056,8 @@ function applyReceipt(dateStr) {
     field: `order.${entry.supplier}.${dateStr.slice(0, 10)}`,
     before: '미입고/부분',
     after: allDone
-      ? `전체 입고완료 (${fmt(entry.totalQty)}EA)`
-      : `부분 입고 (+${fmt(totalReceived)}EA · 누적 ${fmt(cumReceived)}/${fmt(entry.totalQty)})`
+      ? `전체 입고완료 (${fmt(entry.totalQty)}EA · 실입고일 ${actualDateStr})`
+      : `부분 입고 (+${fmt(totalReceived)}EA · 누적 ${fmt(cumReceived)}/${fmt(entry.totalQty)} · 실입고일 ${actualDateStr})`
   });
   if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
   saveInputs();
