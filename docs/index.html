@@ -12043,8 +12043,10 @@ function setDefaultHistoryDueMonth() {
 //   반드시 비밀번호를 아이디와 다른 값으로 바꾸세요. 진짜 데이터 보호는 Supabase RLS로 해야 합니다.
 (function(){
   const ACCOUNTS = {
-    'fpteam': { pw: 'fpteam', name: '관리자', role: 'admin' },
-    'userA':  { pw: 'userA',  name: '팀원',   role: 'viewer' }
+    // 관리자 (전체 권한): 발주 확정·수정·삭제·백업·리셋 가능
+    'fpteam': { pw: 'TcT@Mgr2026!', name: '관리자', role: 'admin' },
+    // 팀원 (조회 전용): 데이터 열람만
+    'userA':  { pw: 'TcT#View2026!', name: '팀원', role: 'viewer' }
   };
   const AUTH_KEY = 'tctech_auth_user';
   const overlay = document.getElementById('login-overlay');
