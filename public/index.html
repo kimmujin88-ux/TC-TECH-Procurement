@@ -4458,6 +4458,32 @@ function renderForm() {
     input.addEventListener('input', onItemInputChange);
     input.addEventListener('focus', e => e.target.select());
   });
+  // 방향키/Enter → 위·아래 셀 이동 (Excel 스타일). 기본 브라우저 값 증감 대체
+  tbody.querySelectorAll('.form-input[data-field]').forEach(input => {
+    input.addEventListener('keydown', e => {
+      const key = e.key;
+      const isDown = key === 'ArrowDown' || key === 'Enter';
+      const isUp = key === 'ArrowUp' || (key === 'Enter' && e.shiftKey);
+      if (!isDown && !isUp) return;
+      e.preventDefault();
+      const currentRow = e.target.closest('tr.item-row');
+      if (!currentRow) return;
+      const field = e.target.dataset.field;
+      const rows = [...tbody.querySelectorAll('tr.item-row')];
+      const idx = rows.indexOf(currentRow);
+      if (key === 'ArrowUp' || (key === 'Enter' && e.shiftKey)) {
+        for (let i = idx - 1; i >= 0; i--) {
+          const prev = rows[i].querySelector(`.form-input[data-field="${field}"]`);
+          if (prev) { prev.focus(); prev.select(); return; }
+        }
+      } else {
+        for (let i = idx + 1; i < rows.length; i++) {
+          const next = rows[i].querySelector(`.form-input[data-field="${field}"]`);
+          if (next) { next.focus(); next.select(); return; }
+        }
+      }
+    });
+  });
   // 그룹 hover: 같은 모델(data-group-key)의 모든 row 동시 강조 (병합 셀 시각 일치)
   tbody.querySelectorAll('tr.item-row').forEach(row => {
     row.addEventListener('mouseenter', () => {
