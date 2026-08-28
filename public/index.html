@@ -11905,8 +11905,15 @@ document.getElementById('btn-erp-reset').addEventListener('click', () => {
 orderHistory = loadHistory();
 updateHistoryCount();
 if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
-// Supabase 이력 병합 로드 (비동기)
-if (typeof loadHistoryFromServer === 'function') loadHistoryFromServer();
+// Supabase 이력 병합 로드 (비동기) → 이후 자동 upload
+if (typeof loadHistoryFromServer === 'function') {
+  loadHistoryFromServer().then(() => {
+    // 로드 완료 후, 로컬에 데이터가 있으면 서버에도 무조건 업로드 (마이그레이션 겸)
+    if (orderHistory.length > 0 && typeof saveHistoryToServer === 'function') {
+      saveHistoryToServer();
+    }
+  });
+}
 
 // ── 자동 버전 감지 (5분마다 GitHub 최신 index.html 커밋 해시 확인) ──
 (function versionAutoCheck() {
