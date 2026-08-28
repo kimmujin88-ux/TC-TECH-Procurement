@@ -2555,6 +2555,14 @@ function migrateItemInputsToMasterKey() {
 }
 
 // 모델 표시명 — 새 엑셀은 이미 영문 표기 (kind: "Drive Chassis", "Lower Frame" 등)
+// 수급 운영 계획 등 좁은 표에서 사용할 공급사 약식 이름 (내부 데이터는 정식 영문명 유지)
+function supplierShort(supplier) {
+  if (!supplier) return '-';
+  if (supplier === 'POLYGON (XIAMEN) COMPOSITE MATERIALS LTD.') return 'POLYGON';
+  if (supplier === 'Shanghai Songhai Industrial Corp.') return 'Shanghai Songhai';
+  return supplier;
+}
+
 function displayName(master) {
   const m = (master.model || '').trim();
   const k = (master.kind || '').trim();
@@ -4574,7 +4582,7 @@ function itemRowHtml(m, groupIdx, groupSize, isCustFirst, custGroupSize) {
         </div>
       </td>
       <td class="sticky-col sticky-col-4">
-        <div style="font-size:11px;">${sanitize(m.supplier || '–')}</div>
+        <div style="font-size:11px;" title="${sanitize(m.supplier || '')}">${sanitize(supplierShort(m.supplier) || '–')}</div>
         <div style="font-size:9.5px; margin-top:2px;">
           <span class="badge badge--${m.category === '수입' ? 'info' : 'neutral'}" style="font-size:8.5px; padding:1px 5px;">${sanitize(m.category || '–')}</span>
         </div>
