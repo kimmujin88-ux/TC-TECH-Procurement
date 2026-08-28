@@ -6625,6 +6625,7 @@ const STORAGE_KEY_HISTORY = 'tctech_history_v1';
 let orderHistory = [];
 
 function loadHistory() {
+  // localStorage 우선 로드 (즉시 반영), Supabase 최신본은 loadHistoryFromServer로 별도 병합
   try {
     const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
     if (raw) return JSON.parse(raw);
@@ -6633,6 +6634,47 @@ function loadHistory() {
 }
 function saveHistory() {
   try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(orderHistory)); } catch(e) {}
+  // Supabase에도 동기화 (300ms debounce)
+  if (typeof _saveHistoryDebounce !== 'undefined') clearTimeout(_saveHistoryDebounce);
+  _saveHistoryDebounce = setTimeout(saveHistoryToServer, 300);
+}
+let _saveHistoryDebounce;
+async function saveHistoryToServer() {
+  if (typeof _supa === 'undefined') return;
+  try {
+    const { error } = await _supa.from('app_state').upsert({
+      id: 'order_history_v1',
+      state_json: {
+        orderHistory: orderHistory,
+        _updatedAt: new Date().toISOString(),
+        _updatedBy: sessionStorage.getItem('tctech_auth_user') || 'unknown'
+      },
+      updated_at: new Date().toISOString()
+    });
+    if (error) throw error;
+  } catch(e) { console.warn('발주 이력 Supabase 저장 실패', e); }
+}
+async function loadHistoryFromServer() {
+  if (typeof _supa === 'undefined') return;
+  try {
+    const { data, error } = await _supa.from('app_state').select('state_json').eq('id', 'order_history_v1').maybeSingle();
+    if (error) throw error;
+    if (data?.state_json?.orderHistory && Array.isArray(data.state_json.orderHistory)) {
+      const serverList = data.state_json.orderHistory;
+      // 병합: date(발주번호)를 key로 dedupe. 서버 우선(더 최신)
+      const merged = new Map();
+      orderHistory.forEach(e => merged.set(e.date, e));
+      serverList.forEach(e => merged.set(e.date, e));
+      orderHistory = [...merged.values()];
+      // localStorage에 백업
+      try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(orderHistory)); } catch(e) {}
+      if (typeof updateHistoryCount === 'function') updateHistoryCount();
+      if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+      if (typeof renderHistory === 'function') renderHistory();
+      if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+      console.info(`[발주 이력 서버 로드] Supabase에서 ${serverList.length}건 병합 → 총 ${orderHistory.length}건`);
+    }
+  } catch(e) { console.warn('발주 이력 Supabase 로드 실패', e); }
 }
 function updateHistoryCount() {
   const el = document.getElementById('count-history');
@@ -11859,10 +11901,12 @@ document.getElementById('btn-erp-reset').addEventListener('click', () => {
   }
 })();
 
-// 발주 이력 로드
+// 발주 이력 로드 (localStorage 즉시 + Supabase 병합)
 orderHistory = loadHistory();
 updateHistoryCount();
 if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+// Supabase 이력 병합 로드 (비동기)
+if (typeof loadHistoryFromServer === 'function') loadHistoryFromServer();
 
 // ── 자동 버전 감지 (5분마다 GitHub 최신 index.html 커밋 해시 확인) ──
 (function versionAutoCheck() {
