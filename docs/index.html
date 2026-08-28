@@ -11864,6 +11864,50 @@ orderHistory = loadHistory();
 updateHistoryCount();
 if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
 
+// ── 자동 버전 감지 (5분마다 GitHub 최신 index.html 커밋 해시 확인) ──
+(function versionAutoCheck() {
+  const REPO = 'kimmujin88-ux/TC-TECH-Procurement';
+  const FILE_PATH = 'docs/index.html';
+  const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5분
+  let currentSha = null;
+
+  async function fetchLatestSha() {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${REPO}/commits?path=${FILE_PATH}&per_page=1`, {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
+      if (!res.ok) return null;
+      const arr = await res.json();
+      if (!Array.isArray(arr) || arr.length === 0) return null;
+      return arr[0].sha;
+    } catch(e) { return null; }
+  }
+
+  function showUpdateBanner() {
+    if (document.getElementById('version-update-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'version-update-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(90deg,#3182F6,#60AADC);color:#fff;padding:10px 16px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);letter-spacing:0.3px;';
+    banner.innerHTML = '🔄 새 버전이 배포됐습니다 · <u>클릭해서 새로고침</u> (변경 사항 반영)';
+    banner.onclick = () => { location.reload(true); };
+    document.body.appendChild(banner);
+  }
+
+  async function check() {
+    const sha = await fetchLatestSha();
+    if (!sha) return;
+    if (currentSha === null) { currentSha = sha; return; }
+    if (sha !== currentSha) {
+      currentSha = sha;
+      showUpdateBanner();
+    }
+  }
+
+  // 초기 3초 후 최초 sha 저장, 이후 5분마다 체크
+  setTimeout(check, 3000);
+  setInterval(check, CHECK_INTERVAL_MS);
+})();
+
 // ── 일회성 LT 마이그레이션 (수입 60일 · 특정 국내 부품 90일) ──
 // idempotent: 이미 목표값이면 skip. 변경 발생 시에만 저장.
 (function migrateLTSpec() {
