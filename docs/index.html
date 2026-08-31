@@ -11566,20 +11566,22 @@ function openBulkImportOrdersModal() {
       ]
     },
     {
-      supplier: '태상테크', orderDate: '2026-08-18', dueDate: '2026-09-11',
+      // Rev.1 (2026-08-31 수정 발주분)
+      supplier: '태상테크', orderDate: '2026-08-31', dueDate: '2026-09-11',
       items: [
         {pn:'1305526',        qty:800, model:'GS1930E Drive Chassis'},
-        {pn:'1291093',        qty:258, model:'S45XC Drive Chassis'},
-        {pn:'1291094',        qty:496, model:'S45XC Drive Chassis'},
-        {pn:'1295995',        qty:239, model:'S45XC Drive Chassis'},
-        {pn:'1059-3200',      qty:128, model:'S85XC/Z80 Drive Chassis'},
-        {pn:'1059-2100',      qty:116, model:'S85XC/Z80 Drive Chassis'},
-        {pn:'49092',          qty:550, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1291093',        qty:300, model:'S45XC Drive Chassis'},
+        {pn:'1291094',        qty:560, model:'S45XC Drive Chassis'},
+        {pn:'1295995',        qty:303, model:'S45XC Drive Chassis'},
+        {pn:'1059-3200',      qty:122, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1059-2100',      qty:110, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'49092',          qty:508, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1059-1700',      qty:52,  model:'Z80 Rear Axle'},
         {pn:'1296714',        qty:50,  model:'GS4655 Drive Chassis'},
-        {pn:'S344-402020',    qty:237, model:'R55C Lower Frame'},
+        {pn:'S344-402020',    qty:297, model:'R55C Lower Frame'},
         {pn:'51MT-01232',     qty:20,  model:'HX55ACR Lower Frame'},
-        {pn:'5DMN-01100',     qty:119, model:'HX63AH Lower Frame'},
-        {pn:'5DMN-09260',     qty:70,  model:'HX63AH Lower Frame'},
+        {pn:'5DMN-01100',     qty:139, model:'HX63AH Lower Frame'},
+        {pn:'5DMN-09260',     qty:90,  model:'HX63AH Lower Frame'},
         {pn:'110408-00473B-3',qty:44,  model:'HX63AH Lower Frame'},
         {pn:'110408-00473B-4',qty:38,  model:'HX63AH Lower Frame'}
       ]
@@ -12063,6 +12065,69 @@ if (typeof loadHistoryFromServer === 'function') {
     });
     if (typeof saveInputs === 'function') saveInputs();
   }
+})();
+
+// ── 태상테크 9월 발주 Rev.1 (2026-08-31 수정본) 자동 갱신 ──
+// 기존 preset202609 태상테크 발주(2026-08-18)를 발견하면 새 수량·1059-1700 추가로 대체
+(function migrateTaesangSep2026Rev1() {
+  if (!Array.isArray(orderHistory)) return;
+  const newItemsDef = [
+    {pn:'1305526',        qty:800, model:'GS1930E Drive Chassis'},
+    {pn:'1291093',        qty:300, model:'S45XC Drive Chassis'},
+    {pn:'1291094',        qty:560, model:'S45XC Drive Chassis'},
+    {pn:'1295995',        qty:303, model:'S45XC Drive Chassis'},
+    {pn:'1059-3200',      qty:122, model:'S85XC/Z80 Drive Chassis'},
+    {pn:'1059-2100',      qty:110, model:'S85XC/Z80 Drive Chassis'},
+    {pn:'49092',          qty:508, model:'S85XC/Z80 Drive Chassis'},
+    {pn:'1059-1700',      qty:52,  model:'Z80 Rear Axle'},
+    {pn:'1296714',        qty:50,  model:'GS4655 Drive Chassis'},
+    {pn:'S344-402020',    qty:297, model:'R55C Lower Frame'},
+    {pn:'51MT-01232',     qty:20,  model:'HX55ACR Lower Frame'},
+    {pn:'5DMN-01100',     qty:139, model:'HX63AH Lower Frame'},
+    {pn:'5DMN-09260',     qty:90,  model:'HX63AH Lower Frame'},
+    {pn:'110408-00473B-3',qty:44,  model:'HX63AH Lower Frame'},
+    {pn:'110408-00473B-4',qty:38,  model:'HX63AH Lower Frame'}
+  ];
+  const target = orderHistory.find(e =>
+    e.type === 'order' && !e.cancelled && e.supplier === '태상테크'
+    && e.dueDate === '2026-09-11'
+    && (e.date || '').slice(0, 10) === '2026-08-18'
+    && !e.rev1Applied
+  );
+  if (!target) return;
+  // 부분 입고분 있으면 skip (안전)
+  const hasReceipts = (target.items || []).some(it => (it.receivedQty || 0) > 0);
+  if (hasReceipts) {
+    console.warn('[태상테크 9월 Rev.1] 부분 입고 있어 자동 갱신 스킵. 수동 처리 필요.');
+    return;
+  }
+  let newTotalQty = 0, newTotalAmt = 0;
+  const builtItems = newItemsDef.map(it => {
+    const master = MASTERS.find(m => m.part_no === it.pn);
+    const unitPrice = master ? (master.unit_price || 0) : 0;
+    const amt = it.qty * unitPrice;
+    newTotalQty += it.qty;
+    newTotalAmt += amt;
+    return { pn: it.pn, name: master ? master.part_name : '', model: it.model, qty: it.qty, unitPrice, amount: amt, receivedQty: 0 };
+  });
+  target.items = builtItems;
+  target.totalQty = newTotalQty;
+  target.totalAmt = newTotalAmt;
+  target.date = '2026-08-31T09:00:00.000Z';
+  target.rev1Applied = true;
+  target.revisionNote = 'Rev.1 · 2026-08-31 수정 발주';
+  saveHistory();
+  console.info('[태상테크 9월 Rev.1] 이력 갱신: ' + newTotalQty + 'EA · 총 ' + newTotalAmt.toLocaleString() + '원');
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: 'system',
+    action: 'taesang_sep2026_rev1',
+    field: '태상테크.2026-09-11',
+    before: '원본 (2026-08-18 · 3,047EA · 8,143,100원)',
+    after: 'Rev.1 (2026-08-31 · ' + newTotalQty + 'EA · ' + newTotalAmt.toLocaleString() + '원)'
+  });
+  if (typeof saveInputs === 'function') saveInputs();
 })();
 
 // ── POLYGON 발주 dueDate 마이그레이션 (2026-09-05 → 2026-08-31) ──
