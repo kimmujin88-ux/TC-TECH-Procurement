@@ -11547,12 +11547,14 @@ function openBulkImportOrdersModal() {
   // 2026-09 발주 프리셋 (첨부 PDF 3건)
   const preset202609 = [
     {
-      supplier: '가람기계', orderDate: '2026-08-18', dueDate: '2026-09-11',
+      // Rev.1 (2026-08-31 · 81554 100EA 추가)
+      supplier: '가람기계', orderDate: '2026-08-31', dueDate: '2026-09-11',
       items: [
         {pn:'132044',   qty:400,  model:'GS1930E Drive Chassis'},
         {pn:'132050',   qty:800,  model:'GS1930E Drive Chassis'},
         {pn:'1311042',  qty:2200, model:'GS1930E Drive Chassis'},
         {pn:'96133',    qty:500,  model:'GS1930E Drive Chassis'},
+        {pn:'81554',    qty:100,  model:'Z80 Steer/Rear Axle'},
         {pn:'1287166',  qty:34,   model:'GS4655 Main Deck'},
         {pn:'1294617',  qty:68,   model:'GS4655 Main Deck'},
         {pn:'1289399',  qty:65,   model:'GS4655 Extension Deck'}
@@ -12065,6 +12067,60 @@ if (typeof loadHistoryFromServer === 'function') {
     });
     if (typeof saveInputs === 'function') saveInputs();
   }
+})();
+
+// ── 가람기계 9월 발주 Rev.1 (2026-08-31 · 81554 100EA 추가) 자동 갱신 ──
+(function migrateGaramSep2026Rev1() {
+  if (!Array.isArray(orderHistory)) return;
+  const newItemsDef = [
+    {pn:'132044',   qty:400,  model:'GS1930E Drive Chassis'},
+    {pn:'132050',   qty:800,  model:'GS1930E Drive Chassis'},
+    {pn:'1311042',  qty:2200, model:'GS1930E Drive Chassis'},
+    {pn:'96133',    qty:500,  model:'GS1930E Drive Chassis'},
+    {pn:'81554',    qty:100,  model:'Z80 Steer/Rear Axle'},
+    {pn:'1287166',  qty:34,   model:'GS4655 Main Deck'},
+    {pn:'1294617',  qty:68,   model:'GS4655 Main Deck'},
+    {pn:'1289399',  qty:65,   model:'GS4655 Extension Deck'}
+  ];
+  const target = orderHistory.find(e =>
+    e.type === 'order' && !e.cancelled && e.supplier === '가람기계'
+    && e.dueDate === '2026-09-11'
+    && (e.date || '').slice(0, 10) === '2026-08-18'
+    && !e.rev1Applied
+  );
+  if (!target) return;
+  const hasReceipts = (target.items || []).some(it => (it.receivedQty || 0) > 0);
+  if (hasReceipts) {
+    console.warn('[가람기계 9월 Rev.1] 부분 입고 있어 자동 갱신 스킵. 수동 처리 필요.');
+    return;
+  }
+  let newTotalQty = 0, newTotalAmt = 0;
+  const builtItems = newItemsDef.map(it => {
+    const master = MASTERS.find(m => m.part_no === it.pn);
+    const unitPrice = master ? (master.unit_price || 0) : 0;
+    const amt = it.qty * unitPrice;
+    newTotalQty += it.qty;
+    newTotalAmt += amt;
+    return { pn: it.pn, name: master ? master.part_name : '', model: it.model, qty: it.qty, unitPrice, amount: amt, receivedQty: 0 };
+  });
+  target.items = builtItems;
+  target.totalQty = newTotalQty;
+  target.totalAmt = newTotalAmt;
+  target.date = '2026-08-31T09:00:00.000Z';
+  target.rev1Applied = true;
+  target.revisionNote = 'Rev.1 · 2026-08-31 · 81554 100EA 추가';
+  saveHistory();
+  console.info('[가람기계 9월 Rev.1] 이력 갱신: ' + newTotalQty + 'EA · 총 ' + newTotalAmt.toLocaleString() + '원');
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: 'system',
+    action: 'garam_sep2026_rev1',
+    field: '가람기계.2026-09-11',
+    before: '원본 (2026-08-18 · 4,067EA · 32,525,000원)',
+    after: 'Rev.1 (2026-08-31 · ' + newTotalQty + 'EA · ' + newTotalAmt.toLocaleString() + '원)'
+  });
+  if (typeof saveInputs === 'function') saveInputs();
 })();
 
 // ── 태상테크 9월 발주 Rev.1 (2026-08-31 수정본) 자동 갱신 ──
