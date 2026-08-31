@@ -12342,6 +12342,142 @@ if (typeof loadHistoryFromServer === 'function') {
   }
 })();
 
+// ── 2026-09 Rev.1 발주 이력 존재 보정 (가람·윈텍·태상·상해 4건) ──
+// PDF Rev.1 기준 발주 4건이 orderHistory에 없으면 자동 추가
+// (준비된 preset202609가 로드되지 않았거나 데이터 유실 시 안전망)
+(function ensureSep2026Rev1Orders() {
+  if (!Array.isArray(orderHistory)) return;
+  if (typeof state === 'undefined' || !state) return;
+  if (state._sep2026Rev1Ensured) return;
+
+  const targets = [
+    {
+      supplier: '가람기계', orderDate: '2026-08-31', dueDate: '2026-09-11',
+      items: [
+        {pn:'132044',   qty:400,  model:'GS1930E Drive Chassis'},
+        {pn:'132050',   qty:800,  model:'GS1930E Drive Chassis'},
+        {pn:'1311042',  qty:2200, model:'GS1930E Drive Chassis'},
+        {pn:'96133',    qty:500,  model:'GS1930E Drive Chassis'},
+        {pn:'81554',    qty:100,  model:'Z80 Steer/Rear Axle'},
+        {pn:'1287166',  qty:34,   model:'GS4655 Main Deck'},
+        {pn:'1294617',  qty:68,   model:'GS4655 Main Deck'},
+        {pn:'1289399',  qty:65,   model:'GS4655 Extension Deck'}
+      ],
+      revisionNote: 'Rev.1 · 2026-08-31 · 81554 100EA 추가'
+    },
+    {
+      supplier: '윈텍', orderDate: '2026-08-18', dueDate: '2026-09-11',
+      items: [
+        {pn:'51MH-02140', qty:20,   model:'HX55ACR Lower Frame'},
+        {pn:'5DMN-01590', qty:2200, model:'HX63AH Lower Frame'}
+      ],
+      revisionNote: '2026-08-18 발주 · 51MH-02140 재고 20EA 매입 후 추가 협의'
+    },
+    {
+      supplier: '태상테크', orderDate: '2026-08-31', dueDate: '2026-09-11',
+      items: [
+        {pn:'1305526',        qty:800, model:'GS1930E Drive Chassis'},
+        {pn:'1291093',        qty:300, model:'S45XC Drive Chassis'},
+        {pn:'1291094',        qty:560, model:'S45XC Drive Chassis'},
+        {pn:'1295995',        qty:303, model:'S45XC Drive Chassis'},
+        {pn:'1059-3200',      qty:122, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1059-2100',      qty:110, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'49092',          qty:508, model:'S85XC/Z80 Drive Chassis'},
+        {pn:'1059-1700',      qty:52,  model:'Z80 Rear Axle'},
+        {pn:'1296714',        qty:50,  model:'GS4655 Drive Chassis'},
+        {pn:'S344-402020',    qty:297, model:'R55C Lower Frame'},
+        {pn:'51MT-01232',     qty:20,  model:'HX55ACR Lower Frame'},
+        {pn:'5DMN-01100',     qty:139, model:'HX63AH Lower Frame'},
+        {pn:'5DMN-09260',     qty:90,  model:'HX63AH Lower Frame'},
+        {pn:'110408-00473B-3',qty:44,  model:'HX63AH Lower Frame'},
+        {pn:'110408-00473B-4',qty:38,  model:'HX63AH Lower Frame'}
+      ],
+      revisionNote: 'Rev.1 · 2026-08-31 수정 발주'
+    },
+    {
+      supplier: 'Shanghai Songhai Industrial Corp.', orderDate: '2026-08-18', dueDate: '2026-09-18',
+      items: [
+        {pn:'94151', qty:2100, model:'Z40 Drive Chassis'}
+      ],
+      revisionNote: '2026-08-18 발주 · PIN, HINGE (Z40/Z45 공용)'
+    }
+  ];
+
+  let added = 0;
+  const addedLog = [];
+  let addSeq = Date.now();
+
+  targets.forEach(t => {
+    const exists = orderHistory.some(e =>
+      e.type === 'order' && !e.cancelled
+      && e.supplier === t.supplier
+      && e.dueDate === t.dueDate
+    );
+    if (exists) return;
+
+    let totalQty = 0, totalAmt = 0;
+    const builtItems = t.items.map(it => {
+      const master = (typeof displayName === 'function'
+          ? MASTERS.find(m => m.part_no === it.pn && displayName(m) === it.model)
+          : null)
+        || MASTERS.find(m => m.part_no === it.pn);
+      const unitPrice = master ? (master.unit_price || 0) : 0;
+      const amt = it.qty * unitPrice;
+      totalQty += it.qty;
+      totalAmt += amt;
+      return {
+        pn: it.pn,
+        name: master ? master.part_name : '',
+        model: it.model,
+        qty: it.qty,
+        unitPrice,
+        amount: amt,
+        receivedQty: 0
+      };
+    });
+
+    orderHistory.push({
+      id: 'sep2026rev1_' + t.supplier.replace(/[^a-zA-Z0-9가-힣]/g,'_') + '_' + (addSeq++),
+      type: 'order',
+      supplier: t.supplier,
+      date: t.orderDate + 'T09:00:00.000Z',
+      orderDate: t.orderDate,
+      dueDate: t.dueDate,
+      items: builtItems,
+      totalQty,
+      totalAmt,
+      received: false,
+      cancelled: false,
+      rev1Applied: true,
+      revisionNote: t.revisionNote,
+      autoAdded: true
+    });
+    added++;
+    addedLog.push(`${t.supplier} (${t.dueDate}): ${totalQty}EA / ${totalAmt.toLocaleString()}원`);
+  });
+
+  state._sep2026Rev1Ensured = new Date().toISOString();
+
+  if (added > 0) {
+    console.info(`[9월 Rev.1 발주 이력 보정] ${added}건 추가:\n` + addedLog.join('\n'));
+    if (typeof saveHistory === 'function') saveHistory();
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: 'system',
+      action: 'sep2026_rev1_ensure',
+      field: `count.${added}`,
+      before: '',
+      after: addedLog.join(' / ')
+    });
+    if (typeof saveInputs === 'function') saveInputs();
+    if (typeof updateHistoryCount === 'function') updateHistoryCount();
+    if (typeof renderHistory === 'function') renderHistory();
+  } else {
+    console.info('[9월 Rev.1 발주 이력 검증] 4건 모두 존재 - 추가 조치 없음');
+  }
+})();
+
 // ── 발주 이력 입고월 기본값: 익월 자동 설정 (오늘이 8월이면 9월 입고예정 표시) ──
 function setDefaultHistoryDueMonth() {
   const sel = document.getElementById('history-filter-due-month');
