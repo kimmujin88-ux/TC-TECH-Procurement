@@ -6774,20 +6774,42 @@ function populateHistoryMonthSelects() {
 // 발주 이력 중 아직 _incoming에 반영 안 된 pending 발주 감지
 function detectUnsyncedOrders() {
   const pending = (orderHistory || []).filter(e => e.type === 'order' && !e.cancelled && !e.received);
-  const unsynced = []; // { entry, item, monthKey, orderQty, currentIncoming, delta }
+  // 1단계: masterKey+monthKey 버킷별 pending 발주 총 잔량 집계
+  const buckets = new Map(); // key: `${mkey}|${monthKey}`
   pending.forEach(entry => {
     const monthKey = dateToMonthKey(entry.dueDate || '');
-    if (!monthKey) return; // 현재 윈도우 밖
+    if (!monthKey) return;
     (entry.items || []).forEach(it => {
-      // model + pn으로 masterKey 찾기 (masterInputKey = pn|displayName)
       const master = MASTERS.find(m => m.part_no === it.pn && displayName(m) === it.model)
-                  || MASTERS.find(m => m.part_no === it.pn); // fallback
+                  || MASTERS.find(m => m.part_no === it.pn);
       if (!master) return;
       const key = masterInputKey(master);
-      const ii = state.itemInputs[key] || {};
-      const currentInc = Number(ii[`${monthKey}_incoming`] || 0);
+      const bkey = `${key}|${monthKey}`;
       const remain = it.qty - Number(it.receivedQty || 0);
-      unsynced.push({ entryDate: entry.date, supplier: entry.supplier, pn: it.pn, name: it.name, model: it.model, masterKey: key, monthKey, orderQty: remain, currentIncoming: currentInc });
+      if (!buckets.has(bkey)) {
+        const ii = state.itemInputs[key] || {};
+        buckets.set(bkey, {
+          masterKey: key, monthKey,
+          currentIncoming: Number(ii[`${monthKey}_incoming`] || 0),
+          totalPendingRemain: 0,
+          entries: []
+        });
+      }
+      const b = buckets.get(bkey);
+      b.totalPendingRemain += remain;
+      b.entries.push({ entryDate: entry.date, supplier: entry.supplier, pn: it.pn, name: it.name, model: it.model, orderQty: remain });
+    });
+  });
+  // 2단계: 실제 미반영만 (currentIncoming < totalPendingRemain)
+  const unsynced = [];
+  buckets.forEach(b => {
+    if (b.currentIncoming >= b.totalPendingRemain) return; // 이미 반영됨 (충분)
+    b.entries.forEach(ent => {
+      unsynced.push({
+        entryDate: ent.entryDate, supplier: ent.supplier, pn: ent.pn, name: ent.name, model: ent.model,
+        masterKey: b.masterKey, monthKey: b.monthKey,
+        orderQty: ent.orderQty, currentIncoming: b.currentIncoming
+      });
     });
   });
   return unsynced;
