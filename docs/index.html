@@ -1367,6 +1367,33 @@ html.login-locked, html.login-locked body { overflow: hidden; }
 </style>
 </head>
 <body>
+<script>
+// TC TECH 로고 (Base64 임베드 · Desktop 스탠드얼론 HTML도 로고 표시)
+window.TC_LOGO_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAO4SURBVEhL7ZdLbBtVFIa/e2fGjvN+1DF5NC554iYiD6qoRKFIrVJRhKgKGxCiArEAISSCWHSHxAK2CCEhWLIExAJVLawQKaWiSlFJCo3TlqRtiJrEhtRx49oez1wWTh3P1FFi1KYbvpXvf+7VJ805V+MRSinFA0C6g+1CKKWUadks3067a/cFn6FR7jWy4nAkxmtfn8a0bPe+e86zu1t4e3h3VjxxY5knPztBxr7/7T460M6Hhx57cD3+X7xt3JPh8hkajZVltNZVEPJX0VxVhi4F0USScGSF6aUYc7FbxFMmL/dnh6tosRDgM3TaaivoDtRwpLuFkc4mpIB4yiS6mmIlmcZSCo+mUVli4C8rwWfonL66SHQ1yaGu5q2LhRBUlRgc7GhisMXP4dBOGipLsZTiwo1lvr80z/TSTcbno8zHEmRsmxJdo622gsEWPx11VTwT2kmwpgwpxNbEAnji4QCjw93sad5BbakXgH8SST7+eYoT4Tmml2IUPp3FkJLexlrefDzEcz3BzYfLo0s+ObyX46+OcLCzKSeNrCZ55/g4H/30B+FNpACmbXPuryhjMwvcSpsbi726xlCwnlNvPM0rezrQhMjVYkmTYyfP8c3vV7GLfLndeRkWFBua5MW+Vj49MkRPoMZRMy2bD374ja8mZx15sRQUjw538/5IP+11Fe4Sp2YX+OLXK+4Y1mZBLi8gJ35Ejn+HFj6LSKy4t4FbLIB39/Xw3oFe6tZ6mU8yY/H52WkSpuUuIcw0YnIMdeZb1FwYtXgN+8p5xNiXyNkJcLUkJ/bokpf62xgd7kbk9TOfS5EYM3/Hc326g7At5MUzqOtTdwmUZaEu/oL253lHLStWir7GOt4aClHj8+QdcxKOxIisJt0xLF7Dnpt2p+sohZqZRNxcykUSoNxrcHSgnVB9df52B7ZSLMRvs5rOOHIBiLkp2ORCKTOFWLqeW0uAhkofz/cE0WThR8yaOGFmsNzXx7YgEXdmG5FK5H5KgFJDx2fo+VvuQgqJV9OQrv4rIcDrc2QbYqwPbMHrVAgpoL7ch8/QnAUhobHdmRVAaDr4m3LrLYsB2ndUFLxmqqkDUV3vjp0Egti1jbllUeIufxXB6nJ3jNI92H37ETUBkK4noumIh3ahevc7akWJq0s8vNDXikcrcKy8GjUwgnhkENHQiggEobkT8eg+VP8BlHSeEcV+wsRTJsdOjnM5utEkK7Ay2WnXdJDOoX2qq5nX93YVL2ZNnv6Pf/49mlz/knAXt4N/Afx/flTc11ZpAAAAAElFTkSuQmCC';
+(function() {
+  function swapLogos(root) {
+    (root || document).querySelectorAll('img[src="logo.png"], img[src$="/logo.png"]').forEach(img => {
+      img.src = window.TC_LOGO_SRC;
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => swapLogos());
+  } else {
+    swapLogos();
+  }
+  new MutationObserver(muts => {
+    muts.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeType === 1) {
+        if (n.tagName === 'IMG' && (n.getAttribute('src') === 'logo.png' || (n.getAttribute('src') || '').endsWith('/logo.png'))) {
+          n.src = window.TC_LOGO_SRC;
+        } else if (n.querySelectorAll) {
+          swapLogos(n);
+        }
+      }
+    }));
+  }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
 <!-- 조회 전용 모드 배너 -->
 <div class="viewer-banner">🔒 조회 전용 모드 (팀원 계정) — 데이터 수정·발주 확정·삭제는 관리자(fpteam)로 재로그인 필요</div>
 <!-- HEADER -->
@@ -12345,13 +12372,15 @@ if (typeof loadHistoryFromServer === 'function') {
   }
 })();
 
-// ── 2026-09 Rev.1 발주 이력 존재 보정 (가람·윈텍·태상·상해 4건) ──
-// PDF Rev.1 기준 발주 4건이 orderHistory에 없으면 자동 추가
-// (준비된 preset202609가 로드되지 않았거나 데이터 유실 시 안전망)
+// ── 2026-09 Rev.1 발주 이력 강제 동기화 (가람·윈텍·태상·상해 4건) ──
+// PDF Rev.1 기준으로 orderHistory를 강제 갱신:
+//   1) 없으면 추가
+//   2) 있는데 items/qty가 Rev.1 스펙과 다르면 대체 (미입고분만)
+//   3) 부분 입고 있으면 스킵 (안전)
 (function ensureSep2026Rev1Orders() {
   if (!Array.isArray(orderHistory)) return;
   if (typeof state === 'undefined' || !state) return;
-  if (state._sep2026Rev1Ensured) return;
+  if (state._sep2026Rev1ForceSync) return;
 
   const targets = [
     {
@@ -12406,20 +12435,13 @@ if (typeof loadHistoryFromServer === 'function') {
     }
   ];
 
-  let added = 0;
-  const addedLog = [];
-  let addSeq = Date.now();
+  let touched = 0;
+  const log = [];
+  let seq = Date.now();
 
-  targets.forEach(t => {
-    const exists = orderHistory.some(e =>
-      e.type === 'order' && !e.cancelled
-      && e.supplier === t.supplier
-      && e.dueDate === t.dueDate
-    );
-    if (exists) return;
-
+  function buildItems(t) {
     let totalQty = 0, totalAmt = 0;
-    const builtItems = t.items.map(it => {
+    const built = t.items.map(it => {
       const master = (typeof displayName === 'function'
           ? MASTERS.find(m => m.part_no === it.pn && displayName(m) === it.model)
           : null)
@@ -12438,46 +12460,92 @@ if (typeof loadHistoryFromServer === 'function') {
         receivedQty: 0
       };
     });
+    return { built, totalQty, totalAmt };
+  }
 
-    orderHistory.push({
-      id: 'sep2026rev1_' + t.supplier.replace(/[^a-zA-Z0-9가-힣]/g,'_') + '_' + (addSeq++),
-      type: 'order',
-      supplier: t.supplier,
-      date: t.orderDate + 'T09:00:00.000Z',
-      orderDate: t.orderDate,
-      dueDate: t.dueDate,
-      items: builtItems,
-      totalQty,
-      totalAmt,
-      received: false,
-      cancelled: false,
-      rev1Applied: true,
-      revisionNote: t.revisionNote,
-      autoAdded: true
+  targets.forEach(t => {
+    // supplier + dueDate 월 일치로 검색 (일자 미세 차이 허용)
+    const targetMonth = t.dueDate.slice(0, 7);
+    const existings = orderHistory.filter(e =>
+      e.type === 'order' && !e.cancelled
+      && e.supplier === t.supplier
+      && (e.dueDate || '').slice(0, 7) === targetMonth
+    );
+
+    if (existings.length === 0) {
+      // 없으면 신규 추가
+      const { built, totalQty, totalAmt } = buildItems(t);
+      orderHistory.push({
+        id: 'sep2026rev1_' + t.supplier.replace(/[^a-zA-Z0-9가-힣]/g,'_') + '_' + (seq++),
+        type: 'order',
+        supplier: t.supplier,
+        date: t.orderDate + 'T09:00:00.000Z',
+        orderDate: t.orderDate,
+        dueDate: t.dueDate,
+        items: built,
+        totalQty,
+        totalAmt,
+        received: false,
+        cancelled: false,
+        rev1Applied: true,
+        revisionNote: t.revisionNote,
+        autoAdded: true
+      });
+      touched++;
+      log.push(`[+추가] ${t.supplier}: ${totalQty}EA / ${totalAmt.toLocaleString()}원`);
+      return;
+    }
+
+    // 있으면 스펙 검증 후 필요 시 강제 갱신
+    existings.forEach(existing => {
+      const hasReceipts = (existing.items || []).some(it => (it.receivedQty || 0) > 0);
+      if (hasReceipts) {
+        console.warn(`[Rev.1 강제 동기화 스킵] ${t.supplier} (${existing.dueDate}): 부분 입고 있음`);
+        return;
+      }
+      // 스펙 비교 (품번+수량 세트가 완전 일치하는지)
+      const curItems = existing.items || [];
+      const isMatch = curItems.length === t.items.length &&
+        t.items.every(nit => curItems.some(cit => cit.pn === nit.pn && Number(cit.qty) === Number(nit.qty)));
+      if (isMatch && existing.dueDate === t.dueDate) return; // 이미 일치
+
+      const before = `${(curItems.length)}품목/${(existing.totalQty || 0)}EA`;
+      const { built, totalQty, totalAmt } = buildItems(t);
+      existing.items = built;
+      existing.totalQty = totalQty;
+      existing.totalAmt = totalAmt;
+      existing.dueDate = t.dueDate;
+      existing.date = t.orderDate + 'T09:00:00.000Z';
+      existing.orderDate = t.orderDate;
+      existing.rev1Applied = true;
+      existing.revisionNote = t.revisionNote;
+      touched++;
+      log.push(`[갱신] ${t.supplier}: ${before} → ${built.length}품목/${totalQty}EA / ${totalAmt.toLocaleString()}원`);
     });
-    added++;
-    addedLog.push(`${t.supplier} (${t.dueDate}): ${totalQty}EA / ${totalAmt.toLocaleString()}원`);
   });
 
-  state._sep2026Rev1Ensured = new Date().toISOString();
+  state._sep2026Rev1ForceSync = new Date().toISOString();
 
-  if (added > 0) {
-    console.info(`[9월 Rev.1 발주 이력 보정] ${added}건 추가:\n` + addedLog.join('\n'));
+  if (touched > 0) {
+    console.info(`[9월 Rev.1 발주 이력 강제 동기화] ${touched}건:\n` + log.join('\n'));
     if (typeof saveHistory === 'function') saveHistory();
     state.auditLog = state.auditLog || [];
     state.auditLog.push({
       ts: new Date().toISOString(),
       user: 'system',
-      action: 'sep2026_rev1_ensure',
-      field: `count.${added}`,
+      action: 'sep2026_rev1_force_sync',
+      field: `count.${touched}`,
       before: '',
-      after: addedLog.join(' / ')
+      after: log.join(' / ')
     });
     if (typeof saveInputs === 'function') saveInputs();
     if (typeof updateHistoryCount === 'function') updateHistoryCount();
     if (typeof renderHistory === 'function') renderHistory();
+    if (typeof saveHistoryToServer === 'function') {
+      saveHistoryToServer().catch(e => console.warn('Supabase 저장 실패', e));
+    }
   } else {
-    console.info('[9월 Rev.1 발주 이력 검증] 4건 모두 존재 - 추가 조치 없음');
+    console.info('[9월 Rev.1 발주 이력 검증] 4건 모두 정확 - 추가 조치 없음');
   }
 })();
 
