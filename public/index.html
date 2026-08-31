@@ -12069,6 +12069,39 @@ if (typeof loadHistoryFromServer === 'function') {
   }
 })();
 
+// ── 윈도우(periodStartMonth) 자동 복구 ──
+// 최근 발주 이력(2026-08 이후 납기)이 있으면 무조건 8월~11월 윈도우로 설정
+// 저장 실패로 5월로 되돌아가는 문제 근본 방지
+(function ensurePeriodStartMonth() {
+  if (!Array.isArray(orderHistory) || orderHistory.length === 0) return;
+  const hasRecentDue = orderHistory.some(e => {
+    if (e.cancelled || e.type !== 'order') return false;
+    const dueYM = (e.dueDate || '').slice(0, 7);
+    return dueYM >= '2026-08';
+  });
+  if (!hasRecentDue) return;
+  const currentPSM = state.periodStartMonth || 5;
+  const currentPY = state.periodYear || 2026;
+  if (currentPSM === 8 && currentPY === 2026) return; // 이미 정상
+  console.info(`[윈도우 자동 복구] periodStartMonth ${currentPSM} → 8 (최근 발주 이력 기반)`);
+  state.periodStartMonth = 8;
+  state.periodYear = 2026;
+  if (typeof saveInputs === 'function') saveInputs();
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: 'system',
+    action: 'auto_period_restore',
+    field: 'periodStartMonth',
+    before: currentPSM,
+    after: 8
+  });
+  if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
+  if (typeof renderForm === 'function') renderForm();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderHeroDashboard === 'function') renderHeroDashboard();
+})();
+
 // ── 가람기계 9월 발주 Rev.1 (2026-08-31 · 81554 100EA 추가) 자동 갱신 ──
 (function migrateGaramSep2026Rev1() {
   if (!Array.isArray(orderHistory)) return;
