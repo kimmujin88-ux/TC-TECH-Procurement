@@ -6800,43 +6800,52 @@ function populateHistoryMonthSelects() {
 }
 
 // 발주 이력 중 아직 _incoming에 반영 안 된 pending 발주 감지
+// (part_no + monthKey) 단위 집계 — 같은 품번이 여러 모델(Z40 DC/Z45 DC 등)에 존재해도
+// 어느 모델에 입력해도 반영으로 인정 (사용자가 총합만 입력한 경우 오탐 방지)
 function detectUnsyncedOrders() {
   const pending = (orderHistory || []).filter(e => e.type === 'order' && !e.cancelled && !e.received);
-  // 1단계: masterKey+monthKey 버킷별 pending 발주 총 잔량 집계
-  const buckets = new Map(); // key: `${mkey}|${monthKey}`
+  // 1단계: (part_no, monthKey) 단위로 pending 잔량 집계
+  const pendingByPN = new Map(); // key: `${pn}|${monthKey}`
   pending.forEach(entry => {
     const monthKey = dateToMonthKey(entry.dueDate || '');
     if (!monthKey) return;
     (entry.items || []).forEach(it => {
-      const master = MASTERS.find(m => m.part_no === it.pn && displayName(m) === it.model)
-                  || MASTERS.find(m => m.part_no === it.pn);
-      if (!master) return;
-      const key = masterInputKey(master);
-      const bkey = `${key}|${monthKey}`;
-      const remain = it.qty - Number(it.receivedQty || 0);
-      if (!buckets.has(bkey)) {
-        const ii = state.itemInputs[key] || {};
-        buckets.set(bkey, {
-          masterKey: key, monthKey,
-          currentIncoming: Number(ii[`${monthKey}_incoming`] || 0),
-          totalPendingRemain: 0,
-          entries: []
-        });
-      }
-      const b = buckets.get(bkey);
-      b.totalPendingRemain += remain;
+      const remain = Number(it.qty) - Number(it.receivedQty || 0);
+      if (remain <= 0) return;
+      const bkey = `${it.pn}|${monthKey}`;
+      if (!pendingByPN.has(bkey)) pendingByPN.set(bkey, { pn: it.pn, monthKey, sum: 0, entries: [] });
+      const b = pendingByPN.get(bkey);
+      b.sum += remain;
       b.entries.push({ entryDate: entry.date, supplier: entry.supplier, pn: it.pn, name: it.name, model: it.model, orderQty: remain });
     });
   });
-  // 2단계: 실제 미반영만 (currentIncoming < totalPendingRemain)
+  // 2단계: 같은 part_no의 모든 master의 _incoming 합계 계산 (모델 분산 입력 대응)
+  const incomingByPN = new Map(); // key: `${pn}|${monthKey}`
+  MASTERS.forEach(m => {
+    const key = masterInputKey(m);
+    const ii = state.itemInputs[key];
+    if (!ii) return;
+    ['may', 'jun', 'jul', 'aug'].forEach(mo => {
+      const v = Number(ii[`${mo}_incoming`] || 0);
+      if (v <= 0) return;
+      const bkey = `${m.part_no}|${mo}`;
+      incomingByPN.set(bkey, (incomingByPN.get(bkey) || 0) + v);
+    });
+  });
+  // 3단계: 실제 미반영만 (총 incoming < 총 pending)
   const unsynced = [];
-  buckets.forEach(b => {
-    if (b.currentIncoming >= b.totalPendingRemain) return; // 이미 반영됨 (충분)
+  pendingByPN.forEach((b, bkey) => {
+    const totalIncoming = incomingByPN.get(bkey) || 0;
+    if (totalIncoming >= b.sum) return;
     b.entries.forEach(ent => {
+      // 반영 실행용 대표 master 찾기 (첫 매칭)
+      const m = MASTERS.find(mm => mm.part_no === ent.pn && displayName(mm) === ent.model)
+             || MASTERS.find(mm => mm.part_no === ent.pn);
+      const masterKey = m ? masterInputKey(m) : `${ent.pn}|unknown`;
       unsynced.push({
         entryDate: ent.entryDate, supplier: ent.supplier, pn: ent.pn, name: ent.name, model: ent.model,
-        masterKey: b.masterKey, monthKey: b.monthKey,
-        orderQty: ent.orderQty, currentIncoming: b.currentIncoming
+        masterKey, monthKey: b.monthKey,
+        orderQty: ent.orderQty, currentIncoming: totalIncoming
       });
     });
   });
@@ -7083,6 +7092,10 @@ function renderHistory() {
               ${statusBadge}
               ${!cancelled ? receivedBadge : ''}
               ${actionBtn}
+              ${entry.pdfAttachment
+                ? `<button class="btn btn--sm" onclick="viewPdfAttachment('${entry.date}')" title="${sanitize(entry.pdfAttachment.name)} · ${Math.round((entry.pdfAttachment.size||0)/1024)}KB" style="background:rgba(168,85,247,0.12);color:#a855f7;border:0.5px solid rgba(168,85,247,0.4);">📄 PDF 보기</button>
+                   <button class="btn btn--ghost btn--sm" onclick="removePdfAttachment('${entry.date}')" title="첨부 삭제" style="color:var(--t3);padding:3px 6px;">🗑</button>`
+                : `<button class="btn btn--sm" onclick="attachPdfToOrder('${entry.date}')" style="background:rgba(168,85,247,0.08);color:#a855f7;border:0.5px solid rgba(168,85,247,0.3);">📎 PDF 첨부</button>`}
               <button class="btn btn--sm" onclick="duplicateOrderFromHistory('${entry.date}')" style="background:rgba(96,170,220,0.10); color:var(--sky); border:0.5px solid var(--sky-b);">📋 복제</button>
               <button class="btn btn--ghost btn--sm" onclick="deleteHistory('${entry.date}')" style="color:var(--red);border-color:var(--red-b);">삭제</button>
             </div>
@@ -7115,6 +7128,118 @@ function renderHistory() {
     }
     return '';
   }).join('');
+}
+
+// ── 발주 이력 PDF 첨부 ──
+// entry.pdfAttachment = { name, dataUrl, size, type, uploadedAt }
+// dataUrl에 base64 인코딩된 PDF 저장 (Supabase에 orderHistory와 함께 자동 저장)
+function attachPdfToOrder(dateStr) {
+  if (window.guardAdmin && !window.guardAdmin('PDF 첨부')) return;
+  const entry = orderHistory.find(e => e.date === dateStr);
+  if (!entry) { alert('발주 이력을 찾을 수 없습니다.'); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/pdf,.pdf';
+  input.style.display = 'none';
+  input.addEventListener('change', () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      alert('PDF 파일만 첨부할 수 있습니다.');
+      return;
+    }
+    // 5MB 초과 경고 (orderHistory JSON 비대화 방지)
+    if (file.size > 5 * 1024 * 1024) {
+      if (!confirm(`파일 크기가 ${(file.size/1024/1024).toFixed(1)}MB 입니다. 계속하시겠습니까?\n(권장: 2MB 이하 · Supabase 이력 저장 용량에 영향)`)) return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      entry.pdfAttachment = {
+        name: file.name,
+        dataUrl: reader.result, // "data:application/pdf;base64,..."
+        size: file.size,
+        type: file.type || 'application/pdf',
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: sessionStorage.getItem('tctech_auth_user') || 'unknown'
+      };
+      state.auditLog = state.auditLog || [];
+      state.auditLog.push({
+        ts: new Date().toISOString(),
+        user: entry.pdfAttachment.uploadedBy,
+        action: 'pdf_attach',
+        field: `${entry.supplier}.${entry.date}`,
+        before: '',
+        after: `${file.name} (${Math.round(file.size/1024)}KB)`
+      });
+      if (typeof saveHistory === 'function') saveHistory();
+      if (typeof saveHistoryToServer === 'function') {
+        saveHistoryToServer().catch(e => console.warn('PDF 첨부 Supabase 저장 실패', e));
+      }
+      renderHistory();
+      console.info(`[PDF 첨부] ${entry.supplier} ${entry.date}: ${file.name} (${Math.round(file.size/1024)}KB)`);
+    };
+    reader.onerror = () => alert('PDF 읽기 실패: ' + (reader.error && reader.error.message || 'unknown'));
+    reader.readAsDataURL(file);
+  }, { once: true });
+  document.body.appendChild(input);
+  input.click();
+  setTimeout(() => input.remove(), 60000);
+}
+
+function viewPdfAttachment(dateStr) {
+  const entry = orderHistory.find(e => e.date === dateStr);
+  if (!entry || !entry.pdfAttachment || !entry.pdfAttachment.dataUrl) {
+    alert('첨부된 PDF가 없습니다.');
+    return;
+  }
+  const { dataUrl, name, size } = entry.pdfAttachment;
+  // 새 창에서 PDF 뷰어로 열기 (Blob URL 사용 — 대용량 dataUrl 직접 열기 방지)
+  try {
+    const byteChars = atob(dataUrl.split(',')[1]);
+    const byteNumbers = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, '_blank');
+    if (!w) {
+      // 팝업 차단 시 다운로드로 폴백
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = name || `발주서_${entry.supplier}_${entry.date.slice(0,10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    // 5분 뒤 blob URL 해제
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
+  } catch (e) {
+    console.error('PDF 열기 실패', e);
+    alert('PDF 열기 실패: ' + e.message);
+  }
+}
+
+function removePdfAttachment(dateStr) {
+  if (window.guardAdmin && !window.guardAdmin('PDF 첨부 삭제')) return;
+  const entry = orderHistory.find(e => e.date === dateStr);
+  if (!entry || !entry.pdfAttachment) return;
+  const name = entry.pdfAttachment.name || '(파일명 없음)';
+  if (!confirm(`첨부된 PDF를 삭제하시겠습니까?\n\n파일: ${name}`)) return;
+  const before = `${name} (${Math.round((entry.pdfAttachment.size||0)/1024)}KB)`;
+  delete entry.pdfAttachment;
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+    action: 'pdf_remove',
+    field: `${entry.supplier}.${entry.date}`,
+    before,
+    after: ''
+  });
+  if (typeof saveHistory === 'function') saveHistory();
+  if (typeof saveHistoryToServer === 'function') {
+    saveHistoryToServer().catch(e => console.warn('PDF 삭제 Supabase 저장 실패', e));
+  }
+  renderHistory();
 }
 
 // 입고 확인 (부분 입고 지원) — 품목별 receivedQty 누적, 전체 완료 시 received=true
