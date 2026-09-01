@@ -12549,6 +12549,75 @@ if (typeof loadHistoryFromServer === 'function') {
   }
 })();
 
+// ── 2026-09 pending 발주 → 수급 운영 계획 입고계획(_incoming) 자동 반영 ──
+// (부품+월) 단위로 pending 잔량 합계 계산 후, 현재 _incoming < 잔량이면 갱신
+// 여러 업체가 같은 부품 발주 시 합산 반영, 사용자가 이미 더 많이 입력한 값은 유지
+(function syncSep2026PendingToIncoming() {
+  if (!Array.isArray(orderHistory)) return;
+  if (typeof state === 'undefined' || !state) return;
+  if (state._sep2026IncomingSynced) return;
+  if (typeof state.itemInputs !== 'object' || !state.itemInputs) return;
+
+  const sm = state.periodStartMonth || 5;
+  const sy = state.periodYear || 2026;
+  const offset = (2026 - sy) * 12 + (9 - sm);
+  if (offset < 0 || offset > 3) return; // 현재 윈도우에 9월 없음
+  const slotName = ['may', 'jun', 'jul', 'aug'][offset];
+  const incField = slotName + '_incoming';
+
+  // pending 발주 items를 masterKey 단위로 합산
+  const buckets = new Map();
+  orderHistory.forEach(e => {
+    if (e.type !== 'order' || e.cancelled || e.received) return;
+    const dueMonth = (e.dueDate || '').slice(0, 7);
+    if (dueMonth !== '2026-09') return;
+    (e.items || []).forEach(it => {
+      const master = MASTERS.find(m => m.part_no === it.pn && displayName(m) === it.model)
+                  || MASTERS.find(m => m.part_no === it.pn);
+      if (!master) { console.warn('[9월 입고 반영] master 미발견:', it.pn, it.model); return; }
+      const key = masterInputKey(master);
+      const remain = Number(it.qty) - Number(it.receivedQty || 0);
+      if (remain <= 0) return;
+      if (!buckets.has(key)) buckets.set(key, { sum: 0, entries: [], master });
+      const b = buckets.get(key);
+      b.sum += remain;
+      b.entries.push(`${e.supplier}:${remain}`);
+    });
+  });
+
+  let changed = 0;
+  const log = [];
+  buckets.forEach((b, key) => {
+    if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
+    const cur = Number(state.itemInputs[key][incField] || 0);
+    if (cur >= b.sum) return;
+    state.itemInputs[key][incField] = b.sum;
+    changed++;
+    log.push(`${b.master.part_no}(${displayName(b.master)}): ${cur} → ${b.sum} EA [${b.entries.join('+')}]`);
+  });
+
+  state._sep2026IncomingSynced = new Date().toISOString();
+
+  if (changed > 0) {
+    console.info(`[9월 입고계획 자동 반영] ${slotName} 슬롯 ${changed}개 품목 갱신:\n` + log.join('\n'));
+    if (typeof saveInputs === 'function') saveInputs();
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: 'system',
+      action: 'sep2026_incoming_sync',
+      field: `${slotName}_incoming.count.${changed}`,
+      before: '',
+      after: log.join(' / ')
+    });
+    if (typeof renderForm === 'function') renderForm();
+    if (typeof renderDashboard === 'function') renderDashboard();
+    if (typeof renderHeroDashboard === 'function') renderHeroDashboard();
+  } else {
+    console.info('[9월 입고계획 자동 반영] 모든 품목 이미 반영됨 - 조치 없음');
+  }
+})();
+
 // ── 발주 이력 입고월 기본값: 익월 자동 설정 (오늘이 8월이면 9월 입고예정 표시) ──
 function setDefaultHistoryDueMonth() {
   const sel = document.getElementById('history-filter-due-month');
