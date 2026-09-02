@@ -12280,7 +12280,10 @@ if (typeof loadHistoryFromServer === 'function') {
 })();
 
 // ── 가람기계 9월 발주 Rev.1 (2026-08-31 · 81554 100EA 추가) 자동 갱신 ──
+// [FROZEN 2026-09-01] 사용자 요청: 수급 운영 계획 수량 수동 조정 상태 유지 · 자동 마이그레이션 동결
 (function migrateGaramSep2026Rev1() {
+  return; // ← 동결
+  // eslint-disable-next-line no-unreachable
   if (!Array.isArray(orderHistory)) return;
   const newItemsDef = [
     {pn:'132044',   qty:400,  model:'GS1930E Drive Chassis'},
@@ -12334,8 +12337,10 @@ if (typeof loadHistoryFromServer === 'function') {
 })();
 
 // ── 태상테크 9월 발주 Rev.1 · 입고계획 반영 (수급 운영 계획 9월 컬럼 갱신) ──
-// 이미 반영됐다면 스킵 (state 플래그로 idempotent)
+// [FROZEN 2026-09-01] 사용자 요청: 수급 운영 계획 수량 수동 조정 상태 유지 · 자동 마이그레이션 동결
 (function reflectTaesangSep2026Rev1Incoming() {
+  return; // ← 동결
+  // eslint-disable-next-line no-unreachable
   if (typeof state === 'undefined' || !state) return;
   if (state._taesangSep2026Rev1Reflected) return;
   // 2026-09가 현재 윈도우 몇 번째 슬롯?
@@ -12407,8 +12412,10 @@ if (typeof loadHistoryFromServer === 'function') {
 })();
 
 // ── 태상테크 9월 발주 Rev.1 (2026-08-31 수정본) 자동 갱신 ──
-// 기존 preset202609 태상테크 발주(2026-08-18)를 발견하면 새 수량·1059-1700 추가로 대체
+// [FROZEN 2026-09-01] 사용자 요청: 수급 운영 계획 수량 수동 조정 상태 유지 · 자동 마이그레이션 동결
 (function migrateTaesangSep2026Rev1() {
+  return; // ← 동결
+  // eslint-disable-next-line no-unreachable
   if (!Array.isArray(orderHistory)) return;
   const newItemsDef = [
     {pn:'1305526',        qty:800, model:'GS1930E Drive Chassis'},
@@ -12503,6 +12510,8 @@ if (typeof loadHistoryFromServer === 'function') {
 //   2) 있는데 items/qty가 Rev.1 스펙과 다르면 대체 (미입고분만)
 //   3) 부분 입고 있으면 스킵 (안전)
 (function ensureSep2026Rev1Orders() {
+  return; // ← [FROZEN 2026-09-01] 사용자 요청: 수동 조정 값 유지 · 자동 마이그레이션 동결
+  // eslint-disable-next-line no-unreachable
   if (!Array.isArray(orderHistory)) return;
   if (typeof state === 'undefined' || !state) return;
   if (state._sep2026Rev1ForceSync) return;
@@ -12678,6 +12687,8 @@ if (typeof loadHistoryFromServer === 'function') {
 // (부품+월) 단위로 pending 잔량 합계 계산 후, 현재 _incoming < 잔량이면 갱신
 // 여러 업체가 같은 부품 발주 시 합산 반영, 사용자가 이미 더 많이 입력한 값은 유지
 (function syncSep2026PendingToIncoming() {
+  return; // ← [FROZEN 2026-09-01] 사용자 요청: 수동 조정 값 유지 · 자동 마이그레이션 동결
+  // eslint-disable-next-line no-unreachable
   if (!Array.isArray(orderHistory)) return;
   if (typeof state === 'undefined' || !state) return;
   if (state._sep2026IncomingSynced) return;
