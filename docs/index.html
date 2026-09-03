@@ -2477,7 +2477,10 @@ window.TC_LOGO_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYA
   <div class="card" id="history-sync-card" style="padding:8px 12px;display:none;background:rgba(245,158,11,0.06);border-left:3px solid var(--amb);margin-bottom:12px;font-size:11px;color:var(--t2);">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
       <div><span style="color:var(--amb);font-weight:700;">⚠ 미반영 발주 발견</span> — <span id="history-sync-info"></span></div>
-      <button class="btn btn--sm" id="btn-sync-orders-to-incoming" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">📤 발주 이력 → 수급 운영 계획 입고계획 반영</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn--sm" id="btn-ack-sync-card" title="현재 수급 운영 계획 값이 정상임을 시스템에 알립니다. 이후 발주가 추가되면 배너가 다시 표시됩니다." style="background:rgba(96,170,220,0.15);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;">✅ 정상 확정 (배너 숨김)</button>
+        <button class="btn btn--sm" id="btn-sync-orders-to-incoming" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;">📤 발주 이력 → 수급 운영 계획 입고계획 반영</button>
+      </div>
     </div>
   </div>
   <!-- 중복 발주 감지·정리 카드 -->
@@ -6852,6 +6855,20 @@ function detectUnsyncedOrders() {
   return unsynced;
 }
 
+// 미반영 카드 시그니처 계산 (현재 pending 발주의 지문)
+function computeUnsyncedSignature(unsynced) {
+  if (!unsynced || unsynced.length === 0) return '';
+  const sorted = unsynced.map(u => `${u.pn}|${u.monthKey}|${u.orderQty}|${u.supplier}|${(u.entryDate || '').slice(0,10)}`).sort();
+  // 간단 해시 (FNV-1a 32bit)
+  let h = 0x811c9dc5;
+  const s = sorted.join(';');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0') + ':' + sorted.length;
+}
+
 // 미반영 카드 표시 상태 갱신
 function updateHistorySyncCard() {
   const card = document.getElementById('history-sync-card');
@@ -6859,12 +6876,45 @@ function updateHistorySyncCard() {
   if (!card || !info) return;
   const unsynced = detectUnsyncedOrders();
   if (unsynced.length === 0) { card.style.display = 'none'; return; }
+  // 사용자가 "정상 확정"한 시그니처와 일치하면 배너 숨김 (신규 발주 추가 시 자동 복원)
+  const sig = computeUnsyncedSignature(unsynced);
+  if (state._syncCardAckSignature && state._syncCardAckSignature === sig) {
+    card.style.display = 'none';
+    return;
+  }
   const totalQty = unsynced.reduce((s, u) => s + u.orderQty, 0);
   const byMonth = {};
   unsynced.forEach(u => { byMonth[u.monthKey] = (byMonth[u.monthKey] || 0) + u.orderQty; });
   const monthTxt = Object.entries(byMonth).map(([mo, q]) => `${monthLabel(mo)} ${fmt(q)}EA`).join(', ');
-  info.innerHTML = `발주 완료됐지만 <strong>수급 운영 계획의 입고계획에 반영 안 된</strong> 품목 <strong style="color:var(--amb);">${unsynced.length}건</strong> · 총 <strong>${fmt(totalQty)}EA</strong> (${monthTxt})<br><span style="font-size:10px;color:var(--t3);">→ 반영 시 운영 현황의 부족 알람이 정상화됩니다</span>`;
+  info.innerHTML = `발주 완료됐지만 <strong>수급 운영 계획의 입고계획에 반영 안 된</strong> 품목 <strong style="color:var(--amb);">${unsynced.length}건</strong> · 총 <strong>${fmt(totalQty)}EA</strong> (${monthTxt})<br><span style="font-size:10px;color:var(--t3);">→ 반영 버튼은 <strong style="color:var(--amb);">현재 값에 더하기</strong> 방식이므로 이미 수동 입력하셨다면 <strong>[✅ 정상 확정]</strong> 을 눌러 배너만 숨기세요</span>`;
   card.style.display = '';
+}
+
+// "정상 확정" 버튼 핸들러: 현재 시그니처를 저장 → 신규 발주 없으면 배너 안 나타남
+function ackSyncCard() {
+  const unsynced = detectUnsyncedOrders();
+  if (unsynced.length === 0) {
+    document.getElementById('history-sync-card').style.display = 'none';
+    return;
+  }
+  const sig = computeUnsyncedSignature(unsynced);
+  const totalQty = unsynced.reduce((s, u) => s + u.orderQty, 0);
+  if (!confirm(`현재 감지된 미반영 발주 ${unsynced.length}건 · ${fmt(totalQty)}EA 를 "정상 반영됨"으로 확정합니다.\n\n· 수급 운영 계획 입고계획 값은 변경되지 않습니다\n· 새 발주가 추가/수정되면 배너가 다시 표시됩니다\n\n계속하시겠습니까?`)) return;
+  state._syncCardAckSignature = sig;
+  state._syncCardAckAt = new Date().toISOString();
+  state._syncCardAckUser = sessionStorage.getItem('tctech_auth_user') || 'unknown';
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: state._syncCardAckAt,
+    user: state._syncCardAckUser,
+    action: 'sync_card_ack',
+    field: `count.${unsynced.length}`,
+    before: sig,
+    after: `${unsynced.length}건 · ${fmt(totalQty)}EA · 정상 확정 (배너 숨김)`
+  });
+  if (typeof saveInputs === 'function') saveInputs();
+  updateHistorySyncCard();
+  console.info(`[미반영 배너 확정] ${unsynced.length}건 · ${fmt(totalQty)}EA · sig=${sig}`);
 }
 
 // 발주 이력 → itemInputs._incoming 반영 (미리보기 + 확인)
@@ -6954,6 +7004,7 @@ function syncOrdersToIncoming() {
   });
 }
 document.getElementById('btn-sync-orders-to-incoming')?.addEventListener('click', syncOrdersToIncoming);
+document.getElementById('btn-ack-sync-card')?.addEventListener('click', ackSyncCard);
 
 // 중복 발주 감지 — supplier + orderDate(YYYY-MM-DD) + totalQty + totalAmt 같으면 중복
 function detectDuplicateOrders() {
