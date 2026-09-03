@@ -1449,6 +1449,7 @@ window.TC_LOGO_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYA
         <button class="btn btn--ghost btn--sm" id="btn-more" title="가끔 쓰는 기능 (월 이월·내보내기·초기값 복원)">⚙ 더보기 ▾</button>
         <div id="more-dropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--bg-card);border:0.5px solid var(--border2);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,0.5);min-width:180px;z-index:100;overflow:hidden;">
           <button class="btn btn--ghost btn--sm" id="btn-rollover" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;color:var(--amb);">📅 월 이월 처리 (1개월씩)</button>
+          <button class="btn btn--ghost btn--sm" id="btn-set-period-month" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);color:var(--teal);" title="데이터는 그대로 두고 라벨(월 표시)만 재계산. 시작재고 의미가 잘못 표시될 때 사용.">🏷 시작 월 라벨 조정 (데이터 유지)</button>
           <button class="btn btn--ghost btn--sm" id="btn-jump-to-month" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);color:var(--sky);">⏩ 특정 월로 리셋 (건너뛰기)</button>
           <button class="btn btn--ghost btn--sm" id="btn-export-excel" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);">📊 엑셀 내보내기</button>
           <button class="btn btn--ghost btn--sm" id="btn-export-json" style="display:block;width:100%;text-align:left;border:0;border-radius:0;padding:8px 14px;border-top:0.5px solid var(--border2);">💾 JSON 내보내기</button>
@@ -7933,6 +7934,62 @@ async function showMonthCloseChecklist() {
   });
 }
 
+// ── 🏷 시작 월 라벨만 조정 (데이터는 그대로 유지) ──
+// 사용 케이스: 실제 데이터는 A월~D월 기준으로 입력했는데, 시스템 라벨은 여전히
+//   이전 월 기준으로 표시될 때. 예: 8월말 재고 + 9~12월 계획인데 시스템이
+//   7월말 재고 + 8~11월 계획으로 라벨 표시하는 경우.
+function setPeriodStartMonthDirect() {
+  if (window.guardAdmin && !window.guardAdmin('시작 월 라벨 조정')) return;
+  const curM = state.periodStartMonth || 5;
+  const curY = state.periodYear || 2026;
+  const curLabel = `${curY}년 ${curM}월~${curM + 3 > 12 ? (curM + 3 - 12) + '월(다음해)' : (curM + 3) + '월'}`;
+  const input = prompt(
+    `🏷 시작 월 라벨 조정 (데이터 유지)\n\n` +
+    `현재 라벨: ${curLabel} (starting_stock = ${curM === 1 ? 12 : curM - 1}월말 재고)\n\n` +
+    `⚠ 주의: 이 기능은 데이터를 이동시키지 않고 표시 라벨만 재계산합니다.\n` +
+    `실제 입력된 값들(제작대수·입고·시작재고)이 새 라벨에 맞아야 합니다.\n\n` +
+    `새 시작 월을 입력하세요 (1~12):`,
+    String(curM)
+  );
+  if (input === null) return;
+  const newM = parseInt(input, 10);
+  if (!Number.isFinite(newM) || newM < 1 || newM > 12) {
+    alert('❌ 1~12 사이의 숫자만 입력 가능합니다.');
+    return;
+  }
+  if (newM === curM) { alert('현재 값과 동일합니다.'); return; }
+  const newLabel = `${curY}년 ${newM}월~${newM + 3 > 12 ? (newM + 3 - 12) + '월(다음해)' : (newM + 3) + '월'}`;
+  const startingStockMonth = newM === 1 ? '12월(전년)말' : (newM - 1) + '월말';
+  if (!confirm(
+    `📋 라벨 조정 미리보기\n\n` +
+    `이전: ${curLabel}\n` +
+    `이후: ${newLabel}\n\n` +
+    `starting_stock 필드는 ${startingStockMonth} 재고로 재해석됨.\n\n` +
+    `⚠ 데이터(제작대수·입고·재고)는 그대로 유지되며 표시만 바뀝니다.\n` +
+    `자동 백업이 먼저 생성됩니다.\n\n` +
+    `진행하시겠습니까?`
+  )) return;
+  // 자동 백업 후 라벨 변경
+  createBackup(`시작 월 조정 자동 백업 (${curM}월 → ${newM}월)`, true).then(() => {
+    state.periodStartMonth = newM;
+    state.auditLog = state.auditLog || [];
+    state.auditLog.push({
+      ts: new Date().toISOString(),
+      user: sessionStorage.getItem('tctech_auth_user') || 'unknown',
+      action: 'set_period_start_month',
+      field: 'periodStartMonth',
+      before: curM,
+      after: newM
+    });
+    saveInputs();
+    if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
+    if (typeof renderForm === 'function') renderForm();
+    if (typeof renderDashboard === 'function') renderDashboard();
+    if (typeof renderHeroDashboard === 'function') renderHeroDashboard();
+    alert(`✅ 시작 월 라벨 조정 완료\n\n${curLabel} → ${newLabel}\n\n수급 운영 계획 탭 헤더를 확인하세요.`);
+  }).catch(e => alert('❌ 처리 실패: ' + (e.message || e)));
+}
+
 function rolloverMonth(opts) {
   opts = opts || {};
   const preserveStock = !!opts.preserveStock;
@@ -11600,6 +11657,7 @@ document.getElementById('btn-export-json').addEventListener('click', () => {
 });
 
 document.getElementById('btn-rollover').addEventListener('click', showMonthCloseChecklist);
+document.getElementById('btn-set-period-month')?.addEventListener('click', setPeriodStartMonthDirect);
 document.getElementById('btn-jump-to-month')?.addEventListener('click', showJumpToMonthModal);
 
 // ⏩ 특정 월로 리셋 (여러 달 건너뛰기·이월 없이 직접 이동)
