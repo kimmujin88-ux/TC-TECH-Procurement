@@ -2093,7 +2093,10 @@ window.TC_LOGO_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYA
         <div class="card__title">📚 월말 마감 아카이브</div>
         <div class="card__hint">매월 실사 후 "N월말 재고 기준 · (N+1)~(N+4)월 계획" 스냅샷을 누적 · 과거 사이클 조회·비교 · 데이터 영구 보존</div>
       </div>
-      <button class="btn btn--sm" id="btn-save-cycle-close" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;" title="현재 상태를 이번 달 마감 사이클로 아카이브 (라벨: [사이클] N월말 재고 기준 · (N+1)~(N+4)월 계획)">📌 현재 상태를 월말 마감으로 저장</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn--sm" id="btn-cycle-trend" style="background:rgba(96,170,220,0.2);color:var(--sky);border:0.5px solid var(--sky-b);font-weight:700;" title="사이클별 발주량·제작대수·재고 추이를 한 표로 비교">📊 사이클 추이 비교</button>
+        <button class="btn btn--sm" id="btn-save-cycle-close" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;" title="현재 상태를 이번 달 마감 사이클로 아카이브 (라벨: [사이클] N월말 재고 기준 · (N+1)~(N+4)월 계획)">📌 현재 상태를 월말 마감으로 저장</button>
+      </div>
     </div>
     <div class="card__body" style="padding:0; max-height:340px; overflow-y:auto;">
       <table class="order-table" style="width:100%; font-size:11px;">
@@ -4002,6 +4005,128 @@ async function renderCycleArchive() {
 async function previewCycle(id) {
   // 기존 previewBackup 재활용 (동일한 스냅샷 구조)
   return previewBackup(id);
+}
+
+// ── 📊 사이클 추이 비교 — 월별 마감 사이클의 발주량·제작대수·재고 흐름 ──
+async function showCycleTrend() {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modal-body');
+  document.querySelector('.modal__title').textContent = '📊 월말 마감 사이클 추이 비교';
+  modalBody.innerHTML = '<div style="padding:40px;text-align:center;color:var(--t3);font-size:12px;">사이클 데이터 불러오는 중...</div>';
+  modal.classList.remove('modal--po');
+  modal.classList.add('modal-backdrop--open');
+
+  const cycles = await listCycleArchive();
+  if (cycles.length === 0) {
+    modalBody.innerHTML = '<div style="padding:40px;text-align:center;color:var(--t3);font-size:12px;">아카이브된 사이클이 없습니다.</div>';
+    return;
+  }
+  // 기준월 오름차순 (시간 흐름 순)
+  const sorted = [...cycles].sort((a, b) => {
+    const sa = a.state_json || {}, sb = b.state_json || {};
+    const ka = `${sa._cycleRefYear || 0}-${String(sa._cycleRefMonth || 0).padStart(2,'0')}`;
+    const kb = `${sb._cycleRefYear || 0}-${String(sb._cycleRefMonth || 0).padStart(2,'0')}`;
+    return ka.localeCompare(kb);
+  });
+
+  const rows = sorted.map(b => {
+    const s = b.state_json || {};
+    const ii = s.itemInputs || {};
+    const mi = s.modelInputs || {};
+    let stock = 0, incoming = 0;
+    Object.values(ii).forEach(v => {
+      stock += Number(v.starting_stock || 0);
+      incoming += Number(v.may_incoming || 0) + Number(v.jun_incoming || 0)
+                + Number(v.jul_incoming || 0) + Number(v.aug_incoming || 0);
+    });
+    let prod = 0;
+    Object.values(mi).forEach(v => {
+      prod += Number(v.may_qty || 0) + Number(v.jun_qty || 0) + Number(v.jul_qty || 0) + Number(v.aug_qty || 0);
+    });
+    const psm = s.periodStartMonth || 0;
+    const endM = psm + 3 > 12 ? psm + 3 - 12 : psm + 3;
+    return {
+      id: b.id,
+      ref: `${s._cycleRefYear}년 ${String(s._cycleRefMonth).padStart(2, '0')}월말`,
+      range: `${psm}~${endM}월`,
+      stock, incoming, prod,
+      pdfDerived: !!s._pdfDerived
+    };
+  });
+
+  const maxIncoming = Math.max(...rows.map(r => r.incoming), 1);
+  const maxProd = Math.max(...rows.map(r => r.prod), 1);
+  const maxStock = Math.max(...rows.map(r => r.stock), 1);
+  const bar = (v, max, color) => {
+    const pct = Math.round((v / max) * 100);
+    return `<div style="background:${color};height:14px;width:${pct}%;min-width:2px;border-radius:2px;"></div>`;
+  };
+
+  // 전월 대비 증감
+  const delta = (cur, prev) => {
+    if (prev === undefined || prev === 0) return '<span style="color:var(--t3);">–</span>';
+    const d = cur - prev;
+    const pct = ((d / prev) * 100).toFixed(1);
+    if (d === 0) return '<span style="color:var(--t3);">0%</span>';
+    const c = d > 0 ? 'var(--teal)' : 'var(--red)';
+    return `<span style="color:${c};font-weight:700;">${d > 0 ? '▲' : '▼'}${Math.abs(pct)}%</span>`;
+  };
+
+  modalBody.innerHTML = `<div style="padding:16px 20px;color:var(--t1);">
+    <div style="background:rgba(96,170,220,0.08);border-left:3px solid var(--sky);padding:10px 14px;border-radius:4px;margin-bottom:14px;font-size:11px;color:var(--t2);line-height:1.7;">
+      ℹ 각 <strong>월말 마감 시점</strong>의 4개월 계획 총합을 비교합니다.<br>
+      • <strong>현물재고</strong>: 해당 월말 실사 재고 합계 (사이클 시작점)<br>
+      • <strong>입고계획(발주량)</strong>: 이후 4개월간 입고 예정 수량 합계<br>
+      • <strong>제작대수</strong>: 이후 4개월간 전 모델 생산 계획 합계<br>
+      • 증감률은 <strong>직전 사이클 대비</strong>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="order-table" style="width:100%;font-size:11px;min-width:820px;">
+        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+          <th style="width:110px;">기준 시점</th>
+          <th style="width:70px;">계획 범위</th>
+          <th class="col-num" style="width:90px;">현물재고</th>
+          <th class="col-num" style="width:110px;">입고계획(발주)</th>
+          <th style="width:120px;">발주 추이</th>
+          <th class="col-num" style="width:70px;">증감</th>
+          <th class="col-num" style="width:90px;">제작대수</th>
+          <th style="width:120px;">제작 추이</th>
+          <th class="col-num" style="width:70px;">증감</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((r, i) => {
+            const prev = i > 0 ? rows[i - 1] : null;
+            return `<tr>
+              <td style="font-family:var(--mono);font-weight:700;color:var(--sky);">${sanitize(r.ref)}${r.pdfDerived ? ' <span style="color:var(--t3);font-size:9px;" title="PDF 실적 기반 복원">📄</span>' : ''}</td>
+              <td style="font-family:var(--mono);font-size:10px;color:var(--t2);">${sanitize(r.range)}</td>
+              <td class="col-num" style="font-family:var(--mono);">${fmt(r.stock)}</td>
+              <td class="col-num" style="font-family:var(--mono);font-weight:700;">${fmt(r.incoming)}</td>
+              <td style="padding:4px 8px;">${bar(r.incoming, maxIncoming, 'var(--teal)')}</td>
+              <td class="col-num" style="font-size:10px;">${prev ? delta(r.incoming, prev.incoming) : '<span style="color:var(--t3);">기준</span>'}</td>
+              <td class="col-num" style="font-family:var(--mono);font-weight:700;">${fmt(r.prod)}</td>
+              <td style="padding:4px 8px;">${bar(r.prod, maxProd, 'var(--sky)')}</td>
+              <td class="col-num" style="font-size:10px;">${prev ? delta(r.prod, prev.prod) : '<span style="color:var(--t3);">기준</span>'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot><tr style="border-top:1.5px solid var(--border);background:var(--bg-card2);">
+          <td colspan="2" style="font-weight:700;">평균 (${rows.length}개 사이클)</td>
+          <td class="col-num" style="font-family:var(--mono);font-weight:700;">${fmt(Math.round(rows.reduce((s,r)=>s+r.stock,0)/rows.length))}</td>
+          <td class="col-num" style="font-family:var(--mono);font-weight:700;color:var(--teal);">${fmt(Math.round(rows.reduce((s,r)=>s+r.incoming,0)/rows.length))}</td>
+          <td></td><td></td>
+          <td class="col-num" style="font-family:var(--mono);font-weight:700;color:var(--sky);">${fmt(Math.round(rows.reduce((s,r)=>s+r.prod,0)/rows.length))}</td>
+          <td></td><td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div style="margin-top:12px;font-size:10.5px;color:var(--t3);line-height:1.7;">
+      📄 표시 = PDF 실적 자료 기반 복원 (재고흐름 검증 통과: 현물 − 필요 + 입고 = 기말)<br>
+      개별 사이클 상세는 아카이브 카드의 <strong>🔍 보기</strong> 버튼으로 확인하세요.
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+      <button class="btn" onclick="document.getElementById('modal').classList.remove('modal-backdrop--open')">닫기</button>
+    </div>
+  </div>`;
 }
 
 async function restoreCycle(id) {
@@ -8455,6 +8580,7 @@ document.getElementById('btn-create-backup')?.addEventListener('click', async ()
 });
 
 document.getElementById('btn-save-cycle-close')?.addEventListener('click', saveCycleClose);
+document.getElementById('btn-cycle-trend')?.addEventListener('click', showCycleTrend);
 
 // 자동 일일 백업 (서버 로드 완료 후 2.5초 뒤 1회 실행)
 setTimeout(() => { if (typeof autoBackupCheck === 'function') autoBackupCheck(); }, 2500);
