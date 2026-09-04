@@ -7565,12 +7565,15 @@ function renderHistory() {
     const date = new Date(entry.date).toLocaleString('ko-KR');
     if (entry.type === 'order') {
       const cumRecv = (entry.items || []).reduce((s, it) => s + (it.receivedQty || 0), 0);
+      // 입고 처리는 "입고 확정/관리" 탭 전담 — 여기서는 상태 표시 + 해당 탭으로 이동 링크만 제공
+      const gotoReceipts = `<button class="btn btn--sm" onclick="goToReceiptsFor('${entry.date}')" title="입고 확정/관리 탭에서 처리 (공급사 필터 자동 적용)" style="background:rgba(96,170,220,0.10);color:var(--sky);border:0.5px solid var(--sky-b);">📥 입고 확정 탭에서 처리 →</button>`;
       const receivedBadge = entry.received
         ? `<span class="badge" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);">✅ 입고완료 ${entry.receivedAt ? new Date(entry.receivedAt).toLocaleDateString('ko-KR') : ''}</span>`
         : entry.partialReceived
           ? `<span class="badge" style="background:rgba(245,158,11,0.12);color:var(--amb);border:0.5px solid var(--amb-b);">⚠ 부분 ${fmt(cumRecv)}/${fmt(entry.totalQty)}</span>
-             <button class="btn btn--sm" onclick="confirmReceipt('${entry.date}')" style="background:rgba(245,158,11,0.10);color:var(--amb);border:0.5px solid var(--amb-b);">잔량 입고</button>`
-          : `<button class="btn btn--sm" onclick="confirmReceipt('${entry.date}')" style="background:rgba(56,201,160,0.10);color:var(--teal);border:0.5px solid var(--teal-b);">✅ 입고 확인</button>`;
+             ${gotoReceipts}`
+          : `<span class="badge" style="background:rgba(96,170,220,0.12);color:var(--sky);border:0.5px solid var(--sky-b);">🔵 미입고</span>
+             ${gotoReceipts}`;
       // 입고 예정일(납기) 표시 - dueDate 또는 ETA 필드
       const dueDateLabel = entry.dueDate
         ? `<span style="color:var(--sky);font-weight:700;"> · 입고예정 ${new Date(entry.dueDate).toLocaleDateString('ko-KR')}</span>`
@@ -7641,6 +7644,51 @@ function renderHistory() {
     }
     return '';
   }).join('');
+}
+
+// ── 발주 이력 → 입고 확정/관리 탭으로 이동 ──
+// 입고 처리는 '입고 확정/관리' 탭 전담. 발주 이력에서는 이 함수로 컨텍스트를 넘김.
+// 해당 발주의 공급사·입고월로 필터를 자동 적용하고, 카드를 잠시 하이라이트.
+function goToReceiptsFor(dateStr) {
+  const entry = (orderHistory || []).find(e => e.date === dateStr);
+  if (!entry) { alert('발주 이력을 찾을 수 없습니다.'); return; }
+  if (entry.cancelled) { alert('취소된 발주입니다. 입고 처리 대상이 아닙니다.'); return; }
+  if (entry.received) { alert('이미 전체 입고 완료된 발주입니다.\n입고를 되돌리려면 발주 이력의 [⏪ 입고 취소]를 사용하세요.'); return; }
+
+  if (typeof setActiveTab === 'function') setActiveTab('receipts');
+
+  // 필터 자동 적용 (공급사 + 입고월) 후 재렌더
+  setTimeout(() => {
+    const supSel = document.getElementById('rcp-filter-supplier');
+    const dueSel = document.getElementById('rcp-filter-due-month');
+    const stSel  = document.getElementById('rcp-filter-status');
+    const searchEl = document.getElementById('rcp-filter-search');
+    if (stSel) stSel.value = 'all';
+    if (searchEl) searchEl.value = '';
+    if (supSel && Array.from(supSel.options).some(o => o.value === entry.supplier)) {
+      supSel.value = entry.supplier;
+    }
+    const dueYM = (entry.dueDate || '').slice(0, 7);
+    if (dueSel && dueYM && Array.from(dueSel.options).some(o => o.value === dueYM)) {
+      dueSel.value = dueYM;
+    }
+    if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+
+    // 해당 카드 스크롤 + 하이라이트
+    setTimeout(() => {
+      const container = document.getElementById('receipts-list');
+      if (!container) return;
+      const target = Array.from(container.querySelectorAll('.card')).find(c =>
+        c.innerHTML.includes(`confirmReceipt('${dateStr}')`)
+      );
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const orig = target.style.boxShadow;
+      target.style.transition = 'box-shadow 0.3s';
+      target.style.boxShadow = '0 0 0 2px var(--sky)';
+      setTimeout(() => { target.style.boxShadow = orig; }, 2400);
+    }, 60);
+  }, 40);
 }
 
 // ── 발주 이력 PDF 첨부 ──
