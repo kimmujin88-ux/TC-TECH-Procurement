@@ -2086,6 +2086,25 @@ window.TC_LOGO_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYA
     </div>
   </div>
 
+  <!-- 1-B. 📚 월말 마감 아카이브 (★★★ 매월) -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card__head">
+      <div>
+        <div class="card__title">📚 월말 마감 아카이브</div>
+        <div class="card__hint">매월 실사 후 "N월말 재고 기준 · (N+1)~(N+4)월 계획" 스냅샷을 누적 · 과거 사이클 조회·비교 · 데이터 영구 보존</div>
+      </div>
+      <button class="btn btn--sm" id="btn-save-cycle-close" style="background:rgba(56,201,160,0.2);color:var(--teal);border:0.5px solid var(--teal-b);font-weight:700;" title="현재 상태를 이번 달 마감 사이클로 아카이브 (라벨: [사이클] N월말 재고 기준 · (N+1)~(N+4)월 계획)">📌 현재 상태를 월말 마감으로 저장</button>
+    </div>
+    <div class="card__body" style="padding:0; max-height:340px; overflow-y:auto;">
+      <table class="order-table" style="width:100%; font-size:11px;">
+        <thead><tr style="position:sticky;top:0;background:var(--bg-card2);z-index:1;">
+          <th style="width:120px;">기준 시점</th><th>사이클 라벨</th><th class="col-num" style="width:70px;">발주이력</th><th style="width:100px;">저장 시각</th><th style="text-align:right;width:200px;">작업</th>
+        </tr></thead>
+        <tbody id="cycle-archive-tbody"><tr><td colspan="5" style="text-align:center;color:var(--t3);padding:16px;font-size:11px;">불러오는 중...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- 2. 💾 데이터 백업·복원 (★★★ 월~분기) -->
   <div class="card" style="margin-top:14px;">
     <div class="card__head">
@@ -3811,6 +3830,209 @@ async function deleteBackup(id) {
   renderBackups();
 }
 
+// ──────────────── 📚 월말 마감 아카이브 (사이클 스냅샷) ────────────────
+// 매월 실사·마감 후 현재 상태를 "N월말 재고 기준 · (N+1)~(N+4)월 계획" 라벨로 저장
+// - ID 구조: cycle-YYYY-MM-close (YYYY-MM = N월말 기준 = periodStartMonth-1의 시점)
+// - 라벨: "[사이클] YYYY년 N월말 재고 기준 · (N+1)~(N+4)월 계획"
+// - 기존 백업과 분리된 뷰로 조회 · 데이터 영구 보존
+function cycleReferenceMonth(psm, psy) {
+  // periodStartMonth=X → 기준월 N = X-1 (이전 해 12월로 wrap)
+  psm = psm || state.periodStartMonth || 5;
+  psy = psy || state.periodYear || 2026;
+  let n = psm - 1;
+  let ny = psy;
+  if (n < 1) { n = 12; ny -= 1; }
+  return { year: ny, month: n };
+}
+
+function cycleLabelStructured(psm, psy) {
+  const { year, month } = cycleReferenceMonth(psm, psy);
+  const m2 = month + 1, m3 = month + 2, m4 = month + 3, m5 = month + 4;
+  const fmt = (v) => v > 12 ? `${v - 12}월(익년)` : `${v}월`;
+  return `[사이클] ${year}년 ${month}월말 재고 기준 · ${fmt(m2)}~${fmt(m5)} 계획`;
+}
+
+function cycleIdFromReference(year, month) {
+  return `cycle-${year}-${String(month).padStart(2, '0')}-close`;
+}
+
+async function saveCycleClose() {
+  if (window.guardAdmin && !window.guardAdmin('월말 마감 저장')) return;
+  const psm = state.periodStartMonth || 5;
+  const psy = state.periodYear || 2026;
+  const { year, month } = cycleReferenceMonth(psm, psy);
+  const label = cycleLabelStructured(psm, psy);
+  const id = cycleIdFromReference(year, month);
+  const overwrite = confirm(
+    `📌 현재 상태를 월말 마감 아카이브로 저장합니다.\n\n` +
+    `기준 시점: ${year}년 ${month}월말\n` +
+    `계획 범위: ${cycleLabelStructured(psm, psy).replace('[사이클] ', '')}\n` +
+    `사이클 ID: ${id}\n\n` +
+    `⚠ 동일 기준월(${year}-${String(month).padStart(2,'0')}) 스냅샷이 이미 있으면 최신본으로 덮어씁니다.\n\n` +
+    `계속하시겠습니까?`
+  );
+  if (!overwrite) return;
+  const now = new Date();
+  const snapshot = {
+    modelInputs: state.modelInputs,
+    itemInputs: state.itemInputs,
+    orderOverrides: state.orderOverrides || {},
+    erpStocks: state.erpStocks || {},
+    periodStartMonth: psm,
+    periodYear: psy,
+    safetyStockMultiplier: state.safetyStockMultiplier,
+    modelASP: state.modelASP || {},
+    unmetReasons: state.unmetReasons || {},
+    exchangeRate: state.exchangeRate,
+    auditLog: (state.auditLog || []).slice(-200),
+    orderHistory: typeof orderHistory !== 'undefined' ? orderHistory : [],
+    _label: label,
+    _type: 'cycle-close',
+    _cycleRefYear: year,
+    _cycleRefMonth: month,
+    _createdAt: now.toISOString(),
+    _createdBy: sessionStorage.getItem('tctech_auth_user') || '(unknown)'
+  };
+  let ok = false;
+  if (typeof _supa !== 'undefined' && _supa) {
+    try {
+      const { error } = await _supa.from('app_state').upsert({ id, state_json: snapshot, updated_at: now.toISOString() });
+      if (error) throw error;
+      ok = true;
+      console.info(`[사이클 저장] Supabase 성공 · id=${id}`);
+    } catch (e) {
+      console.error('[사이클 저장] Supabase 실패:', e);
+      alert(`⚠ 클라우드 저장 실패: ${e && e.message ? e.message : String(e)}\n\n로컬(브라우저)에만 저장됩니다.`);
+    }
+  }
+  // localStorage fallback
+  try {
+    const key = 'tctech_local_cycles_v1';
+    const cur = JSON.parse(localStorage.getItem(key) || '[]');
+    const filtered = cur.filter(c => c.id !== id);
+    filtered.unshift({ id, state_json: snapshot, updated_at: now.toISOString() });
+    while (filtered.length > 24) filtered.pop();
+    localStorage.setItem(key, JSON.stringify(filtered));
+    console.info(`[사이클 저장] localStorage 저장 · 총 ${filtered.length}건`);
+  } catch (e) { console.warn('[사이클 저장] localStorage 실패:', e); }
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: now.toISOString(),
+    user: snapshot._createdBy,
+    action: 'save_cycle_close',
+    field: id,
+    before: '',
+    after: label
+  });
+  saveInputs();
+  renderCycleArchive();
+  alert(`✅ 월말 마감 아카이브 저장 완료\n\n${label}\n\n"📚 월말 마감 아카이브" 카드에서 확인 가능합니다.`);
+}
+
+async function listCycleArchive() {
+  // Supabase 클라우드 조회 (cycle-* + snapshot 중 type=cycle-close)
+  let supaList = [];
+  if (typeof _supa !== 'undefined' && _supa) {
+    try {
+      const { data, error } = await _supa.from('app_state')
+        .select('id, state_json, updated_at')
+        .like('id', 'cycle-%')
+        .order('updated_at', { ascending: false })
+        .limit(60);
+      if (!error) supaList = data || [];
+    } catch (e) { console.warn('[사이클 조회] Supabase 실패:', e); }
+  }
+  // localStorage 병합
+  let localList = [];
+  try {
+    localList = JSON.parse(localStorage.getItem('tctech_local_cycles_v1') || '[]');
+  } catch (e) { console.warn('[사이클 조회] localStorage 파싱 실패:', e); }
+  const seen = new Set(supaList.map(b => b.id));
+  const merged = [
+    ...supaList.map(b => ({ ...b, _source: 'cloud' })),
+    ...localList.filter(b => !seen.has(b.id)).map(b => ({ ...b, _source: 'local' }))
+  ];
+  // 기준월 기준 내림차순 정렬
+  merged.sort((a, b) => {
+    const sa = a.state_json || {}, sb = b.state_json || {};
+    const ka = `${sa._cycleRefYear || 0}-${String(sa._cycleRefMonth || 0).padStart(2,'0')}`;
+    const kb = `${sb._cycleRefYear || 0}-${String(sb._cycleRefMonth || 0).padStart(2,'0')}`;
+    return kb.localeCompare(ka);
+  });
+  return merged;
+}
+
+async function renderCycleArchive() {
+  const tbody = document.getElementById('cycle-archive-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:16px;font-size:11px;">불러오는 중...</td></tr>';
+  const cycles = await listCycleArchive();
+  if (cycles.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:24px;font-size:11px;">
+      아카이브 없음 · 우측 상단 <strong>"📌 현재 상태를 월말 마감으로 저장"</strong> 클릭해서 첫 스냅샷을 만드세요<br>
+      <span style="font-size:10px;color:var(--t3);">매월 실사 후 저장 → 사이클별 발주량·제작대수 추이 누적 조회</span>
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = cycles.map(b => {
+    const s = b.state_json || {};
+    const refY = s._cycleRefYear || '?';
+    const refM = s._cycleRefMonth || '?';
+    const refKey = `${refY}년 ${refM}월말`;
+    const tsStr = s._createdAt ? new Date(s._createdAt).toLocaleString('ko-KR') : '-';
+    const oh = (s.orderHistory || []).length;
+    const label = s._label || cycleLabelStructured(s.periodStartMonth, s.periodYear);
+    const srcBadge = b._source === 'local'
+      ? '<span style="color:var(--amb);font-size:10px;font-weight:600;">💾</span>'
+      : '<span style="color:var(--teal);font-size:10px;font-weight:600;">☁</span>';
+    return `<tr>
+      <td style="font-family:var(--mono);font-weight:700;color:var(--sky);">${sanitize(refKey)}</td>
+      <td style="font-size:11px;">${sanitize(label)} ${srcBadge}</td>
+      <td class="col-num" style="font-family:var(--mono);">${fmt(oh)}건</td>
+      <td style="font-family:var(--mono);font-size:10px;color:var(--t3);">${sanitize(tsStr)}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn btn--ghost btn--sm" onclick="previewCycle('${sanitize(b.id)}')" style="margin-right:4px;" title="이 시점 데이터 요약 · 현재 상태 변경 안 함">🔍 보기</button>
+        <button class="btn btn--sm" onclick="restoreCycle('${sanitize(b.id)}')" style="margin-right:4px;background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);">↩ 복원</button>
+        <button class="btn btn--ghost btn--sm" onclick="deleteCycle('${sanitize(b.id)}')" style="color:var(--red);border-color:var(--red-b);">삭제</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function previewCycle(id) {
+  // 기존 previewBackup 재활용 (동일한 스냅샷 구조)
+  return previewBackup(id);
+}
+
+async function restoreCycle(id) {
+  // 기존 restoreBackup 재활용
+  return restoreBackup(id);
+}
+
+async function deleteCycle(id) {
+  if (window.guardAdmin && !window.guardAdmin('사이클 삭제')) return;
+  if (!confirm(`이 월말 마감 아카이브를 삭제하시겠습니까?\n\nID: ${id}\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+  let ok = false;
+  if (typeof _supa !== 'undefined' && _supa) {
+    try {
+      const { error } = await _supa.from('app_state').delete().eq('id', id);
+      if (error) throw error;
+      ok = true;
+    } catch (e) { console.warn('[사이클 삭제] Supabase 실패:', e); }
+  }
+  try {
+    const key = 'tctech_local_cycles_v1';
+    const cur = JSON.parse(localStorage.getItem(key) || '[]');
+    const filtered = cur.filter(b => b.id !== id);
+    if (cur.length !== filtered.length) {
+      localStorage.setItem(key, JSON.stringify(filtered));
+      ok = true;
+    }
+  } catch (e) { console.warn('[사이클 삭제] localStorage 실패:', e); }
+  if (!ok) alert('삭제 실패: 해당 아카이브를 찾을 수 없습니다.');
+  renderCycleArchive();
+}
+
 async function renderBackups() {
   const tbody = document.getElementById('backup-tbody');
   if (!tbody) return;
@@ -4499,7 +4721,7 @@ function setActiveTab(t) {
   }
   else if (t === 'receipts') { if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel(); }
   else if (t === 'history') renderHistory();
-  if (t === 'data') { renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); if (typeof renderDataQualityCard === 'function') renderDataQualityCard(); if (typeof renderVarianceCard === 'function') renderVarianceCard(); if (typeof renderLifecycleCard === 'function') renderLifecycleCard(); }
+  if (t === 'data') { if (typeof renderCycleArchive === 'function') renderCycleArchive(); renderBackups(); renderMastersTable(); if (typeof renderLTComparison === 'function') renderLTComparison(); if (typeof updateSafetyStockUI === 'function') updateSafetyStockUI(); if (typeof renderDataQualityCard === 'function') renderDataQualityCard(); if (typeof renderVarianceCard === 'function') renderVarianceCard(); if (typeof renderLifecycleCard === 'function') renderLifecycleCard(); }
   if (t === 'finance') { if (typeof renderPriceTrendCard === 'function') renderPriceTrendCard(); if (typeof renderSupplierScoreCard === 'function') renderSupplierScoreCard(); if (typeof renderDeadStockCard === 'function') renderDeadStockCard(); if (typeof renderOpportunityLossCard === 'function') renderOpportunityLossCard(); if (typeof renderSeasonalityCard === 'function') renderSeasonalityCard(); if (typeof renderRenegotiationCard === 'function') renderRenegotiationCard(); if (typeof renderStatisticalSafety === 'function') renderStatisticalSafety(); if (typeof renderXYZAnalysis === 'function') renderXYZAnalysis(); if (typeof renderWhatIf === 'function') renderWhatIf(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -8231,6 +8453,8 @@ document.getElementById('btn-create-backup')?.addEventListener('click', async ()
   if (id) { alert('백업이 생성되었습니다.'); renderBackups(); }
   else { alert('백업 생성 실패 (Supabase 연결 확인 필요)'); }
 });
+
+document.getElementById('btn-save-cycle-close')?.addEventListener('click', saveCycleClose);
 
 // 자동 일일 백업 (서버 로드 완료 후 2.5초 뒤 1회 실행)
 setTimeout(() => { if (typeof autoBackupCheck === 'function') autoBackupCheck(); }, 2500);
