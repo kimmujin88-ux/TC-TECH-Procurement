@@ -7686,7 +7686,9 @@ function renderHistory() {
       const cumRecv = (entry.items || []).reduce((s, it) => s + (it.receivedQty || 0), 0);
       // 입고 처리는 "입고 확정/관리" 탭 전담 — 여기서는 상태 표시 + 해당 탭으로 이동 링크만 제공
       const gotoReceipts = `<button class="btn btn--sm" onclick="goToReceiptsFor('${entry.date}')" title="입고 확정/관리 탭에서 처리 (공급사 필터 자동 적용)" style="background:rgba(96,170,220,0.10);color:var(--sky);border:0.5px solid var(--sky-b);">📥 입고 확정 탭에서 처리 →</button>`;
-      const receivedBadge = entry.received
+      const receivedBadge = entry.shortClosed
+        ? `<span class="badge" title="${sanitize(entry.shortCloseReason || '')}" style="background:rgba(168,85,247,0.15);color:#a855f7;border:0.5px solid rgba(168,85,247,0.4);">🔒 잔량종결 ${fmt(entry.totalQty - entry.shortCloseQty)}/${fmt(entry.totalQty)} · 미납 ${fmt(entry.shortCloseQty)}</span>`
+        : entry.received
         ? `<span class="badge" style="background:rgba(56,201,160,0.15);color:var(--teal);border:0.5px solid var(--teal-b);">✅ 입고완료 ${entry.receivedAt ? new Date(entry.receivedAt).toLocaleDateString('ko-KR') : ''}</span>`
         : entry.partialReceived
           ? `<span class="badge" style="background:rgba(245,158,11,0.12);color:var(--amb);border:0.5px solid var(--amb-b);">⚠ 부분 ${fmt(cumRecv)}/${fmt(entry.totalQty)}</span>
@@ -7745,14 +7747,16 @@ function renderHistory() {
               ${entry.items.map(it => {
                 const rq = Number(it.receivedQty || 0);
                 const rem = it.qty - rq;
-                const remColor = rem === 0 ? 'var(--teal)' : rq > 0 ? 'var(--amb)' : 'var(--t3)';
+                const sc = Number(it.shortClosedQty || 0);
+                const remColor = sc > 0 ? '#a855f7' : rem === 0 ? 'var(--teal)' : rq > 0 ? 'var(--amb)' : 'var(--t3)';
+                const remLabel = sc > 0 ? `${fmt(sc)} <span style="font-size:9px;">종결</span>` : fmt(rem);
                 return `<tr>
                   <td style="font-family:var(--mono)">${sanitize(it.pn)}</td>
                   <td>${sanitize(it.name)}</td>
                   <td style="font-size:10px;color:var(--t3)">${sanitize(it.model)}</td>
                   <td class="col-num">${fmt(it.qty)}</td>
                   <td class="col-num" style="color:${rq > 0 ? 'var(--teal)' : 'var(--t3)'};font-family:var(--mono);">${fmt(rq)}</td>
-                  <td class="col-num" style="color:${remColor};font-family:var(--mono);font-weight:${rem > 0 ? 700 : 400};">${fmt(rem)}</td>
+                  <td class="col-num" style="color:${remColor};font-family:var(--mono);font-weight:${rem > 0 ? 700 : 400};">${remLabel}</td>
                   <td class="col-num">₩${fmt(it.unitPrice)}</td>
                   <td class="col-num">₩${fmt(it.amount)}</td>
                 </tr>`;
@@ -8038,6 +8042,111 @@ function applyReceipt(dateStr) {
   document.getElementById('modal').classList.remove('modal-backdrop--open');
   renderHistory();
   if (typeof renderLTComparison === 'function') renderLTComparison();
+}
+
+// ── 🔒 잔량 종결 (Short-close) ──
+// 발주 대비 미달 입고를 공급사와 협의해 종결하는 실무 처리.
+// · 발주 수량(원본)은 보존 → 발주서와 이력이 일치 (감사 추적)
+// · 미납 잔량을 사유와 함께 기록
+// · 입고계획(_incoming)을 실입고량으로 보정 → 재고 과대 계상 방지
+function shortCloseOrder(dateStr) {
+  if (window.guardAdmin && !window.guardAdmin('잔량 종결')) return;
+  const entry = orderHistory.find(e => e.date === dateStr);
+  if (!entry) { alert('발주를 찾을 수 없습니다.'); return; }
+  if (entry.cancelled) { alert('취소된 발주입니다.'); return; }
+  if (entry.received) { alert('이미 전량 입고 완료된 발주입니다.'); return; }
+
+  const shorts = entry.items
+    .map((it, i) => ({ i, it, recv: Number(it.receivedQty || 0), short: it.qty - Number(it.receivedQty || 0) }))
+    .filter(x => x.short > 0);
+  if (shorts.length === 0) { alert('미납 잔량이 없습니다.'); return; }
+
+  const totalShort = shorts.reduce((s, x) => s + x.short, 0);
+  const totalRecv = entry.items.reduce((s, it) => s + Number(it.receivedQty || 0), 0);
+  const preview = shorts.slice(0, 10)
+    .map(x => `  · ${x.it.pn} ${x.it.name || ''}\n      발주 ${fmt(x.it.qty)} / 입고 ${fmt(x.recv)} / 미납 ${fmt(x.short)}`)
+    .join('\n');
+
+  const reason = prompt(
+    `🔒 잔량 종결 (미달 입고 확정)\n\n` +
+    `공급사: ${entry.supplier} · 납기 ${entry.dueDate || '-'}\n` +
+    `발주 ${fmt(entry.totalQty)}EA / 입고 ${fmt(totalRecv)}EA / 미납 ${fmt(totalShort)}EA\n\n` +
+    `${preview}${shorts.length > 10 ? `\n  ... 외 ${shorts.length - 10}품목` : ''}\n\n` +
+    `처리 내용\n` +
+    `  · 발주 수량은 원본 그대로 보존 (발주서와 일치)\n` +
+    `  · 미납 ${fmt(totalShort)}EA를 종결 처리 → 입고 확정 탭에서 제외\n` +
+    `  · 입고계획을 실입고량으로 보정 (재고 과대 계상 방지)\n\n` +
+    `종결 사유를 입력하세요:`,
+    '공급사 협의 종결 (잔량 미납)'
+  );
+  if (reason === null) return;
+
+  // 입고계획 보정: 미납분만큼 차감 (모델 정확 매칭)
+  let adjusted = 0;
+  const adjLog = [];
+  if (entry.dueDate) {
+    const dueMo = new Date(entry.dueDate).getMonth() + 1;
+    const moKey = _dueMonthKey(dueMo);
+    if (moKey) {
+      shorts.forEach(x => {
+        const master = MASTERS.find(mm => mm.part_no === x.it.pn && displayName(mm) === x.it.model)
+                    || MASTERS.find(mm => mm.part_no === x.it.pn);
+        if (!master) return;
+        const key = masterInputKey(master);
+        if (!state.itemInputs[key]) return;
+        const f = moKey + '_incoming';
+        const cur = Number(state.itemInputs[key][f]) || 0;
+        const sub = Math.min(cur, x.short);
+        if (sub > 0) {
+          state.itemInputs[key][f] = cur - sub;
+          adjusted += sub;
+          adjLog.push(`${x.it.pn}: ${cur} → ${cur - sub}`);
+        }
+      });
+    }
+  }
+
+  // 이력 기록 — 발주 수량(qty)은 건드리지 않음
+  shorts.forEach(x => { entry.items[x.i].shortClosedQty = x.short; });
+  entry.received = true;              // 입고 확정 탭에서 제외
+  entry.partialReceived = false;
+  entry.shortClosed = true;
+  entry.shortCloseQty = totalShort;
+  entry.shortCloseReason = reason.trim() || '협의 종결';
+  entry.shortClosedAt = new Date().toISOString();
+  entry.shortClosedBy = sessionStorage.getItem('tctech_auth_user') || 'unknown';
+  if (!entry.receivedAt) entry.receivedAt = entry.shortClosedAt;
+
+  state.auditLog = state.auditLog || [];
+  state.auditLog.push({
+    ts: entry.shortClosedAt,
+    user: entry.shortClosedBy,
+    action: 'short_close',
+    field: `${entry.supplier}.${(entry.dueDate || '').slice(0, 10)}`,
+    before: `발주 ${fmt(entry.totalQty)}EA · 입고 ${fmt(totalRecv)}EA`,
+    after: `종결 · 미납 ${fmt(totalShort)}EA · 입고계획 ${fmt(adjusted)}EA 보정 · 사유: ${entry.shortCloseReason}`
+  });
+  if (state.auditLog.length > 200) state.auditLog = state.auditLog.slice(-200);
+
+  saveInputs();
+  saveHistory();
+  if (typeof saveHistoryToServer === 'function') saveHistoryToServer().catch(() => {});
+  renderHistory();
+  renderForm();
+  if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+  if (typeof updateOrderCount === 'function') updateOrderCount();
+  if (typeof renderDashboard === 'function') renderDashboard();
+
+  alert(
+    `✅ 잔량 종결 완료\n\n` +
+    `• 발주 ${fmt(entry.totalQty)}EA (원본 보존)\n` +
+    `• 입고 ${fmt(totalRecv)}EA\n` +
+    `• 미납 ${fmt(totalShort)}EA — 종결\n` +
+    `• 입고계획 보정: ${fmt(adjusted)}EA 차감\n` +
+    `• 사유: ${entry.shortCloseReason}\n\n` +
+    `입고 확정/관리 탭에서 제외되며, 발주 이력에는 '🔒 잔량종결'로 표시됩니다.`
+  );
 }
 
 function deleteHistory(dateStr) {
@@ -12136,6 +12245,7 @@ function renderReceiptsPanel() {
         <div style="display:flex;gap:8px;align-items:center;">
           ${statusBadge}
           <button class="btn btn--sm btn--teal" onclick="confirmReceipt('${entry.date}')" style="font-weight:700;">${entry.partialReceived ? '잔량 입고' : '✅ 입고 확인'}</button>
+          ${entry.partialReceived ? `<button class="btn btn--sm" onclick="shortCloseOrder('${entry.date}')" title="공급사와 협의해 미납 잔량을 종결 처리 (발주 원본 보존 · 입고계획 자동 보정)" style="background:rgba(168,85,247,0.12);color:#a855f7;border:0.5px solid rgba(168,85,247,0.4);font-weight:700;">🔒 잔량 종결</button>` : ''}
           <button class="btn btn--ghost btn--sm" onclick="cancelOrder('${entry.date}')" style="color:var(--red);border-color:var(--red-b);">❌ 발주 취소</button>
         </div>
       </div>
