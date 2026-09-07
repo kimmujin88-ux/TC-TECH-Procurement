@@ -8098,22 +8098,56 @@ function cancelOrder(dateStr) {
     : wasPartial
       ? '\n\n⚠ 이 발주는 부분 입고 상태입니다.\n   → 취소 시 입고 상태도 자동 해제됩니다.'
       : '';
-  const rollback = confirm(`❌ 발주 취소\n\n공급사: ${entry.supplier}\n품목 ${entry.items.length}건 · 총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}${receivedMsg}\n\n[확인] 이력에 '취소됨' 표시 + 입고계획에서 이 발주 수량 차감(롤백)\n[취소] 아무 것도 안 함\n\n입고계획 롤백 (dueDate 월 입고 예정 수량 차감)까지 진행하시겠습니까?`);
-  if (!rollback) return;
+  // ── 중복 발주 감지 ──
+  // 같은 공급사·같은 납기의 다른 유효(미취소) 발주가 남아 있으면 이 건은 중복일 가능성이 높다.
+  // 중복 건을 롤백하면 애초에 더한 적 없는 수량을 빼게 되어 입고계획이 붕괴된다.
+  const siblings = (orderHistory || []).filter(e =>
+    e !== entry && e.type === 'order' && !e.cancelled
+    && e.supplier === entry.supplier && e.dueDate === entry.dueDate
+  );
+  const looksDuplicate = siblings.length > 0;
+
+  let doRollback;
+  if (looksDuplicate) {
+    doRollback = !confirm(
+      `⚠ 중복 발주로 보입니다\n\n` +
+      `공급사: ${entry.supplier} · 납기 ${entry.dueDate}\n` +
+      `같은 조건의 유효 발주가 ${siblings.length}건 더 있습니다 ` +
+      `(${siblings.map(s => fmt(s.totalQty) + 'EA').join(', ')})\n\n` +
+      `이 건이 중복 등록분이라면 입고계획에는 1건 분량만 반영돼 있을 것이므로,\n` +
+      `롤백하면 실제보다 수량이 줄어듭니다.\n\n` +
+      `[확인] 롤백 없이 취소만  ← 권장\n` +
+      `[취소] 입고계획에서 ${fmt(entry.totalQty)}EA 차감까지 진행\n\n` +
+      `롤백 없이 취소만 하시겠습니까?`
+    );
+  } else {
+    doRollback = confirm(
+      `❌ 발주 취소\n\n공급사: ${entry.supplier}\n품목 ${entry.items.length}건 · ` +
+      `총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}${receivedMsg}\n\n` +
+      `[확인] 이력에 '취소됨' 표시 + 입고계획에서 이 발주 수량 차감(롤백)\n` +
+      `[취소] 아무 것도 안 함\n\n` +
+      `입고계획 롤백 (dueDate 월 입고 예정 수량 차감)까지 진행하시겠습니까?`
+    );
+    if (!doRollback) return; // 중복이 아닌 경우 [취소]는 작업 자체를 중단
+  }
+
   // 입고계획 롤백 - dueDate에 해당하는 월의 incoming 차감
   let rolledBack = 0;
-  if (entry.dueDate) {
+  if (doRollback && entry.dueDate) {
     const dueMo = new Date(entry.dueDate).getMonth() + 1;
     const moKey = _dueMonthKey(dueMo);
     if (moKey) {
       entry.items.forEach(it => {
-        const firstMaster = MASTERS.find(mm => mm.part_no === it.pn);
-        if (!firstMaster) return;
-        const key = masterInputKey(firstMaster);
+        // 모델까지 일치하는 master 우선 (공용 품번이 여러 모델에 걸린 경우 오차감 방지)
+        const master = MASTERS.find(mm => mm.part_no === it.pn && displayName(mm) === it.model)
+                    || MASTERS.find(mm => mm.part_no === it.pn);
+        if (!master) return;
+        const key = masterInputKey(master);
         if (state.itemInputs[key]) {
           const cur = Number(state.itemInputs[key][moKey + '_incoming']) || 0;
-          state.itemInputs[key][moKey + '_incoming'] = Math.max(0, cur - (it.qty || 0));
-          rolledBack += (it.qty || 0);
+          const sub = Math.min(cur, it.qty || 0);   // 있는 만큼만 차감 (음수·과차감 방지)
+          state.itemInputs[key][moKey + '_incoming'] = cur - sub;
+          rolledBack += sub;
         }
       });
     }
@@ -8128,7 +8162,8 @@ function cancelOrder(dateStr) {
   }
   entry.cancelled = true;
   entry.cancelledAt = new Date().toISOString();
-  entry.rolledBackQty = rolledBack;
+  if (doRollback) entry.rolledBackQty = rolledBack;
+  else { delete entry.rolledBackQty; entry.cancelNote = '중복 발주 정리 (입고계획 롤백 안 함)'; }
   state.auditLog = state.auditLog || [];
   state.auditLog.push({
     ts: new Date().toISOString(),
@@ -8136,7 +8171,9 @@ function cancelOrder(dateStr) {
     action: 'cancel_order',
     field: `발주 취소 · ${entry.supplier}`,
     before: wasReceived ? '입고완료' : (wasPartial ? '부분입고' : '확정'),
-    after: `취소 · 입고계획 ${fmt(rolledBack)}EA 롤백${wasReceived || wasPartial ? ' · 입고상태 해제' : ''}`
+    after: doRollback
+      ? `취소 · 입고계획 ${fmt(rolledBack)}EA 롤백${wasReceived || wasPartial ? ' · 입고상태 해제' : ''}`
+      : `취소(중복 정리) · 입고계획 변경 없음${wasReceived || wasPartial ? ' · 입고상태 해제' : ''}`
   });
   saveInputs();
   saveHistory();
@@ -8144,7 +8181,18 @@ function cancelOrder(dateStr) {
   renderForm();
   if (typeof updateOrderCount === 'function') updateOrderCount();
   if (typeof renderDashboard === 'function') renderDashboard();
-  alert(`✅ 발주 취소 완료\n\n• 이력 상태: ❌ 취소됨\n• 입고계획 롤백: ${fmt(rolledBack)}EA${wasReceived || wasPartial ? '\n• 입고 상태 자동 해제됨' : ''}\n• 변경 이력 기록됨\n\n필요 시 이력 카드의 '🔄 재확정' 버튼으로 되돌릴 수 있습니다.`);
+  if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+  alert(
+    `✅ 발주 취소 완료\n\n` +
+    `• 이력 상태: ❌ 취소됨\n` +
+    (doRollback
+      ? `• 입고계획 롤백: ${fmt(rolledBack)}EA\n`
+      : `• 입고계획: 변경 없음 (중복 정리)\n`) +
+    (wasReceived || wasPartial ? '• 입고 상태 자동 해제됨\n' : '') +
+    `• 변경 이력 기록됨\n\n` +
+    `필요 시 이력 카드의 '🔄 재확정' 버튼으로 되돌릴 수 있습니다.`
+  );
 }
 
 // 재확정 — cancelled=false + 입고계획 재반영
@@ -8153,17 +8201,42 @@ function reconfirmOrder(dateStr) {
   const entry = orderHistory.find(e => e.date === dateStr);
   if (!entry) { alert('발주를 찾을 수 없습니다.'); return; }
   if (!entry.cancelled) { alert('취소된 발주가 아닙니다.'); return; }
-  const reapply = confirm(`🔄 발주 재확정\n\n공급사: ${entry.supplier}\n품목 ${entry.items.length}건 · 총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}\n\n[확인] 이력에 '확정' 복귀 + 입고계획에 이 발주 수량 다시 반영\n[취소] 아무 것도 안 함\n\n입고계획 재반영까지 진행하시겠습니까?`);
-  if (!reapply) return;
+  // 취소 시 롤백하지 않았던 건(중복 정리)은 재반영도 하면 안 됨 — 이중 가산 방지
+  const wasRolledBack = Number(entry.rolledBackQty || 0) > 0;
+  let doReapply;
+  if (!wasRolledBack) {
+    doReapply = !confirm(
+      `🔄 발주 재확정\n\n` +
+      `공급사: ${entry.supplier} · 납기 ${entry.dueDate || '-'}\n` +
+      `품목 ${entry.items.length}건 · 총 ${fmt(entry.totalQty)}EA\n\n` +
+      `⚠ 이 건은 취소 시 입고계획을 롤백하지 않았습니다` +
+      `${entry.cancelNote ? `\n   (${entry.cancelNote})` : ''}.\n` +
+      `지금 재반영하면 같은 수량이 이중으로 더해집니다.\n\n` +
+      `[확인] 입고계획 손대지 않고 상태만 '확정' 복귀  ← 권장\n` +
+      `[취소] ${fmt(entry.totalQty)}EA를 입고계획에 가산\n\n` +
+      `입고계획을 건드리지 않고 진행하시겠습니까?`
+    );
+  } else {
+    doReapply = confirm(
+      `🔄 발주 재확정\n\n공급사: ${entry.supplier}\n품목 ${entry.items.length}건 · ` +
+      `총 ${fmt(entry.totalQty)}EA · ₩${fmt(entry.totalAmt)}\n\n` +
+      `[확인] 이력에 '확정' 복귀 + 입고계획에 이 발주 수량 다시 반영\n` +
+      `[취소] 아무 것도 안 함\n\n입고계획 재반영까지 진행하시겠습니까?`
+    );
+    if (!doReapply) return; // 정상 롤백 건에서 [취소]는 작업 중단
+  }
+
   let reapplied = 0;
-  if (entry.dueDate) {
+  if (doReapply && entry.dueDate) {
     const dueMo = new Date(entry.dueDate).getMonth() + 1;
     const moKey = _dueMonthKey(dueMo);
     if (moKey) {
       entry.items.forEach(it => {
-        const firstMaster = MASTERS.find(mm => mm.part_no === it.pn);
-        if (!firstMaster) return;
-        const key = masterInputKey(firstMaster);
+        // 모델까지 일치하는 master 우선 (공용 품번 오가산 방지)
+        const master = MASTERS.find(mm => mm.part_no === it.pn && displayName(mm) === it.model)
+                    || MASTERS.find(mm => mm.part_no === it.pn);
+        if (!master) return;
+        const key = masterInputKey(master);
         if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
         state.itemInputs[key][moKey + '_incoming'] = (Number(state.itemInputs[key][moKey + '_incoming']) || 0) + (it.qty || 0);
         reapplied += (it.qty || 0);
@@ -8173,6 +8246,7 @@ function reconfirmOrder(dateStr) {
   entry.cancelled = false;
   delete entry.cancelledAt;
   delete entry.rolledBackQty;
+  delete entry.cancelNote;
   entry.reconfirmedAt = new Date().toISOString();
   state.auditLog = state.auditLog || [];
   state.auditLog.push({
@@ -8181,7 +8255,7 @@ function reconfirmOrder(dateStr) {
     action: 'reconfirm_order',
     field: `발주 재확정 · ${entry.supplier}`,
     before: '취소됨',
-    after: `확정 · 입고계획 ${fmt(reapplied)}EA 재반영`
+    after: doReapply ? `확정 · 입고계획 ${fmt(reapplied)}EA 재반영` : '확정 · 입고계획 변경 없음'
   });
   saveInputs();
   saveHistory();
@@ -8189,7 +8263,13 @@ function reconfirmOrder(dateStr) {
   renderForm();
   if (typeof updateOrderCount === 'function') updateOrderCount();
   if (typeof renderDashboard === 'function') renderDashboard();
-  alert(`✅ 발주 재확정 완료\n\n• 이력 상태: 발주확정\n• 입고계획 재반영: ${fmt(reapplied)}EA\n• 변경 이력 기록됨`);
+  if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+  if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+  alert(
+    `✅ 발주 재확정 완료\n\n• 이력 상태: 발주확정\n` +
+    (doReapply ? `• 입고계획 재반영: ${fmt(reapplied)}EA\n` : `• 입고계획: 변경 없음\n`) +
+    `• 변경 이력 기록됨`
+  );
 }
 
 // dueDate 월 → periodStartMonth 기준 상대 키 (may/jun/jul/aug)
