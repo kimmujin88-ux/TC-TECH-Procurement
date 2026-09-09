@@ -9333,7 +9333,11 @@ async function togglePreviousCycle() {
   dd.innerHTML = '<div style="padding:16px;text-align:center;color:var(--t3);font-size:11px;">불러오는 중...</div>';
   dd.style.display = 'block';
   try {
-    const backups = await listBackups();
+    // 월말 마감 아카이브(cycle-*)와 백업 스냅샷(snapshot-*)을 함께 조회
+    const [archive, backups] = await Promise.all([
+      typeof listCycleArchive === 'function' ? listCycleArchive() : Promise.resolve([]),
+      listBackups()
+    ]);
     // 사이클 목록 구성
     const currentLabel = _cycleLabelByMonth(state.periodStartMonth, state.periodYear);
     let html = `
@@ -9343,7 +9347,34 @@ async function togglePreviousCycle() {
         <div class="cycle-item__meta">활성 · 수정 가능</div>
       </button>
     `;
-    // 자동 백업 사이클들 — 윈도우별 가장 최근 1건만 (중복 제거)
+
+    // ── 월말 마감 아카이브 — 매월 마감 시점의 확정 스냅샷 (기준월 내림차순) ──
+    const archiveSorted = [...archive].sort((a, b) => {
+      const sa = a.state_json || {}, sb = b.state_json || {};
+      const ka = `${sa._cycleRefYear || 0}-${String(sa._cycleRefMonth || 0).padStart(2, '0')}`;
+      const kb = `${sb._cycleRefYear || 0}-${String(sb._cycleRefMonth || 0).padStart(2, '0')}`;
+      return kb.localeCompare(ka);
+    });
+    if (archiveSorted.length > 0) {
+      html += `<div class="cycle-section">▶ 월말 마감 아카이브 (${archiveSorted.length}건)</div>`;
+      archiveSorted.forEach(b => {
+        const d = b.state_json || {};
+        const cl = _cycleLabelByMonth(d.periodStartMonth, d.periodYear || 2026);
+        const isCurrent = (d.periodStartMonth === (state.periodStartMonth || 5))
+                       && ((d.periodYear || 2026) === (state.periodYear || 2026));
+        const inc = Object.values(d.itemInputs || {}).reduce((t, v) =>
+          t + (+v.may_incoming || 0) + (+v.jun_incoming || 0) + (+v.jul_incoming || 0) + (+v.aug_incoming || 0), 0);
+        const meta = `${d._pdfDerived ? '📄 PDF 실적' : '📌 수동 마감'} · 입고계획 ${fmt(inc)}EA${isCurrent ? ' · 현재 윈도우와 동일' : ''}`;
+        html += `
+          <button class="cycle-item" data-cycle-type="archive" data-backup-id="${sanitize(b.id)}">
+            <div class="cycle-item__head">↶ ${sanitize(cl)}</div>
+            <div class="cycle-item__meta">${sanitize(meta)}</div>
+          </button>
+        `;
+      });
+    }
+
+    // ── 백업 스냅샷 — 윈도우별 가장 최근 1건만 (중복 제거) ──
     // listBackups는 updated_at 내림차순이므로 첫 매칭이 가장 최근
     const cycleBackupsAll = backups.filter(b => {
       const d = b.state_json || {};
@@ -9351,9 +9382,12 @@ async function togglePreviousCycle() {
     });
     const _seenWin = new Set();
     const cycleBackups = [];
-    // 현재 윈도우도 제외 (현재 사이클 섹션에 이미 있음)
-    const curWinKey = `${state.periodYear || 2026}-${state.periodStartMonth || 5}`;
-    _seenWin.add(curWinKey);
+    // 현재 윈도우 + 아카이브에 이미 있는 윈도우는 제외 (중복 노출 방지)
+    _seenWin.add(`${state.periodYear || 2026}-${state.periodStartMonth || 5}`);
+    archiveSorted.forEach(b => {
+      const d = b.state_json || {};
+      _seenWin.add(`${d.periodYear || 2026}-${d.periodStartMonth}`);
+    });
     cycleBackupsAll.forEach(b => {
       const d = b.state_json || {};
       const winKey = `${d.periodYear || 2026}-${d.periodStartMonth}`;
@@ -9362,7 +9396,7 @@ async function togglePreviousCycle() {
       cycleBackups.push(b);
     });
     if (cycleBackups.length > 0) {
-      html += `<div class="cycle-section">▶ 과거 사이클 (윈도우별 최신 1건)</div>`;
+      html += `<div class="cycle-section">▶ 백업 스냅샷 (윈도우별 최신 1건)</div>`;
       cycleBackups.forEach(b => {
         const d = b.state_json || {};
         const cl = _cycleLabelByMonth(d.periodStartMonth, d.periodYear || 2026);
@@ -9397,6 +9431,24 @@ async function togglePreviousCycle() {
         }
         if (t === 'initial') {
           enterInitialCycle();
+          return;
+        }
+        if (t === 'archive') {
+          const id = btn.dataset.backupId;
+          const bk = archiveSorted.find(b => b.id === id);
+          if (!bk) { alert('아카이브를 찾을 수 없습니다.'); return; }
+          const d = bk.state_json || {};
+          const inc = Object.values(d.itemInputs || {}).reduce((t2, v) =>
+            t2 + (+v.may_incoming || 0) + (+v.jun_incoming || 0) + (+v.jul_incoming || 0) + (+v.aug_incoming || 0), 0);
+          if (!confirm(
+            `↶ 월말 마감 아카이브 보기 모드\n\n` +
+            `• ${_cycleLabelByMonth(d.periodStartMonth, d.periodYear)}\n` +
+            `• ${d._pdfDerived ? 'PDF 실적 기반 복원본' : '수동 마감 저장본'}\n` +
+            `• 품목 ${Object.keys(d.itemInputs || {}).length}건 · 입고계획 ${fmt(inc)}EA\n` +
+            `• 모든 입력 차단 (조회 전용) — 현재 데이터는 변경되지 않음\n\n` +
+            `진행하시겠습니까?`
+          )) return;
+          enterCycleByData(d, d._label || '월말 마감 아카이브', d._createdAt || bk.updated_at);
           return;
         }
         if (t === 'backup') {
