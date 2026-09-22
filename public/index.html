@@ -7815,8 +7815,28 @@ function goToReceiptsFor(dateStr) {
 }
 
 // ── 발주 이력 PDF 첨부 ──
-// entry.pdfAttachment = { name, dataUrl, size, type, uploadedAt }
-// dataUrl에 base64 인코딩된 PDF 저장 (Supabase에 orderHistory와 함께 자동 저장)
+// PDF 본문은 app_state의 별도 행(id = pdf-<발주키>)에 저장하고,
+// entry.pdfAttachment 에는 { name, size, type, uploadedAt, uploadedBy, ref } 참조만 둔다.
+// → 발주 이력·백업이 PDF 사본을 들고 다니지 않음 (백업 1건 1.2MB → 수십 KB).
+// 구버전 첨부(entry.pdfAttachment.dataUrl 인라인)도 조회·삭제는 그대로 지원.
+function pdfRefFor(entry) {
+  return 'pdf-' + String(entry.date || '').replace(/[^0-9A-Za-z]/g, '-');
+}
+async function storePdfBlob(ref, dataUrl, meta) {
+  if (typeof _supa === 'undefined' || !_supa) throw new Error('Supabase 연결 없음');
+  const { error } = await _supa.from('app_state').upsert({
+    id: ref, state_json: { dataUrl, ...meta }, updated_at: new Date().toISOString()
+  });
+  if (error) throw error;
+}
+async function loadPdfDataUrl(att) {
+  if (att.dataUrl) return att.dataUrl;                     // 구버전 인라인
+  if (!att.ref) throw new Error('PDF 참조 없음');
+  const { data, error } = await _supa.from('app_state').select('state_json').eq('id', att.ref).single();
+  if (error || !data || !data.state_json || !data.state_json.dataUrl) throw error || new Error('PDF 본문 없음');
+  return data.state_json.dataUrl;
+}
+
 function attachPdfToOrder(dateStr) {
   if (window.guardAdmin && !window.guardAdmin('PDF 첨부')) return;
   const entry = orderHistory.find(e => e.date === dateStr);
@@ -7837,15 +7857,22 @@ function attachPdfToOrder(dateStr) {
       if (!confirm(`파일 크기가 ${(file.size/1024/1024).toFixed(1)}MB 입니다. 계속하시겠습니까?\n(권장: 2MB 이하 · Supabase 이력 저장 용량에 영향)`)) return;
     }
     const reader = new FileReader();
-    reader.onload = () => {
-      entry.pdfAttachment = {
+    reader.onload = async () => {
+      const ref = pdfRefFor(entry);
+      const meta = {
         name: file.name,
-        dataUrl: reader.result, // "data:application/pdf;base64,..."
         size: file.size,
         type: file.type || 'application/pdf',
         uploadedAt: new Date().toISOString(),
         uploadedBy: sessionStorage.getItem('tctech_auth_user') || 'unknown'
       };
+      try {
+        await storePdfBlob(ref, reader.result, { ...meta, supplier: entry.supplier, orderDate: entry.date });
+      } catch (e) {
+        alert('❌ PDF 저장 실패: ' + (e && e.message ? e.message : e) + '\n\n네트워크·Supabase 상태를 확인 후 다시 시도하세요.');
+        return;
+      }
+      entry.pdfAttachment = { ...meta, ref };
       state.auditLog = state.auditLog || [];
       state.auditLog.push({
         ts: new Date().toISOString(),
@@ -7870,45 +7897,54 @@ function attachPdfToOrder(dateStr) {
   setTimeout(() => input.remove(), 60000);
 }
 
-function viewPdfAttachment(dateStr) {
+async function viewPdfAttachment(dateStr) {
   const entry = orderHistory.find(e => e.date === dateStr);
-  if (!entry || !entry.pdfAttachment || !entry.pdfAttachment.dataUrl) {
+  const att = entry && entry.pdfAttachment;
+  if (!att || (!att.dataUrl && !att.ref)) {
     alert('첨부된 PDF가 없습니다.');
     return;
   }
-  const { dataUrl, name, size } = entry.pdfAttachment;
-  // 새 창에서 PDF 뷰어로 열기 (Blob URL 사용 — 대용량 dataUrl 직접 열기 방지)
+  const name = att.name || `발주서_${entry.supplier}_${entry.date.slice(0, 10)}.pdf`;
+  // 클릭 직후 동기적으로 창을 먼저 연다 — 비동기 조회 뒤에 열면 팝업 차단됨
+  const w = window.open('', '_blank');
+  if (w) w.document.write('<p style="font:14px sans-serif;padding:24px;color:#555">PDF 불러오는 중…</p>');
   try {
+    const dataUrl = await loadPdfDataUrl(att);
     const byteChars = atob(dataUrl.split(',')[1]);
-    const byteNumbers = new Array(byteChars.length);
-    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-    const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
-    const blobUrl = URL.createObjectURL(blob);
-    const w = window.open(blobUrl, '_blank');
-    if (!w) {
+    const bytes = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+    const blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    if (w) {
+      w.location.href = blobUrl;
+    } else {
       // 팝업 차단 시 다운로드로 폴백
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = name || `발주서_${entry.supplier}_${entry.date.slice(0,10)}.pdf`;
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
     }
-    // 5분 뒤 blob URL 해제
     setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
   } catch (e) {
+    if (w) w.close();
     console.error('PDF 열기 실패', e);
-    alert('PDF 열기 실패: ' + e.message);
+    alert('PDF 열기 실패: ' + (e && e.message ? e.message : e));
   }
 }
 
-function removePdfAttachment(dateStr) {
+async function removePdfAttachment(dateStr) {
   if (window.guardAdmin && !window.guardAdmin('PDF 첨부 삭제')) return;
   const entry = orderHistory.find(e => e.date === dateStr);
   if (!entry || !entry.pdfAttachment) return;
   const name = entry.pdfAttachment.name || '(파일명 없음)';
   if (!confirm(`첨부된 PDF를 삭제하시겠습니까?\n\n파일: ${name}`)) return;
   const before = `${name} (${Math.round((entry.pdfAttachment.size||0)/1024)}KB)`;
+  const ref = entry.pdfAttachment.ref;
+  if (ref && typeof _supa !== 'undefined' && _supa) {
+    try { await _supa.from('app_state').delete().eq('id', ref); }
+    catch (e) { console.warn('[PDF 삭제] 저장소 행 삭제 실패 (참조만 제거):', e); }
+  }
   delete entry.pdfAttachment;
   state.auditLog = state.auditLog || [];
   state.auditLog.push({
@@ -8044,6 +8080,32 @@ function applyReceipt(dateStr) {
   if (typeof renderLTComparison === 'function') renderLTComparison();
 }
 
+// ── 발주 라인 수량을 품번의 모델 행들에서 차감 ──
+// 발주서 한 줄(예: 1311042 1,600EA)이 입고계획에서는 여러 모델 행
+// (GS1930E 1,400 + GS4655 200)에 나뉘어 있을 수 있다. 라벨 모델 행부터,
+// 이후 현재값이 큰 행 순으로 필요한 만큼 차감하고, 행별 차감량을 돌려준다.
+function _drainIncomingByPart(it, field, qty) {
+  const masters = MASTERS.filter(m => m.part_no === it.pn);
+  const valOf = m => Number((state.itemInputs[masterInputKey(m)] || {})[field] || 0);
+  masters.sort((a, b) => {
+    const am = displayName(a) === it.model ? 0 : 1;
+    const bm = displayName(b) === it.model ? 0 : 1;
+    return am !== bm ? am - bm : valOf(b) - valOf(a);
+  });
+  let left = Math.max(0, Number(qty) || 0);
+  const alloc = {};
+  for (const m of masters) {
+    if (left <= 0) break;
+    const key = masterInputKey(m);
+    const rec = state.itemInputs[key];
+    if (!rec) continue;
+    const cur = Number(rec[field] || 0);
+    const sub = Math.min(cur, left);
+    if (sub > 0) { rec[field] = cur - sub; alloc[key] = sub; left -= sub; }
+  }
+  return { drained: (Number(qty) || 0) - left, alloc };
+}
+
 // ── 🔒 잔량 종결 (Short-close) ──
 // 발주 대비 미달 입고를 공급사와 협의해 종결하는 실무 처리.
 // · 발주 수량(원본)은 보존 → 발주서와 이력이 일치 (감사 추적)
@@ -8089,18 +8151,11 @@ function shortCloseOrder(dateStr) {
     const moKey = _dueMonthKey(dueMo);
     if (moKey) {
       shorts.forEach(x => {
-        const master = MASTERS.find(mm => mm.part_no === x.it.pn && displayName(mm) === x.it.model)
-                    || MASTERS.find(mm => mm.part_no === x.it.pn);
-        if (!master) return;
-        const key = masterInputKey(master);
-        if (!state.itemInputs[key]) return;
-        const f = moKey + '_incoming';
-        const cur = Number(state.itemInputs[key][f]) || 0;
-        const sub = Math.min(cur, x.short);
-        if (sub > 0) {
-          state.itemInputs[key][f] = cur - sub;
-          adjusted += sub;
-          adjLog.push(`${x.it.pn}: ${cur} → ${cur - sub}`);
+        const { drained, alloc } = _drainIncomingByPart(x.it, moKey + '_incoming', x.short);
+        if (drained > 0) {
+          adjusted += drained;
+          entry.items[x.i].shortCloseAlloc = alloc;
+          adjLog.push(`${x.it.pn}: -${drained}`);
         }
       });
     }
@@ -8247,17 +8302,10 @@ function cancelOrder(dateStr) {
     const moKey = _dueMonthKey(dueMo);
     if (moKey) {
       entry.items.forEach(it => {
-        // 모델까지 일치하는 master 우선 (공용 품번이 여러 모델에 걸린 경우 오차감 방지)
-        const master = MASTERS.find(mm => mm.part_no === it.pn && displayName(mm) === it.model)
-                    || MASTERS.find(mm => mm.part_no === it.pn);
-        if (!master) return;
-        const key = masterInputKey(master);
-        if (state.itemInputs[key]) {
-          const cur = Number(state.itemInputs[key][moKey + '_incoming']) || 0;
-          const sub = Math.min(cur, it.qty || 0);   // 있는 만큼만 차감 (음수·과차감 방지)
-          state.itemInputs[key][moKey + '_incoming'] = cur - sub;
-          rolledBack += sub;
-        }
+        // 발주 라인이 여러 모델 행에 나뉘어 있어도 전체 수량만큼 차감 (행별 차감량 기록 → 재확정 시 정확 복원)
+        const { drained, alloc } = _drainIncomingByPart(it, moKey + '_incoming', it.qty || 0);
+        it.rollbackAlloc = alloc;
+        rolledBack += drained;
       });
     }
   }
@@ -8340,15 +8388,27 @@ function reconfirmOrder(dateStr) {
     const dueMo = new Date(entry.dueDate).getMonth() + 1;
     const moKey = _dueMonthKey(dueMo);
     if (moKey) {
+      const f = moKey + '_incoming';
       entry.items.forEach(it => {
-        // 모델까지 일치하는 master 우선 (공용 품번 오가산 방지)
-        const master = MASTERS.find(mm => mm.part_no === it.pn && displayName(mm) === it.model)
-                    || MASTERS.find(mm => mm.part_no === it.pn);
-        if (!master) return;
-        const key = masterInputKey(master);
-        if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
-        state.itemInputs[key][moKey + '_incoming'] = (Number(state.itemInputs[key][moKey + '_incoming']) || 0) + (it.qty || 0);
-        reapplied += (it.qty || 0);
+        const alloc = it.rollbackAlloc && Object.keys(it.rollbackAlloc).length ? it.rollbackAlloc : null;
+        if (alloc) {
+          // 취소 때 행별로 뺀 만큼 그대로 되돌림
+          Object.entries(alloc).forEach(([key, q]) => {
+            if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
+            state.itemInputs[key][f] = (Number(state.itemInputs[key][f]) || 0) + Number(q || 0);
+            reapplied += Number(q || 0);
+          });
+        } else {
+          // 구버전 취소건 (행별 기록 없음) — 라벨 모델 행 또는 첫 행에 가산
+          const master = MASTERS.find(mm => mm.part_no === it.pn && displayName(mm) === it.model)
+                      || MASTERS.find(mm => mm.part_no === it.pn);
+          if (!master) return;
+          const key = masterInputKey(master);
+          if (!state.itemInputs[key]) state.itemInputs[key] = emptyItemInput();
+          state.itemInputs[key][f] = (Number(state.itemInputs[key][f]) || 0) + (it.qty || 0);
+          reapplied += (it.qty || 0);
+        }
+        delete it.rollbackAlloc;
       });
     }
   }
@@ -12136,16 +12196,44 @@ function confirmAllAutoPO() {
   const orderDate = document.getElementById('auto-po-order-date').value;
   const delivDate = document.getElementById('auto-po-deliv-date').value;
   const { bySupplier, totalItems, totalQty, totalAmt } = computeIncomingBasedOrders(monthKey);
-  const suppliers = Object.keys(bySupplier).filter(s => SUPPLIER_INFO[s]);
-  if (suppliers.length === 0) { alert('발주 확정 대상 업체 없음'); return; }
-  if (!confirm(`${monthLabel(monthKey)} 입고계획 기준\n${suppliers.length}개 업체 · ${totalItems}품목 · ${fmt(totalQty)} EA · ₩${fmt(totalAmt)}\n\n일괄 발주 확정 (이력 저장)하시겠습니까?\n확정 후 "입고 확정/관리" 탭에서 입고 처리 가능.`)) return;
+  const allSuppliers = Object.keys(bySupplier).filter(s => SUPPLIER_INFO[s]);
+  if (allSuppliers.length === 0) { alert('발주 확정 대상 업체 없음'); return; }
+
+  // ── 중복 발주 방지: 같은 납기 월에 이미 유효 발주가 있는 업체 ──
+  const dueYM = (delivDate || '').slice(0, 7);
+  const already = allSuppliers.filter(s => orderHistory.some(e =>
+    e.type === 'order' && !e.cancelled && e.supplier === s && (e.dueDate || '').slice(0, 7) === dueYM));
+  let suppliers = allSuppliers;
+  if (already.length > 0) {
+    const skip = confirm(
+      `⚠ ${dueYM} 납기 발주가 이미 이력에 있는 업체\n\n` +
+      already.map(s => {
+        const e = orderHistory.find(x => x.type === 'order' && !x.cancelled && x.supplier === s && (x.dueDate || '').slice(0, 7) === dueYM);
+        return `  · ${s} — ${fmt(e.totalQty)}EA (납기 ${e.dueDate})`;
+      }).join('\n') +
+      `\n\n다시 확정하면 같은 발주가 2건이 되어 입고 대기·취소 롤백이 틀어집니다.\n\n` +
+      `[확인] 이 업체들은 건너뛰고 나머지만 확정  ← 권장\n` +
+      `[취소] 전부 다시 확정 (중복 발주 생성)`
+    );
+    if (skip) suppliers = allSuppliers.filter(s => !already.includes(s));
+    if (suppliers.length === 0) { alert(`새로 확정할 업체가 없습니다.\n${dueYM} 납기 발주는 모두 이력에 등록돼 있습니다.`); return; }
+  }
+  const tItems = suppliers.reduce((s, sup) => s + bySupplier[sup].length, 0);
+  const tQty = suppliers.reduce((s, sup) => s + bySupplier[sup].reduce((a, it) => a + it.totalQty, 0), 0);
+  const tAmt = suppliers.reduce((s, sup) => s + bySupplier[sup].reduce((a, it) => a + it.totalQty * (it.master.unit_price || 0), 0), 0);
+  if (!confirm(`${monthLabel(monthKey)} 입고계획 기준\n${suppliers.length}개 업체 · ${tItems}품목 · ${fmt(tQty)} EA · ₩${fmt(tAmt)}\n${suppliers.length < allSuppliers.length ? `(이미 발주된 ${allSuppliers.length - suppliers.length}개 업체 제외)\n` : ''}\n일괄 발주 확정 (이력 저장)하시겠습니까?\n확정 후 "입고 확정/관리" 탭에서 입고 처리 가능.`)) return;
 
   const baseTs = new Date(orderDate + 'T09:00:00').getTime();
+  // 발주 키(date)는 이력 병합의 고유키 — 기존 키와 겹치지 않을 때까지 ms 단위로 밀어냄
+  const usedDates = new Set(orderHistory.map(e => e.date));
+  let nextTs = baseTs;
   let created = 0;
-  suppliers.forEach((supplier, sIdx) => {
+  suppliers.forEach(supplier => {
     const items = bySupplier[supplier];
-    // 각 공급사 발주는 milliseconds 단위로 unique 하도록 오프셋
-    const entryDate = new Date(baseTs + sIdx).toISOString();
+    while (usedDates.has(new Date(nextTs).toISOString())) nextTs++;
+    const entryDate = new Date(nextTs).toISOString();
+    usedDates.add(entryDate);
+    nextTs++;
     const entryItems = [];
     let eTotalQty = 0, eTotalAmt = 0;
     items.forEach(agg => {
@@ -12186,7 +12274,7 @@ function confirmAllAutoPO() {
     action: 'auto_po_bulk_confirm',
     field: `auto_po.${monthKey}`,
     before: '',
-    after: `${created}개 업체 · ${totalItems}품목 · ${fmt(totalQty)} EA · ₩${fmt(totalAmt)}`
+    after: `${created}개 업체 · ${tItems}품목 · ${fmt(tQty)} EA · ₩${fmt(tAmt)}`
   });
   saveInputs();
   updateHistoryCount();
