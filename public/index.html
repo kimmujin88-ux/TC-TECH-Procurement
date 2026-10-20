@@ -7277,9 +7277,43 @@ function saveHistory() {
   _saveHistoryDebounce = setTimeout(saveHistoryToServer, 300);
 }
 let _saveHistoryDebounce;
+// 인라인 PDF(dataUrl)를 별도 저장소로 밀어내고 참조만 남김 — 저장 직전 자동 실행.
+// 구버전 탭이 인라인 사본을 들고 덮어써도 서버는 항상 가벼운 상태로 수렴한다.
+async function _externalizeInlinePdfs() {
+  if (typeof _supa === 'undefined' || !_supa) return 0;
+  let moved = 0;
+  for (const e of orderHistory) {
+    const att = e.pdfAttachment;
+    if (!att || !att.dataUrl) continue;
+    const ref = att.ref || pdfRefFor(e);
+    const { dataUrl, ...meta } = att;
+    try {
+      const { data } = await _supa.from('app_state').select('id').eq('id', ref).maybeSingle();
+      if (!data) {
+        const { error } = await _supa.from('app_state').upsert({
+          id: ref,
+          state_json: { dataUrl, ...meta, supplier: e.supplier, orderDate: e.date },
+          updated_at: new Date().toISOString()
+        });
+        if (error) throw error;
+      }
+      e.pdfAttachment = { ...meta, ref };   // 저장소 확인/기록 후에만 인라인 제거
+      moved++;
+    } catch (err) {
+      console.warn('[PDF 분리] 실패 — 인라인 유지:', ref, err);
+    }
+  }
+  if (moved > 0) {
+    try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(orderHistory)); } catch (e) {}
+    console.info(`[PDF 분리] 인라인 ${moved}건을 저장소로 이동`);
+  }
+  return moved;
+}
+
 async function saveHistoryToServer() {
   if (typeof _supa === 'undefined') return;
   try {
+    await _externalizeInlinePdfs();
     const { error } = await _supa.from('app_state').upsert({
       id: 'order_history_v1',
       state_json: {
