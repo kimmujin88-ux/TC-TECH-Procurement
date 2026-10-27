@@ -329,8 +329,10 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 /* 양식 탭 활성 시: 페이지 자체 스크롤 차단, form-wrap만 스크롤 */
+/* --viewer-banner-h: 조회 전용 배너의 실제 높이 (syncViewerBannerHeight()가 설정) */
+:root { --viewer-banner-h: 0px; }
 body.tab-form-active { overflow: hidden; height: 100vh; }
-body.tab-form-active main { height: calc(100vh - 105px); overflow: hidden; }
+body.tab-form-active main { height: calc(100vh - 105px - var(--viewer-banner-h)); overflow: hidden; }
 
 /* ───── HEADER ───── */
 .app-header {
@@ -495,7 +497,7 @@ main {
   border: 0.5px solid var(--border2);
   border-radius: 10px;
   overflow: auto;
-  height: calc(100vh - 220px);
+  height: calc(100vh - 220px - var(--viewer-banner-h));
   position: relative;
   scrollbar-gutter: stable;
 }
@@ -13892,18 +13894,32 @@ function setDefaultHistoryDueMonth() {
   const badge   = document.getElementById('user-badge');
   const logoutBtn = document.getElementById('btn-logout');
 
+  // 조회 전용 배너는 문서 흐름에서 높이를 차지한다.
+  // 양식 탭의 height: calc(100vh - ...) 가 그만큼 어긋나 표 하단이 잘리므로
+  // 실제 높이를 측정해 --viewer-banner-h 로 전달한다. (줄바꿈·글꼴 변화까지 반영)
+  function syncViewerBannerHeight(){
+    const b = document.querySelector('.viewer-banner');
+    const visible = b && getComputedStyle(b).display !== 'none';
+    const h = visible ? Math.round(b.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty('--viewer-banner-h', h + 'px');
+  }
+  window.syncViewerBannerHeight = syncViewerBannerHeight;
+  window.addEventListener('resize', syncViewerBannerHeight);
+
   function showApp(name, role){
     overlay.style.display = 'none';
     document.documentElement.classList.remove('login-locked');
     if (badge) badge.textContent = name ? ('👤 ' + name + (role === 'viewer' ? ' (조회)' : '')) : '';
     if (role === 'viewer') document.body.classList.add('viewer-mode');
     else document.body.classList.remove('viewer-mode');
+    syncViewerBannerHeight();
   }
   function showLogin(){
     overlay.style.display = 'flex';
     document.documentElement.classList.add('login-locked');
     if (badge) badge.textContent = '';
     document.body.classList.remove('viewer-mode');
+    syncViewerBannerHeight();
     setTimeout(() => idEl && idEl.focus(), 50);
   }
 
