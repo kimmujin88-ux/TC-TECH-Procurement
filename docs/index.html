@@ -7314,9 +7314,55 @@ async function _externalizeInlinePdfs() {
   return moved;
 }
 
+// 삭제 묘비 — 명시적으로 지운 발주 키. 병합 저장이 되살리지 못하게 막는다.
+const STORAGE_KEY_TOMBSTONE = 'tctech_deleted_orders_v1';
+function _loadTombstones() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY_TOMBSTONE) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function markOrderDeleted(dateKey) {
+  const t = _loadTombstones();
+  t.add(dateKey);
+  try { localStorage.setItem(STORAGE_KEY_TOMBSTONE, JSON.stringify([...t].slice(-500))); } catch (e) {}
+}
+
+// 저장 전 서버 최신본과 병합 — 다른 탭/기기가 추가한 발주를 덮어쓰지 않는다.
+// 규칙: 서버에만 있는 발주는 보존(추가), 양쪽에 있으면 이 탭의 내용 우선(방금 한 작업),
+//       묘비에 있는 키는 되살리지 않음.
+async function _mergeServerHistory() {
+  if (typeof _supa === 'undefined' || !_supa) return 0;
+  let serverList;
+  try {
+    const { data, error } = await _supa.from('app_state')
+      .select('state_json').eq('id', 'order_history_v1').maybeSingle();
+    if (error) throw error;
+    serverList = data && data.state_json && data.state_json.orderHistory;
+    if (!Array.isArray(serverList)) return 0;
+  } catch (e) {
+    console.warn('[이력 병합] 서버 조회 실패 — 병합 생략:', e);
+    return 0;   // 조회 실패 시 덮어쓰기보다 그대로 저장 (로컬 작업 보존)
+  }
+  const localKeys = new Set(orderHistory.map(e => e.date));
+  const tomb = _loadTombstones();
+  const added = serverList.filter(e => e && e.date && !localKeys.has(e.date) && !tomb.has(e.date));
+  if (added.length > 0) {
+    added.forEach(e => orderHistory.push(e));
+    orderHistory.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    console.info(`[이력 병합] 서버에만 있던 발주 ${added.length}건 보존: `
+      + added.map(e => `${e.supplier}/${e.dueDate}`).join(', '));
+    try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(orderHistory)); } catch (e) {}
+    if (typeof updateHistoryCount === 'function') updateHistoryCount();
+    if (typeof updateReceiptsCount === 'function') updateReceiptsCount();
+    if (typeof renderHistory === 'function') renderHistory();
+    if (typeof renderReceiptsPanel === 'function') renderReceiptsPanel();
+  }
+  return added.length;
+}
+
 async function saveHistoryToServer() {
   if (typeof _supa === 'undefined') return;
   try {
+    await _mergeServerHistory();
     await _externalizeInlinePdfs();
     const { error } = await _supa.from('app_state').upsert({
       id: 'order_history_v1',
@@ -8248,6 +8294,7 @@ function deleteHistory(dateStr) {
   const idx = orderHistory.findIndex(e => e.date === dateStr);
   if (idx === -1) return;
   orderHistory.splice(idx, 1);
+  markOrderDeleted(dateStr);   // 병합 저장이 되살리지 못하게 묘비 기록
   saveHistory();
   renderHistory();
   updateHistoryCount();
@@ -12693,6 +12740,7 @@ async function showJumpToMonthModal() {
 
 document.getElementById('btn-clear-history').addEventListener('click', () => {
   if (!confirm('발주 이력을 전체 삭제하시겠습니까?')) return;
+  orderHistory.forEach(e => markOrderDeleted(e.date));   // 병합 저장이 되살리지 못하게
   orderHistory = [];
   saveHistory();
   renderHistory();
