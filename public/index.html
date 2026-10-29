@@ -2799,6 +2799,8 @@ if (_loaded.periodYear) state.periodYear = _loaded.periodYear;
     updateOrderCount();
     renderAlarms();
   }
+  // 서버 연결 실패면 화면이 예전 값일 수 있음 → 경고 + 저장 잠금
+  if (_serverLoadState === 'error') showServerLoadError();
 })();
 
 function getOrderQty(master) {
@@ -2921,6 +2923,7 @@ const _supa = supabase.createClient(
 );
 
 async function syncToServer(payload) {
+  if (typeof canPersist === 'function' && !canPersist()) return;   // 서버 로드 실패 시 덮어쓰기 차단
   try {
     await _supa.from('app_state').upsert({
       id: 'main',
@@ -2930,6 +2933,10 @@ async function syncToServer(payload) {
   } catch(e) { console.warn('Supabase 저장 실패', e); }
 }
 
+// 서버 로드 결과 — 'ok' 정상 / 'empty' 서버에 데이터 없음(최초) / 'error' 통신·권한 실패
+// error 일 때는 화면이 오래된 로컬 값으로 떠 있는 상태이므로 저장을 막아 서버 덮어쓰기를 방지한다.
+let _serverLoadState = 'pending';
+
 async function loadFromServer() {
   try {
     const { data, error } = await _supa
@@ -2937,7 +2944,8 @@ async function loadFromServer() {
       .select('state_json')
       .eq('id', 'main')
       .single();
-    if (error || !data) return false;
+    if (error) { _serverLoadState = 'error'; console.error('[서버 로드] 실패:', error); return false; }
+    if (!data) { _serverLoadState = 'empty'; return false; }
     const d = data.state_json;
     if (d && d.modelInputs) {
       state.modelInputs = d.modelInputs;
@@ -2954,10 +2962,58 @@ async function loadFromServer() {
       state.unmetReasons = d.unmetReasons || {};
       if (d.exchangeRate != null) state.exchangeRate = d.exchangeRate;
       if (typeof snapshotForAudit === 'function') _lastSavedSnapshot = snapshotForAudit();
+      _serverLoadState = 'ok';
+      console.info(`[서버 로드] 성공 · 운영 윈도우 ${state.periodYear}년 ${state.periodStartMonth}월 시작 · 품목 ${Object.keys(state.itemInputs||{}).length}건`);
       return true;
     }
-  } catch(e) { console.warn('Supabase 불러오기 실패, localStorage 사용', e); }
+    _serverLoadState = 'empty';
+  } catch(e) {
+    _serverLoadState = 'error';
+    console.error('[서버 로드] 예외:', e);
+  }
   return false;
+}
+
+// 서버 로드 실패를 사용자에게 알리고 저장을 막는다.
+// 알리지 않으면 오래된 로컬 데이터로 작업하다 서버를 덮어쓰게 된다.
+function showServerLoadError() {
+  if (document.getElementById('server-load-error')) return;
+  const bar = document.createElement('div');
+  bar.id = 'server-load-error';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#b91c1c;color:#fff;'
+    + 'padding:10px 16px;text-align:center;font-size:12.5px;font-weight:700;letter-spacing:0.2px;'
+    + 'box-shadow:0 2px 10px rgba(0,0,0,0.35);line-height:1.6;';
+  bar.innerHTML = '⚠ 서버에서 데이터를 불러오지 못했습니다 — 화면이 <u>예전 값</u>일 수 있습니다. '
+    + '이 상태에서 수정하면 서버 데이터를 덮어쓸 수 있어 <strong>저장이 잠겨 있습니다</strong>. '
+    + '<button id="btn-server-retry" style="margin-left:10px;padding:3px 12px;border-radius:4px;border:0;'
+    + 'background:#fff;color:#b91c1c;font-weight:800;cursor:pointer;">다시 시도</button>';
+  document.body.appendChild(bar);
+  document.getElementById('btn-server-retry').addEventListener('click', async () => {
+    const b = document.getElementById('btn-server-retry');
+    b.disabled = true; b.textContent = '불러오는 중...';
+    const ok = await loadFromServer();
+    if (ok) {
+      bar.remove();
+      if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
+      if (typeof renderForm === 'function') renderForm();
+      if (typeof renderDashboard === 'function') renderDashboard();
+      if (typeof renderHeroDashboard === 'function') renderHeroDashboard();
+      if (typeof renderAlarms === 'function') renderAlarms();
+      alert('✅ 서버 데이터를 불러왔습니다.\n저장 잠금이 해제되었습니다.');
+    } else {
+      b.disabled = false; b.textContent = '다시 시도';
+      alert('여전히 서버에 연결할 수 없습니다.\n\n· 인터넷 연결 확인\n· 사내망 차단 여부 확인\n· 잠시 후 다시 시도');
+    }
+  });
+}
+
+// 저장 가드 — 서버 로드 실패 상태에서는 저장을 막는다 (덮어쓰기 방지)
+function canPersist() {
+  if (_serverLoadState === 'error') {
+    console.warn('[저장 차단] 서버 로드 실패 상태 — 덮어쓰기 방지');
+    return false;
+  }
+  return true;
 }
 
 function flashSaved() {
@@ -7363,6 +7419,7 @@ async function _mergeServerHistory() {
 
 async function saveHistoryToServer() {
   if (typeof _supa === 'undefined') return;
+  if (typeof canPersist === 'function' && !canPersist()) return;   // 서버 로드 실패 시 덮어쓰기 차단
   try {
     await _mergeServerHistory();
     await _externalizeInlinePdfs();
