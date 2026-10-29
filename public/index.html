@@ -2787,12 +2787,14 @@ const _supa = supabase.createClient(
 );
 
 // 빌드 식별자 — 화면 우측 하단에 표시. 어떤 버전이 떠 있는지 즉시 확인용.
-const BUILD_ID = '2026-10-29-c';
+const BUILD_ID = '2026-10-29-d';
 
 // 서버 로드 결과 — 'ok' 정상 / 'empty' 서버에 데이터 없음 / 'error' 통신·권한 실패 / 'pending' 미실행
 // ok 가 아닌 모든 상태에서 화면은 내장 초기값(4월말·5~8월)일 수 있으므로 저장을 막는다.
 let _serverLoadState = 'pending';
 let _serverLoadDetail = '';
+// 서버에서 실제로 받은 데이터 규모. 이보다 작아지는 저장은 거부한다(축소 저장 차단).
+let _serverProfile = null;
 
 // 서버 데이터 비동기 로드 (서버 데이터가 있으면 우선 적용)
 (async () => {
@@ -2818,6 +2820,12 @@ let _serverLoadDetail = '';
     renderForm();
     updateOrderCount();
     renderAlarms();
+  }
+  // 마스터를 고치는 마이그레이션은 서버 로드가 'ok' 로 끝난 뒤에만 실행한다.
+  // (동기 구간에서 돌면 내장 초기값이 서버 main 을 덮어쓴다 — 실제 사고 원인)
+  if (_serverLoadState === 'ok') {
+    migrateSupplierNames();
+    migrateLTSpec();
   }
  } catch (e) {
    if (_serverLoadState === 'pending') _serverLoadState = 'error';
@@ -2951,13 +2959,47 @@ function saveInputs() {
 
 async function syncToServer(payload) {
   if (typeof canPersist === 'function' && !canPersist()) return;   // 서버 로드 실패 시 덮어쓰기 차단
+
+  // ── 축소 저장 차단 ──
+  // 서버에서 받은 것보다 데이터가 줄어든 저장은 거부한다.
+  // 오래된 탭·초기값 상태가 서버를 깎아먹는 경로를 마지막으로 막는 안전장치.
+  if (_serverProfile) {
+    const m = Object.keys(payload.modelInputs || {}).length;
+    const i = Object.keys(payload.itemInputs || {}).length;
+    if (m < _serverProfile.m || i < _serverProfile.i) {
+      const msg = `모델 ${_serverProfile.m}→${m} · 품목 ${_serverProfile.i}→${i}`;
+      console.error(`[저장 차단] 서버보다 데이터가 적어 저장을 거부했습니다 — ${msg}`);
+      showShrinkBlocked(msg);
+      return;
+    }
+  }
+
   try {
     await _supa.from('app_state').upsert({
       id: 'main',
       state_json: payload,
       updated_at: new Date().toISOString()
     });
+    // 저장 성공분을 기준선으로 올린다 (정상적인 증가는 허용해야 하므로)
+    if (_serverProfile) {
+      _serverProfile.m = Math.max(_serverProfile.m, Object.keys(payload.modelInputs || {}).length);
+      _serverProfile.i = Math.max(_serverProfile.i, Object.keys(payload.itemInputs || {}).length);
+    }
   } catch(e) { console.warn('Supabase 저장 실패', e); }
+}
+
+// 축소 저장이 막혔을 때 사용자에게 알린다 (조용히 막으면 입력이 사라진 걸로 오해한다)
+function showShrinkBlocked(msg) {
+  if (!document.body) return;
+  if (document.getElementById('shrink-blocked')) return;
+  const bar = document.createElement('div');
+  bar.id = 'shrink-blocked';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99997;background:#9a3412;color:#fff;'
+    + 'padding:10px 16px;text-align:center;font-size:12.5px;font-weight:700;line-height:1.6;'
+    + 'box-shadow:0 2px 10px rgba(0,0,0,0.35);';
+  bar.textContent = `⚠ 저장이 거부되었습니다 — 이 화면의 데이터가 서버보다 적습니다 (${msg}). `
+    + '오래된 탭일 수 있습니다. 이 탭을 닫고 새로 접속해 주세요.';
+  document.body.appendChild(bar);
 }
 
 // (_serverLoadState / _serverLoadDetail 도 초기 로드 IIFE 앞에서 선언됨)
@@ -2994,6 +3036,10 @@ async function loadFromServer() {
       if (typeof snapshotForAudit === 'function') _lastSavedSnapshot = snapshotForAudit();
       _serverLoadState = 'ok';
       _serverLoadDetail = '';
+      _serverProfile = {
+        m: Object.keys(d.modelInputs || {}).length,
+        i: Object.keys(d.itemInputs || {}).length
+      };
       console.info(`[서버 로드] 성공 · 운영 윈도우 ${state.periodYear}년 ${state.periodStartMonth}월 시작 · 품목 ${Object.keys(state.itemInputs||{}).length}건`);
       return true;
     }
@@ -4675,6 +4721,8 @@ async function loadMastersFromServer() {
 
 // MASTERS 변경 시 공용 부품 캐시 무효화
 async function saveMastersToServer() {
+  // 서버 로드 전(내장 MASTERS 상태)에 저장하면 서버 마스터가 내장본으로 되돌아간다.
+  if (typeof canPersist === 'function' && !canPersist()) return;
   if (typeof invalidateSharedPartCache === 'function') invalidateSharedPartCache();
   try {
     const { error } = await _supa.from('app_state').upsert({
@@ -13444,7 +13492,11 @@ if (typeof loadHistoryFromServer === 'function') {
 
 // ── 일회성 LT 마이그레이션 (수입 60일 · 특정 국내 부품 90일) ──
 // idempotent: 이미 목표값이면 skip. 변경 발생 시에만 저장.
-(function migrateLTSpec() {
+// [중요] 즉시 실행하면 안 된다. 이 블록은 동기 구간에서 돌아가는데, 그 시점에는
+// 서버 로드(비동기)가 아직 끝나지 않아 state 가 내장 초기값(psm=5 · 모델 18 · 품목 69)이다.
+// 여기서 saveInputs() 를 부르면 그 초기값이 서버 main 을 덮어쓴다.
+// → 초기 로드 IIFE 안에서 _serverLoadState === 'ok' 를 확인한 뒤에만 호출한다.
+function migrateLTSpec() {
   const LT_TARGETS = [
     { pn: '119619', lt: 60, tag: 'POLYGON 60일' },
     { pn: '36369',  lt: 60, tag: 'POLYGON 60일' },
@@ -13482,13 +13534,15 @@ if (typeof loadHistoryFromServer === 'function') {
     });
     if (typeof saveInputs === 'function') saveInputs();
   }
-})();
+}
 
 // ── 수입업체 정식 영문명 일괄 변경 마이그레이션 ──
 // 'POLYGON' → 'POLYGON (XIAMEN) COMPOSITE MATERIALS LTD.'
 // '상해 인더스트리얼' / 'Shanghai Songhai Industrial Corp.' → 'Shanghai Nanhua Tooling Co.'
 //   (PDF 확인 결과 실제 업체는 上海南华工具厂 Shanghai Nanhua Tooling Co)
-(function migrateSupplierNames() {
+// [중요] migrateLTSpec 과 동일. 동기 구간에서 돌리면 서버 로드 전 상태가 저장되고,
+// MASTERS 수정분도 직후 서버 로드에 덮여 사라진다. 로드 완료 후에만 호출한다.
+function migrateSupplierNames() {
   const RENAME = {
     'POLYGON': 'POLYGON (XIAMEN) COMPOSITE MATERIALS LTD.',
     '상해 인더스트리얼': 'Shanghai Nanhua Tooling Co.',
@@ -13522,7 +13576,7 @@ if (typeof loadHistoryFromServer === 'function') {
     });
     if (typeof saveInputs === 'function') saveInputs();
   }
-})();
+}
 
 // ── 윈도우(periodStartMonth) 자동 복구 ──
 // [FROZEN 2026-09-04] 사용자 요청: 수동 설정한 윈도우 유지 · 자동 복귀 방지
