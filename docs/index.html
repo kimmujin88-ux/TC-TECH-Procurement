@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 오래된 빌드가 캐시에 남아 옛 동작을 하지 않도록 재검증을 강제 -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <title>TC TECH 구매품 발주·재고 관리 시스템</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -2775,8 +2777,26 @@ if (_loaded.periodYear) state.periodYear = _loaded.periodYear;
   if (n > 0) console.log('[마이그레이션] itemInputs 구→신 키 ' + n + '건 변환');
 }
 
+// ── Supabase 직접 연결 ──
+// 반드시 아래 async IIFE 보다 먼저 선언해야 한다.
+// const 는 호이스팅돼도 TDZ(일시적 사각지대)라, IIFE 가 동기 구간에서 _supa 를 건드리면
+// ReferenceError 가 나고 loadMastersFromServer 의 catch 가 이를 삼켜 조용히 false 를 반환한다.
+const _supa = supabase.createClient(
+  'https://ksgpejxcvwtkhvqaoiwj.supabase.co',
+  'sb_publishable_Rhbdq0rVFE7kiJgcXqnHIg_oQlL5LZd'
+);
+
+// 빌드 식별자 — 화면 우측 하단에 표시. 어떤 버전이 떠 있는지 즉시 확인용.
+const BUILD_ID = '2026-10-29-c';
+
+// 서버 로드 결과 — 'ok' 정상 / 'empty' 서버에 데이터 없음 / 'error' 통신·권한 실패 / 'pending' 미실행
+// ok 가 아닌 모든 상태에서 화면은 내장 초기값(4월말·5~8월)일 수 있으므로 저장을 막는다.
+let _serverLoadState = 'pending';
+let _serverLoadDetail = '';
+
 // 서버 데이터 비동기 로드 (서버 데이터가 있으면 우선 적용)
 (async () => {
+ try {
   const mastersLoaded = await loadMastersFromServer();
   const serverLoaded = await loadFromServer();
   if (serverLoaded || mastersLoaded) {
@@ -2799,8 +2819,16 @@ if (_loaded.periodYear) state.periodYear = _loaded.periodYear;
     updateOrderCount();
     renderAlarms();
   }
-  // 서버 연결 실패면 화면이 예전 값일 수 있음 → 경고 + 저장 잠금
-  if (_serverLoadState === 'error') showServerLoadError();
+ } catch (e) {
+   if (_serverLoadState === 'pending') _serverLoadState = 'error';
+   _serverLoadDetail = '초기 로드 예외: ' + ((e && e.message) || String(e));
+   console.error('[초기 로드] 예외 — 화면이 내장 초기값일 수 있음:', e);
+ } finally {
+   // ok 가 아니면 무조건 알린다.
+   // 'empty'·'pending' 도 화면은 내장 초기값(4월말·5~8월)이라 위험은 'error' 와 동일하다.
+   if (_serverLoadState !== 'ok') showServerLoadError();
+   renderBuildStamp();
+ }
 })();
 
 function getOrderQty(master) {
@@ -2872,6 +2900,9 @@ function saveInputs() {
     console.warn('[이전 사이클 보기 모드] 영속화 차단됨');
     return;
   }
+  // 서버 상태가 'ok' 가 아니면 localStorage 도 쓰지 않는다.
+  // 내장 초기값이 localStorage 에 한 번 저장되면 그 브라우저는 이후 매번 4월말로 뜬다(고착).
+  if (!canPersist()) return;
   pushUndoSnapshot();
   const payload = {
     modelInputs: state.modelInputs,
@@ -2916,11 +2947,7 @@ function saveInputs() {
   if (typeof renderAuditLog === 'function') renderAuditLog();
 }
 
-// ── Supabase 직접 연결 ──
-const _supa = supabase.createClient(
-  'https://ksgpejxcvwtkhvqaoiwj.supabase.co',
-  'sb_publishable_Rhbdq0rVFE7kiJgcXqnHIg_oQlL5LZd'
-);
+// (_supa 는 초기 로드 IIFE 앞에서 선언됨 — TDZ 방지. 여기로 되돌리지 말 것.)
 
 async function syncToServer(payload) {
   if (typeof canPersist === 'function' && !canPersist()) return;   // 서버 로드 실패 시 덮어쓰기 차단
@@ -2933,9 +2960,7 @@ async function syncToServer(payload) {
   } catch(e) { console.warn('Supabase 저장 실패', e); }
 }
 
-// 서버 로드 결과 — 'ok' 정상 / 'empty' 서버에 데이터 없음(최초) / 'error' 통신·권한 실패
-// error 일 때는 화면이 오래된 로컬 값으로 떠 있는 상태이므로 저장을 막아 서버 덮어쓰기를 방지한다.
-let _serverLoadState = 'pending';
+// (_serverLoadState / _serverLoadDetail 도 초기 로드 IIFE 앞에서 선언됨)
 
 async function loadFromServer() {
   try {
@@ -2944,8 +2969,13 @@ async function loadFromServer() {
       .select('state_json')
       .eq('id', 'main')
       .single();
-    if (error) { _serverLoadState = 'error'; console.error('[서버 로드] 실패:', error); return false; }
-    if (!data) { _serverLoadState = 'empty'; return false; }
+    if (error) {
+      _serverLoadState = 'error';
+      _serverLoadDetail = `조회 실패 ${error.code || ''} ${error.message || ''}`.trim();
+      console.error('[서버 로드] 실패:', error);
+      return false;
+    }
+    if (!data) { _serverLoadState = 'empty'; _serverLoadDetail = '서버 응답에 행이 없음'; return false; }
     const d = data.state_json;
     if (d && d.modelInputs) {
       state.modelInputs = d.modelInputs;
@@ -2963,12 +2993,15 @@ async function loadFromServer() {
       if (d.exchangeRate != null) state.exchangeRate = d.exchangeRate;
       if (typeof snapshotForAudit === 'function') _lastSavedSnapshot = snapshotForAudit();
       _serverLoadState = 'ok';
+      _serverLoadDetail = '';
       console.info(`[서버 로드] 성공 · 운영 윈도우 ${state.periodYear}년 ${state.periodStartMonth}월 시작 · 품목 ${Object.keys(state.itemInputs||{}).length}건`);
       return true;
     }
     _serverLoadState = 'empty';
+    _serverLoadDetail = 'state_json 에 modelInputs 가 없음';
   } catch(e) {
     _serverLoadState = 'error';
+    _serverLoadDetail = '예외: ' + ((e && e.message) || String(e));
     console.error('[서버 로드] 예외:', e);
   }
   return false;
@@ -2977,23 +3010,42 @@ async function loadFromServer() {
 // 서버 로드 실패를 사용자에게 알리고 저장을 막는다.
 // 알리지 않으면 오래된 로컬 데이터로 작업하다 서버를 덮어쓰게 된다.
 function showServerLoadError() {
+  if (!document.body) { document.addEventListener('DOMContentLoaded', showServerLoadError, { once: true }); return; }
   if (document.getElementById('server-load-error')) return;
+  // sanitize() 는 이 파일 아래쪽 const 라 TDZ 위험이 있어 지역 escape 를 쓴다.
+  const esc = s => (s == null ? '' : String(s)).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
   const bar = document.createElement('div');
   bar.id = 'server-load-error';
   bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#b91c1c;color:#fff;'
     + 'padding:10px 16px;text-align:center;font-size:12.5px;font-weight:700;letter-spacing:0.2px;'
     + 'box-shadow:0 2px 10px rgba(0,0,0,0.35);line-height:1.6;';
-  bar.innerHTML = '⚠ 서버에서 데이터를 불러오지 못했습니다 — 화면이 <u>예전 값</u>일 수 있습니다. '
-    + '이 상태에서 수정하면 서버 데이터를 덮어쓸 수 있어 <strong>저장이 잠겨 있습니다</strong>. '
-    + '<button id="btn-server-retry" style="margin-left:10px;padding:3px 12px;border-radius:4px;border:0;'
-    + 'background:#fff;color:#b91c1c;font-weight:800;cursor:pointer;">다시 시도</button>';
+  const btnCss = 'margin-left:8px;padding:3px 12px;border-radius:4px;border:0;'
+    + 'background:#fff;color:#b91c1c;font-weight:800;cursor:pointer;';
+  bar.innerHTML = '⚠ 서버에서 데이터를 불러오지 못했습니다 — 지금 화면은 <u>내장 초기값(4월말 · 5~8월)</u>일 수 있습니다. '
+    + '이 상태에서 수정하면 서버 데이터를 덮어쓸 수 있어 <strong>저장이 잠겨 있습니다</strong>.'
+    + `<br><span style="font-weight:500;opacity:0.9;font-size:11px;">상태 ${esc(_serverLoadState)}`
+    + (_serverLoadDetail ? ` · ${esc(_serverLoadDetail)}` : '')
+    + ` · 빌드 ${esc(BUILD_ID)}</span>`
+    + `<button id="btn-server-retry" style="${btnCss}">다시 시도</button>`
+    + `<button id="btn-server-reset" style="${btnCss}" title="이 브라우저에 남은 옛 데이터를 지우고 서버에서 새로 받습니다">로컬 캐시 비우고 새로고침</button>`;
   document.body.appendChild(bar);
+  document.getElementById('btn-server-reset').addEventListener('click', () => {
+    if (!confirm('이 브라우저에 저장된 옛 데이터를 지우고 서버에서 새로 받습니다.\n\n서버 데이터는 건드리지 않습니다. 계속할까요?')) return;
+    try {
+      // 입력값 캐시만 제거. 로컬 백업(tctech_local_backups_v1)·탐스톤은 보존한다.
+      [STORAGE_KEY, STORAGE_KEY_V2, STORAGE_KEY_V1, STORAGE_KEY_HISTORY].forEach(k => {
+        if (k) localStorage.removeItem(k);
+      });
+    } catch (e) { console.warn('로컬 캐시 제거 실패', e); }
+    location.reload();
+  });
   document.getElementById('btn-server-retry').addEventListener('click', async () => {
     const b = document.getElementById('btn-server-retry');
     b.disabled = true; b.textContent = '불러오는 중...';
     const ok = await loadFromServer();
     if (ok) {
       bar.remove();
+      renderBuildStamp();
       if (typeof updateStaticMonthLabels === 'function') updateStaticMonthLabels();
       if (typeof renderForm === 'function') renderForm();
       if (typeof renderDashboard === 'function') renderDashboard();
@@ -3007,13 +3059,33 @@ function showServerLoadError() {
   });
 }
 
-// 저장 가드 — 서버 로드 실패 상태에서는 저장을 막는다 (덮어쓰기 방지)
+// 저장 가드 — 서버 상태를 확실히 불러온 경우('ok')에만 저장을 허용한다.
+// 'empty'·'pending'·'error' 는 모두 화면이 내장 초기값일 수 있는 상태라 덮어쓰기 위험이 동일하다.
 function canPersist() {
-  if (_serverLoadState === 'error') {
-    console.warn('[저장 차단] 서버 로드 실패 상태 — 덮어쓰기 방지');
+  if (_serverLoadState !== 'ok') {
+    console.warn(`[저장 차단] 서버 상태 ${_serverLoadState} — 덮어쓰기 방지`);
     return false;
   }
   return true;
+}
+
+// 빌드/연결 상태 표시 — 화면만 보고 어떤 버전이 떠 있는지 알 수 있게 한다.
+function renderBuildStamp() {
+  if (!document.body) { document.addEventListener('DOMContentLoaded', renderBuildStamp, { once: true }); return; }
+  let el = document.getElementById('build-stamp');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'build-stamp';
+    el.style.cssText = 'position:fixed;right:8px;bottom:6px;z-index:99990;font-size:10px;'
+      + 'padding:2px 7px;border-radius:4px;pointer-events:none;opacity:0.75;'
+      + 'font-family:ui-monospace,Menlo,Consolas,monospace;';
+    document.body.appendChild(el);
+  }
+  const ok = _serverLoadState === 'ok';
+  el.style.background = ok ? 'rgba(22,101,52,0.85)' : '#b91c1c';
+  el.style.color = '#fff';
+  const win = ok ? ` · ${state.periodYear}/${state.periodStartMonth}월~` : '';
+  el.textContent = `build ${BUILD_ID} · 서버 ${_serverLoadState}${win}`;
 }
 
 function flashSaved() {
