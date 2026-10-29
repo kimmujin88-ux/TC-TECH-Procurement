@@ -2787,7 +2787,7 @@ const _supa = supabase.createClient(
 );
 
 // 빌드 식별자 — 화면 우측 하단에 표시. 어떤 버전이 떠 있는지 즉시 확인용.
-const BUILD_ID = '2026-10-29-d';
+const BUILD_ID = '2026-10-29-e';
 
 // 서버 로드 결과 — 'ok' 정상 / 'empty' 서버에 데이터 없음 / 'error' 통신·권한 실패 / 'pending' 미실행
 // ok 가 아닌 모든 상태에서 화면은 내장 초기값(4월말·5~8월)일 수 있으므로 저장을 막는다.
@@ -3118,20 +3118,50 @@ function canPersist() {
 // 빌드/연결 상태 표시 — 화면만 보고 어떤 버전이 떠 있는지 알 수 있게 한다.
 function renderBuildStamp() {
   if (!document.body) { document.addEventListener('DOMContentLoaded', renderBuildStamp, { once: true }); return; }
+  const ok = _serverLoadState === 'ok';
   let el = document.getElementById('build-stamp');
   if (!el) {
-    el = document.createElement('div');
+    el = document.createElement('span');
     el.id = 'build-stamp';
-    el.style.cssText = 'position:fixed;right:8px;bottom:6px;z-index:99990;font-size:10px;'
-      + 'padding:2px 7px;border-radius:4px;pointer-events:none;opacity:0.75;'
-      + 'font-family:ui-monospace,Menlo,Consolas,monospace;';
-    document.body.appendChild(el);
+    // 헤더의 '자동 저장' 옆이 제자리. 없으면(로그인 화면 등) 우측 하단으로 폴백.
+    const anchor = document.getElementById('save-indicator');
+    if (anchor && anchor.parentNode) {
+      anchor.insertAdjacentElement('afterend', el);
+      el.dataset.place = 'header';
+    } else {
+      el.dataset.place = 'float';
+      document.body.appendChild(el);
+    }
+  } else if (el.dataset.place === 'float') {
+    // 처음엔 헤더가 없어 띄워뒀다면, 헤더가 생긴 뒤 제자리로 옮긴다.
+    const anchor = document.getElementById('save-indicator');
+    if (anchor && anchor.parentNode) { anchor.insertAdjacentElement('afterend', el); el.dataset.place = 'header'; }
   }
-  const ok = _serverLoadState === 'ok';
-  el.style.background = ok ? 'rgba(22,101,52,0.85)' : '#b91c1c';
-  el.style.color = '#fff';
-  const win = ok ? ` · ${state.periodYear}/${state.periodStartMonth}월~` : '';
-  el.textContent = `build ${BUILD_ID} · 서버 ${_serverLoadState}${win}`;
+  const base = 'font-size:10px;font-family:ui-monospace,Menlo,Consolas,monospace;'
+    + 'padding:2px 7px;border-radius:4px;white-space:nowrap;letter-spacing:0.2px;';
+  el.style.cssText = el.dataset.place === 'header'
+    ? base + 'margin-left:6px;display:inline-flex;align-items:center;gap:4px;vertical-align:middle;'
+    : base + 'position:fixed;right:8px;bottom:6px;z-index:99990;pointer-events:none;opacity:0.8;';
+
+  if (ok) {
+    // 정상일 때는 조용하게 — 운영 윈도우만 보여주고 상세는 툴팁으로
+    const psm = state.periodStartMonth, end = ((psm + 3 - 1) % 12) + 1;
+    el.style.background = 'rgba(22,101,52,0.22)';
+    el.style.color = '#4ade80';
+    el.style.border = '0.5px solid rgba(74,222,128,0.35)';
+    el.textContent = `● ${psm}~${end}월`;
+    el.title = `빌드 ${BUILD_ID} · 서버 ok\n`
+      + `${state.periodYear}년 ${(psm - 1) || 12}월말 현물재고 기준 · ${psm}~${end}월 운영`;
+  } else {
+    // 비정상일 때는 눈에 띄게
+    el.style.background = '#b91c1c';
+    el.style.color = '#fff';
+    el.style.border = '0.5px solid #ef4444';
+    el.textContent = `● 서버 ${_serverLoadState}`;
+    el.title = `빌드 ${BUILD_ID} · 서버 ${_serverLoadState}`
+      + (_serverLoadDetail ? `\n${_serverLoadDetail}` : '')
+      + '\n화면이 내장 초기값일 수 있습니다. 저장이 잠겨 있습니다.';
+  }
 }
 
 function flashSaved() {
@@ -3309,6 +3339,7 @@ function updateStaticMonthLabels() {
     const opt = document.querySelector(`#dash-month-select option[value="${mo}"]`);
     if (opt) opt.textContent = monthLabel(mo);
   });
+  if (typeof renderBuildStamp === 'function') renderBuildStamp();  // 윈도우가 바뀌면 헤더 표시도 갱신
   const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   setText('period-section-title', `▎ ${yearOfMonth('may')}년 ${priorMonthLabel()}말 현물재고 기준 · ${rangeLabel()} 운영 양식`);
   // 운영 현황 + 재무 분석은 3개월 기준(rangeLabelOps) — 발주 의사결정 가능 범위
@@ -14148,6 +14179,7 @@ function setDefaultHistoryDueMonth() {
     if (role === 'viewer') document.body.classList.add('viewer-mode');
     else document.body.classList.remove('viewer-mode');
     syncViewerBannerHeight();
+    if (typeof renderBuildStamp === 'function') renderBuildStamp();  // 헤더가 보이는 시점에 제자리로
   }
   function showLogin(){
     overlay.style.display = 'flex';
